@@ -16,6 +16,8 @@ This project integrates a Crawl4AI api with Supabase and LLM Chat to create a po
 - Automatic content chunking for better LLM interaction and search precision
 - Configurable limits for sitemap crawling to control resource usage
 
+![Image](https://github.com/user-attachments/assets/34d79a96-2d60-4221-a1f7-3a8582129855)
+
 ## Prerequisites
 
 - Python 3.10+
