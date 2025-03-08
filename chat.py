@@ -822,8 +822,92 @@ Respond with ONLY the strategy name (e.g., "REGULAR_SEARCH").
             self.add_assistant_message(response_text)
             return response_text
         
-        # Search for relevant context from the database
-        results = self.search_for_context(query)
+        # Check if this is a follow-up question about something the assistant just mentioned
+        is_followup = False
+        last_assistant_message = None
+        last_user_message = None
+        
+        # Get the last few messages to check for follow-up context
+        recent_messages = self.conversation_history[-10:] if len(self.conversation_history) > 10 else self.conversation_history
+        
+        # Find the last assistant and user messages
+        for msg in reversed(recent_messages):
+            if msg["role"] == "assistant" and not last_assistant_message:
+                last_assistant_message = msg["content"]
+            elif msg["role"] == "user" and not last_user_message and msg["content"] != query:
+                last_user_message = msg["content"]
+            
+            if last_assistant_message and last_user_message:
+                break
+        
+        # If we have both messages, check if this is a follow-up
+        if last_assistant_message and last_user_message:
+            try:
+                # Use the LLM to determine if this is a follow-up question
+                followup_prompt = f"""Determine if this user query is a follow-up question about something mentioned in the assistant's previous response.
+
+Previous assistant response: 
+{last_assistant_message}
+
+User's current query: 
+{query}
+
+Respond with ONLY "YES" if it's a follow-up question about something the assistant just mentioned, or "NO" if it's a new topic.
+"""
+                
+                # Use a smaller model for this analysis
+                analysis_model = os.getenv("CHAT_MODEL", "gpt-4o-mini")
+                
+                response = self.client.chat.completions.create(
+                    model=analysis_model,
+                    messages=[{"role": "user", "content": followup_prompt}],
+                    temperature=0.1,
+                    max_tokens=10
+                )
+                
+                # Extract the response
+                is_followup = "YES" in response.choices[0].message.content.strip().upper()
+                
+                if is_followup:
+                    console.print("[blue]Detected follow-up question about previous response[/blue]")
+            except Exception as e:
+                console.print(f"[red]Error analyzing follow-up question: {e}[/red]")
+        
+        # If it's a follow-up question, prioritize searching for content related to what was just discussed
+        if is_followup and last_assistant_message:
+            # Extract key entities from the last assistant message to use as search terms
+            try:
+                entity_prompt = f"""Extract the key entities (names, products, technologies, concepts) mentioned in this text:
+
+{last_assistant_message}
+
+List ONLY the 3-5 most important entities, separated by commas. No explanations.
+"""
+                
+                entity_response = self.client.chat.completions.create(
+                    model=analysis_model,
+                    messages=[{"role": "user", "content": entity_prompt}],
+                    temperature=0.1,
+                    max_tokens=50
+                )
+                
+                # Extract the entities
+                entities = entity_response.choices[0].message.content.strip()
+                console.print(f"[blue]Extracted entities from previous response: {entities}[/blue]")
+                
+                # Create an enhanced query combining the original query with the entities
+                enhanced_query = f"{query} {entities}"
+                console.print(f"[blue]Enhanced query: {enhanced_query}[/blue]")
+                
+                # Search with the enhanced query
+                results = self.search_for_context(enhanced_query)
+            except Exception as e:
+                console.print(f"[red]Error enhancing query with entities: {e}[/red]")
+                # Fall back to regular search
+                results = self.search_for_context(query)
+        else:
+            # Regular search for non-follow-up questions
+            results = self.search_for_context(query)
         
         # Format the context
         context = self.format_context(results)
@@ -875,6 +959,10 @@ IMPORTANT: Pay close attention to the conversation history. If the user refers t
 make sure to reference that information in your response. Remember user preferences, likes, dislikes, and any
 personal information they've shared during the conversation.
 
+CRITICAL: If the user asks a follow-up question about something you just mentioned in your previous response,
+make sure to provide detailed information about that topic. Never claim ignorance about something you just discussed.
+Always maintain continuity in the conversation.
+
 When presenting URLs to users, make sure to remove any '#chunk-X' fragments from the URLs to make them cleaner.
 For example, change 'https://example.com/page/#chunk-0' to 'https://example.com/page/'.
 """
@@ -914,6 +1002,13 @@ For example, change 'https://example.com/page/#chunk-0' to 'https://example.com/
         
         # Add the current query
         messages.append({"role": "user", "content": query})
+        
+        # If this is a follow-up question, add a special reminder about the previous response
+        if is_followup and last_assistant_message:
+            messages.append({
+                "role": "system", 
+                "content": f"IMPORTANT: This is a follow-up question about something you mentioned in your previous response. Your previous response was:\n\n{last_assistant_message}\n\nMake sure to provide detailed information about the topic the user is asking about."
+            })
         
         # Add the conversation analysis if available
         if conversation_analysis and conversation_analysis != "No relevant information found.":
@@ -1004,13 +1099,35 @@ For example, change 'https://example.com/page/#chunk-0' to 'https://example.com/
         
         console.print(table)
     
+    def clear_all_conversation_history(self):
+        """Clear all conversation history from the database."""
+        if not self.crawler:
+            console.print("[yellow]No database connection, cannot clear conversation history[/yellow]")
+            return
+            
+        try:
+            if self.crawler.db_client.clear_all_conversation_history():
+                console.print("[green]All conversation history has been cleared from the database[/green]")
+                # Also clear the in-memory history for the current session
+                self.conversation_history = []
+                # Add a new system message
+                system_prompt = self.profile.get('system_prompt', DEFAULT_PROFILES['default']['system_prompt'])
+                if self.user_id:
+                    system_prompt += f"\n\nThe user's name is {self.user_id}."
+                self.add_system_message(system_prompt)
+            else:
+                console.print("[red]Failed to clear all conversation history[/red]")
+        except Exception as e:
+            console.print(f"[red]Error clearing all conversation history: {e}[/red]")
+
     def chat_loop(self):
         """Run an interactive chat loop."""
         console.print(Panel.fit(
             "[bold cyan]Welcome to the Crawl4AI Chat Interface![/bold cyan]\n"
             "Ask questions about the crawled data or use these commands:\n"
             "[bold red]'exit'[/bold red] to quit\n"
-            "[bold red]'clear'[/bold red] to clear the conversation history\n"
+            "[bold red]'clear'[/bold red] to clear the current session's conversation history\n"
+            "[bold red]'clear all'[/bold red] to clear ALL conversation history from the database\n"
             "[bold red]'history'[/bold red] to view the conversation history\n"
             "[bold red]'profile <name>'[/bold red] to change the chat profile\n"
             "[bold red]'profiles'[/bold red] to list available profiles",
@@ -1025,44 +1142,83 @@ For example, change 'https://example.com/page/#chunk-0' to 'https://example.com/
             console.print(f"[bold green]Session ID:[/bold green] [blue]{self.session_id}[/blue]")
             console.print("[yellow]To save your name for future sessions, use --user parameter (e.g., python chat.py --user YourName)[/yellow]")
         
-        while True:
-            # Get user input
-            query = Prompt.ask("\n[bold green]You[/bold green]")
-            
-            # Check if the user wants to exit
-            if query.lower() in ['exit', 'quit', 'bye']:
-                console.print(Panel("[bold cyan]Goodbye![/bold cyan]", border_style="blue"))
-                break
-            
-            # Check if the user wants to clear the conversation history
-            if query.lower() == 'clear':
-                self.clear_conversation_history()
-                continue
-            
-            # Check if the user wants to view the conversation history
-            if query.lower() == 'history':
-                self.show_conversation_history()
-                continue
-            
-            # Check if the user wants to list available profiles
-            if query.lower() == 'profiles':
-                self.show_profiles()
-                continue
-            
-            # Check if the user wants to change the profile
-            if query.lower().startswith('profile '):
-                profile_name = query.lower().split('profile ')[1].strip()
-                self.change_profile(profile_name)
-                continue
-            
-            # Show thinking indicator
-            with console.status("[bold blue]Thinking...[/bold blue]", spinner="dots"):
-                # Get a response
-                response = self.get_response(query)
-            
-            # Print the response
-            console.print("\n[bold purple]Assistant[/bold purple]")
-            console.print(Panel(Markdown(response), border_style="purple"))
+        try:
+            while True:
+                try:
+                    # Get user input with a timeout
+                    query = Prompt.ask("\n[bold green]You[/bold green]")
+                    
+                    # Skip empty queries
+                    if not query.strip():
+                        console.print("[yellow]Please enter a question or command.[/yellow]")
+                        continue
+                    
+                    # Check if the user wants to exit
+                    if query.lower() in ['exit', 'quit', 'bye']:
+                        console.print(Panel("[bold cyan]Goodbye![/bold cyan]", border_style="blue"))
+                        break
+                    
+                    # Check if the user wants to clear the current conversation history
+                    if query.lower() == 'clear':
+                        self.clear_conversation_history()
+                        continue
+                    
+                    # Check if the user wants to clear ALL conversation history
+                    if query.lower() == 'clear all':
+                        # Ask for confirmation
+                        confirm = Prompt.ask("[bold red]This will delete ALL conversation history for ALL sessions. Are you sure?[/bold red] (yes/no)")
+                        if confirm.lower() in ['yes', 'y']:
+                            self.clear_all_conversation_history()
+                        else:
+                            console.print("[green]Operation cancelled[/green]")
+                        continue
+                    
+                    # Check if the user wants to view the conversation history
+                    if query.lower() == 'history':
+                        self.show_conversation_history()
+                        continue
+                    
+                    # Check if the user wants to list available profiles
+                    if query.lower() == 'profiles':
+                        self.show_profiles()
+                        continue
+                    
+                    # Check if the user wants to change the profile
+                    if query.lower().startswith('profile '):
+                        profile_name = query.lower().split('profile ')[1].strip()
+                        self.change_profile(profile_name)
+                        continue
+                    
+                    # Show thinking indicator
+                    with console.status("[bold blue]Thinking...[/bold blue]", spinner="dots"):
+                        # Get a response with a timeout
+                        try:
+                            response = self.get_response(query)
+                        except Exception as e:
+                            console.print(f"[red]Error getting response: {e}[/red]")
+                            response = "I'm sorry, I encountered an error while processing your request. Please try again."
+                    
+                    # Print the response
+                    console.print("\n[bold purple]Assistant[/bold purple]")
+                    console.print(Panel(Markdown(response), border_style="purple"))
+                
+                except KeyboardInterrupt:
+                    # Handle Ctrl+C gracefully
+                    console.print("\n[yellow]Interrupted by user. Type 'exit' to quit or continue with your next question.[/yellow]")
+                    continue
+                except Exception as e:
+                    console.print(f"\n[red]An error occurred: {e}[/red]")
+                    console.print("[yellow]Please try again or type 'exit' to quit.[/yellow]")
+                    continue
+        
+        except KeyboardInterrupt:
+            # Final exit on Ctrl+C
+            console.print("\n[bold cyan]Goodbye![/bold cyan]")
+        except Exception as e:
+            console.print(f"\n[red]Fatal error: {e}[/red]")
+        finally:
+            # Make sure we always exit cleanly
+            console.print("[dim]Chat session ended.[/dim]")
 
     def analyze_conversation_history(self, query: str) -> str:
         """Analyze the conversation history using an LLM to extract relevant information.
@@ -1079,23 +1235,33 @@ For example, change 'https://example.com/page/#chunk-0' to 'https://example.com/
         
         console.print("[blue]Analyzing conversation history with LLM...[/blue]")
         
-        # Extract preferences from metadata
-        preferences = []
-        for message in self.conversation_history:
-            if message.get("metadata") and "preference" in message.get("metadata", {}):
-                preference = message["metadata"]["preference"]
-                if preference not in preferences:
-                    preferences.append(preference)
-        
-        # Format the conversation history for the LLM
-        history_text = ""
-        for message in self.conversation_history:
-            if message["role"] != "system":  # Skip system messages
-                role = "User" if message["role"] == "user" else "Assistant"
-                history_text += f"{role}: {message['content']}\n\n"
-        
-        # Create a prompt for the LLM
-        prompt = f"""Analyze the following conversation history and extract relevant information that would help answer the user's current query: "{query}"
+        try:
+            # Extract preferences from metadata
+            preferences = []
+            for message in self.conversation_history:
+                if message.get("metadata") and "preference" in message.get("metadata", {}):
+                    preference = message["metadata"]["preference"]
+                    if preference not in preferences:
+                        preferences.append(preference)
+            
+            # Format the conversation history for the LLM
+            history_text = ""
+            
+            # Limit the amount of history to analyze to avoid token limits
+            max_history_messages = 10
+            history_to_analyze = self.conversation_history[-max_history_messages:] if len(self.conversation_history) > max_history_messages else self.conversation_history
+            
+            for message in history_to_analyze:
+                if message["role"] != "system":  # Skip system messages
+                    role = "User" if message["role"] == "user" else "Assistant"
+                    # Truncate very long messages
+                    content = message["content"]
+                    if len(content) > 500:
+                        content = content[:500] + "..."
+                    history_text += f"{role}: {content}\n\n"
+            
+            # Create a prompt for the LLM
+            prompt = f"""Analyze the following conversation history and extract relevant information that would help answer the user's current query: "{query}"
 
 Focus on:
 1. User preferences (likes, dislikes, favorites)
@@ -1105,31 +1271,31 @@ Focus on:
 
 """
 
-        # Add extracted preferences if available
-        if preferences:
-            prompt += "Known user preferences from previous messages:\n"
-            for pref in preferences:
-                prompt += f"- {pref}\n"
-            prompt += "\n"
+            # Add extracted preferences if available
+            if preferences:
+                prompt += "Known user preferences from previous messages:\n"
+                for pref in preferences:
+                    prompt += f"- {pref}\n"
+                prompt += "\n"
 
-        prompt += f"""Conversation History:
+            prompt += f"""Conversation History:
 {history_text}
 
 Provide a concise summary of ONLY the information that is directly relevant to the current query.
 Focus especially on preferences and personal information that would help answer the query.
 If there is no relevant information, respond with "No relevant information found."
 """
-        
-        # Use a smaller, faster model for this analysis
-        analysis_model = os.getenv("CHAT_MODEL", "gpt-4o-mini")
-        
-        try:
-            # Get a response from the LLM
+            
+            # Use a smaller, faster model for this analysis
+            analysis_model = os.getenv("CHAT_MODEL", "gpt-4o-mini")
+            
+            # Get a response from the LLM with a timeout
             response = self.client.chat.completions.create(
                 model=analysis_model,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.3,
-                max_tokens=500
+                max_tokens=500,
+                timeout=10  # 10 second timeout
             )
             
             # Extract the response text
@@ -1141,7 +1307,7 @@ If there is no relevant information, respond with "No relevant information found
             return analysis
         except Exception as e:
             console.print(f"[red]Error analyzing conversation history: {e}[/red]")
-            return ""
+            return "Error analyzing conversation history. Proceeding without historical context."
 
 def main():
     """Run the chat interface."""

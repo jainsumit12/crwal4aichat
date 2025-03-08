@@ -1059,4 +1059,20 @@ class SupabaseClient:
             return []
         finally:
             if conn:
-                conn.close() 
+                conn.close()
+    
+    def clear_all_conversation_history(self) -> bool:
+        """Clear all conversation history from the database.
+        
+        Returns:
+            True if successful, False otherwise.
+        """
+        try:
+            with self._get_connection() as conn:
+                with conn.cursor() as cursor:
+                    cursor.execute("DELETE FROM chat_conversations")
+                    conn.commit()
+                    return True
+        except Exception as e:
+            print(f"Error clearing all conversation history: {e}")
+            return False 

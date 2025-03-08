@@ -1,6 +1,6 @@
-# Crawl4AI with Supabase Vector Search
+# Crawl4AI with Supabase Vector Search and Chat
 
-This project integrates Crawl4AI with Supabase to create a powerful web crawling and semantic search solution. It crawls websites, stores the content in a Supabase database with vector embeddings, and provides semantic search capabilities.
+This project integrates a Crawl4AI api with Supabase and LLM Chat to create a powerful web crawling and semantic search solution. It crawls websites, stores the content in a Supabase database with vector embeddings, and provides semantic search capabilities with real Chat memory.
 
 ## Features
 
@@ -18,7 +18,7 @@ This project integrates Crawl4AI with Supabase to create a powerful web crawling
 
 ## Prerequisites
 
-- Python 3.8+
+- Python 3.10+
 - A running Crawl4AI instance (self-hosted or cloud)
 - A Supabase instance (local or cloud)
 - OpenAI API key for generating embeddings and content summaries
@@ -37,17 +37,18 @@ This project integrates Crawl4AI with Supabase to create a powerful web crawling
    ```
 
 3. Create a `.env` file with your configuration:
-   ```
+
+   ```env
    # Crawl4AI Configuration
    CRAWL4AI_API_TOKEN=your_crawl4ai_api_token
    CRAWL4AI_BASE_URL=your_crawl4ai_base_url
 
    # Supabase Configuration
-   # Option 1: Use a single URL (can be with or without protocol)
+   # With protocol (for remote instances)
+   # SUPABASE_URL=https://your-project.supabase.co:5432
+   
+   # Without protocol (for local instances)
    SUPABASE_URL=192.168.70.90:54322
-   # Option 2: Or use individual components (these are used if SUPABASE_URL is not set)
-   # SUPABASE_HOST=192.168.70.90
-   # SUPABASE_PORT=54322
    # Database credentials (required for both options)
    SUPABASE_DB=postgres
    SUPABASE_KEY=postgres
@@ -71,6 +72,18 @@ This project integrates Crawl4AI with Supabase to create a powerful web crawling
    CRAWL_SITE_NAME=
    # Optional description for the site
    CRAWL_SITE_DESCRIPTION=
+   # Number of results to retrieve for each query
+   CHAT_RESULT_LIMIT=5
+   # Similarity threshold for vector search (0-1)
+   CHAT_SIMILARITY_THRESHOLD=0.7 
+   # Default session ID (if not provided, a new one will be generated)
+   CHAT_SESSION_ID=
+   # Default user ID (optional, name, user, i.e. pete)
+   CHAT_USER_ID=
+   # Default chat profile (default, pydantic, technical, concise,  etc. see profiles directory)
+   CHAT_PROFILE=default
+   # Directory containing profile YAML files
+   CHAT_PROFILES_DIR=profiles 
    ```
 
 ## Database Connection Options
@@ -86,20 +99,13 @@ The project supports two ways to connect to your Supabase database:
    SUPABASE_URL=192.168.70.90:54322
    ```
 
-2. **Individual Components** (Option 2): Use this if you prefer to specify host and port separately.
-   ```
-   SUPABASE_HOST=192.168.70.90
-   SUPABASE_PORT=54322
-   ```
+You'll need to provide the database credentials:
 
-In both cases, you'll need to provide the database credentials:
-```
-SUPABASE_DB=postgres
-SUPABASE_KEY=postgres
-SUPABASE_PASSWORD=postgres
-```
-
-The system will automatically detect which option you're using and configure the connection accordingly.
+   ```env
+   SUPABASE_DB=postgres
+   SUPABASE_KEY=postgres
+   SUPABASE_PASSWORD=postgres
+   ```
 
 ## Content Chunking for LLM Interaction
 
@@ -221,20 +227,10 @@ You can crawl a website in two ways:
    python run_crawl.py
    ```
 
-   Or, you can run the main script without specifying a URL:
-   ```
-   python main.py crawl
-   ```
 
 ### Title and Summary Generation
 
 The crawler automatically generates titles and summaries for crawled content using OpenAI. You can configure the model used for this in the `.env` file:
-
-```
-OPENAI_CONTENT_MODEL=gpt-3.5-turbo
-```
-
-For better quality titles and summaries, you can use a more powerful model like `gpt-4o-mini` or `gpt-4`:
 
 ```
 OPENAI_CONTENT_MODEL=gpt-4o-mini
@@ -371,7 +367,7 @@ Key features:
   - Type `history` to view the conversation history
   - Type `exit` to quit the chat interface
 
-**Important**: To maintain the same conversation across multiple chat sessions, you must use the same session ID. The session ID is displayed when you start the chat interface. You can specify it when starting a new chat session:
+**Important**: To maintain the same conversation across multiple chat sessions, you must use the same session ID. The session ID is displayed when you start the chat interface. You can specify it before starting a new chat session:
 
 ```bash
 # Start a new chat session
@@ -586,9 +582,3 @@ When you crawl a site multiple times, the system will update existing pages rath
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
-
-## Acknowledgements
-
-- [Crawl4AI](https://github.com/unclecode/crawl4ai) for the web crawling functionality
-- [Supabase](https://supabase.com/) for the database and vector search capabilities
-- [OpenAI](https://openai.com/) for the embedding models and LLM 
