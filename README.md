@@ -371,6 +371,39 @@ Key features:
   - Type `history` to view the conversation history
   - Type `exit` to quit the chat interface
 
+**Important**: To maintain the same conversation across multiple chat sessions, you must use the same session ID. The session ID is displayed when you start the chat interface. You can specify it when starting a new chat session:
+
+```bash
+# Start a new chat session
+python chat.py --user Joe
+# Note the session ID displayed (e.g., "Session ID: a24b6b72-e526-4a09-b662-0f85e82f78a7")
+
+# Later, continue the same conversation by specifying the session ID
+python chat.py --user Joe --session a24b6b72-e526-4a09-b662-0f85e82f78a7
+```
+
+You can also set a default session ID in your `.env` file:
+
+```
+CHAT_SESSION_ID=your-session-id
+```
+
+This way, the chat interface will always use the same session ID unless you explicitly specify a different one with the `--session` parameter.
+
+#### User Preferences and Memory
+
+The chat interface can remember user preferences and information shared during conversations, as long as you use the same session ID. For example:
+- If you tell the assistant "I like Corvettes" in one session
+- Then in a later session (using the same session ID), ask "What cars do I like?"
+- The assistant will remember and respond with "You like Corvettes"
+
+This memory persistence works by:
+1. Storing all messages in the database with the session ID
+2. Analyzing conversation history when relevant questions are asked
+3. Extracting user preferences and information from previous messages
+
+To get the most out of this feature, always use the same session ID and user ID when you want the assistant to remember previous conversations.
+
 #### Chat Profiles
 
 The chat interface supports different profiles that customize the behavior of the assistant. Each profile has its own system prompt, search settings, and site filtering capabilities.
