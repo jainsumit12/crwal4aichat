@@ -48,7 +48,7 @@ This project integrates a Crawl4AI api with Supabase and LLM Chat to create a po
    # SUPABASE_URL=https://your-project.supabase.co:5432
    
    # Without protocol (for local instances)
-   SUPABASE_URL=192.168.70.90:54322
+   SUPABASE_URL=192.168.xx.xx:54322
    # Database credentials (required for both options)
    SUPABASE_DB=postgres
    SUPABASE_KEY=postgres
@@ -96,7 +96,7 @@ The project supports two ways to connect to your Supabase database:
    SUPABASE_URL=https://your-project.supabase.co:5432
    
    # Without protocol (for local instances)
-   SUPABASE_URL=192.168.70.90:54322
+   SUPABASE_URL=192.168.xx.xx:54322
    ```
 
 You'll need to provide the database credentials:
