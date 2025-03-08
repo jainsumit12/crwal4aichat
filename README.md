@@ -397,6 +397,30 @@ You can also view all available profiles:
 profiles
 ```
 
+#### How Site Filtering Works
+
+The `sites` array in each profile's `search_settings` controls which sites the assistant searches through when answering questions:
+
+```yaml
+search_settings:
+  sites: ["pydantic"]  # Only search in sites with "pydantic" in the name
+  threshold: 0.6
+  limit: 8
+```
+
+Here's how the filtering works:
+
+1. **Empty array (`sites: []`)**: Searches across ALL sites in the database
+2. **Site patterns**: Filters to only include sites where the site name contains any of the specified patterns
+3. **Pattern matching**: Uses case-insensitive partial matching, so `"bigsk1"` would match site names like "Bigsk1 Com", "bigsk1.com", etc.
+4. **Multiple patterns**: You can include multiple patterns to search across several related sites
+
+The filtering process:
+- When a user asks a question, the system looks at the current profile's `sites` setting
+- It queries the `crawl_sites` table to find site IDs where the name contains any of the patterns
+- It then only searches for content in pages associated with those site IDs
+- This allows profiles to focus on specific content sources, making responses more relevant
+
 #### Custom Profiles
 
 You can create your own custom profiles by adding YAML files to the `profiles` directory. Each profile file should include:

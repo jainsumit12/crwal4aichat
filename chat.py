@@ -303,34 +303,62 @@ class ChatBot:
         Returns:
             List of relevant documents.
         """
+        # Check if the user is asking for URLs
+        url_keywords = ["url", "urls", "link", "links", "website", "websites", "site", "sites", "page", "pages"]
+        is_url_request = any(keyword in query.lower() for keyword in url_keywords)
+        
         # If the profile specifies specific sites to search, filter by site name
         search_sites = self.search_sites
         
+        # If the user is asking for URLs and we have specific sites to search
+        if is_url_request and search_sites:
+            all_urls = []
+            for site_pattern in search_sites:
+                urls = self.crawler.db_client.get_urls_by_site_name(site_pattern, limit=self.result_limit)
+                all_urls.extend(urls)
+            
+            if all_urls:
+                # Sort by ID (most recent first) and limit
+                all_urls.sort(key=lambda x: x.get("id", 0), reverse=True)
+                all_urls = all_urls[:self.result_limit]
+                
+                # Add a special flag to indicate these are URLs
+                for url in all_urls:
+                    url["is_url_result"] = True
+                
+                return all_urls
+        
+        # Regular search if not asking for URLs or no URLs found
         if search_sites:
             # Get all sites
             all_sites = self.crawler.db_client.get_all_sites()
             
             # Filter sites by name
             filtered_site_ids = []
+            filtered_site_names = []
             for site in all_sites:
                 for search_term in search_sites:
                     if search_term.lower() in site["name"].lower():
                         filtered_site_ids.append(site["id"])
+                        filtered_site_names.append(site["name"])
                         break
             
             if filtered_site_ids:
-                console.print(f"[blue]Searching in {len(filtered_site_ids)} sites matching profile criteria[/blue]")
+                console.print(f"Searching in {len(filtered_site_ids)} sites matching profile criteria")
                 
                 # Search in each site and combine results
                 all_results = []
                 for site_id in filtered_site_ids:
-                    site_results = self.crawler.search(
-                        query, 
-                        limit=self.result_limit,
-                        threshold=self.similarity_threshold,
-                        site_id=site_id
-                    )
-                    all_results.extend(site_results)
+                    try:
+                        site_results = self.crawler.search(
+                            query, 
+                            limit=self.result_limit,
+                            threshold=self.similarity_threshold,
+                            site_id=site_id
+                        )
+                        all_results.extend(site_results)
+                    except Exception as e:
+                        console.print(f"[red]Error searching site ID {site_id}: {e}[/red]")
                 
                 # Sort by similarity and limit results
                 all_results.sort(key=lambda x: x.get("similarity", 0), reverse=True)
@@ -356,6 +384,25 @@ class ChatBot:
         """
         if not results:
             return "No relevant information found."
+        
+        # Check if these are URL results
+        if results[0].get("is_url_result", False):
+            context_parts = ["Here are some URLs from the database:"]
+            
+            for i, result in enumerate(results):
+                title = result.get('title', 'No title')
+                url = result.get('url', 'No URL')
+                summary = result.get('summary', '')
+                site_name = result.get('site_name', 'Unknown Site')
+                
+                # Format the URL result
+                url_text = f"{i+1}. {title}\n   URL: {url}\n   Site: {site_name}"
+                if summary:
+                    url_text += f"\n   Summary: {summary}"
+                
+                context_parts.append(url_text)
+            
+            return "\n\n".join(context_parts)
         
         # Group results by site
         sites = {}

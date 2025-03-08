@@ -297,8 +297,15 @@ class SupabaseClient:
                 domain_pattern = f'%{domain}%'
                 
                 if site_id is not None:
-                    site_filter = "AND p.site_id = %s"
-                    params = [domain_pattern, domain_pattern, domain_pattern, site_id, limit]
+                    # Ensure site_id is an integer
+                    try:
+                        site_id = int(site_id)
+                        site_filter = "AND p.site_id = %s"
+                        params = [domain_pattern, domain_pattern, domain_pattern, site_id, limit]
+                    except (ValueError, TypeError):
+                        print_error(f"Invalid site_id: {site_id}, must be an integer")
+                        site_filter = ""
+                        params = [domain_pattern, domain_pattern, domain_pattern, limit]
                 else:
                     params = [domain_pattern, domain_pattern, domain_pattern, limit]
                 
@@ -344,11 +351,19 @@ class SupabaseClient:
             # Regular search for other queries
             # Prepare the site filter
             site_filter = ""
-            params = [query, limit]
+            params = [query]
             
             if site_id is not None:
-                site_filter = "AND p.site_id = %s"
-                params.insert(1, site_id)  # Insert site_id before limit
+                # Ensure site_id is an integer
+                try:
+                    site_id = int(site_id)
+                    site_filter = "AND p.site_id = %s"
+                    params.append(site_id)
+                except (ValueError, TypeError):
+                    print_error(f"Invalid site_id: {site_id}, must be an integer")
+            
+            # Add the limit parameter
+            params.append(limit)
             
             # Search using PostgreSQL full-text search
             search_query = f"""
@@ -364,14 +379,13 @@ class SupabaseClient:
                 to_tsvector('english', COALESCE(p.title, '') || ' ' || COALESCE(p.content, '')) @@ plainto_tsquery('english', %s)
                 {site_filter}
             ORDER BY 
-                ts_rank_cd(to_tsvector('english', COALESCE(p.title, '') || ' ' || COALESCE(p.content, '')), 
-                          plainto_tsquery('english', %s)) DESC,
                 p.is_chunk DESC
             LIMIT %s
             """
             
-            # Add the query again for ts_rank_cd
-            params.insert(1, query)
+            # Add the query again for ts_rank_cd if needed
+            if "ts_rank_cd" in search_query:
+                params.insert(1, query)
             
             cur.execute(search_query, params)
             
@@ -425,6 +439,14 @@ class SupabaseClient:
             # Debug information
             print(f"Searching with embedding of length: {len(embedding)}")
             print(f"Similarity threshold: {threshold}")
+            
+            # Ensure site_id is an integer if provided
+            if site_id is not None:
+                try:
+                    site_id = int(site_id)
+                except (ValueError, TypeError):
+                    print_error(f"Invalid site_id: {site_id}, must be an integer")
+                    site_id = None
             
             # First, check if any embeddings exist in the database
             site_filter = ""
@@ -964,6 +986,76 @@ class SupabaseClient:
             
         except Exception as e:
             print_error(f"Error getting all sites: {e}")
+            return []
+        finally:
+            if conn:
+                conn.close()
+    
+    def get_urls_by_site_name(self, site_name_pattern: str, limit: int = 10) -> List[Dict[str, Any]]:
+        """Get URLs from sites matching a name pattern.
+        
+        Args:
+            site_name_pattern: Pattern to match against site names.
+            limit: Maximum number of results to return.
+            
+        Returns:
+            List of pages with their URLs.
+        """
+        conn = None
+        try:
+            conn = self._get_connection()
+            cur = conn.cursor()
+            
+            # Find site IDs matching the pattern
+            site_query = """
+            SELECT id, name 
+            FROM crawl_sites 
+            WHERE name ILIKE %s
+            """
+            cur.execute(site_query, [f'%{site_name_pattern}%'])
+            sites = cur.fetchall()
+            
+            if not sites:
+                print_info(f"No sites found matching pattern: {site_name_pattern}")
+                return []
+            
+            site_ids = [site[0] for site in sites]
+            site_names = [site[1] for site in sites]
+            print_info(f"Found {len(sites)} sites matching pattern: {', '.join(site_names)}")
+            
+            # Get URLs from these sites
+            placeholders = ', '.join(['%s'] * len(site_ids))
+            url_query = f"""
+            SELECT 
+                p.id, p.site_id, s.name as site_name, p.url, p.title, 
+                p.summary
+            FROM 
+                crawl_pages p
+                JOIN crawl_sites s ON p.site_id = s.id
+            WHERE 
+                p.site_id IN ({placeholders})
+                AND p.is_chunk = FALSE
+            ORDER BY 
+                p.id DESC
+            LIMIT %s
+            """
+            
+            params = site_ids + [limit]
+            cur.execute(url_query, params)
+            
+            # Convert results to dictionaries
+            columns = [desc[0] for desc in cur.description]
+            results = []
+            
+            for row in cur.fetchall():
+                result = dict(zip(columns, row))
+                results.append(result)
+            
+            print_info(f"Found {len(results)} URLs from sites matching pattern: {site_name_pattern}")
+            return results
+            
+        except Exception as e:
+            print_error(f"Error getting URLs by site name: {e}")
             return []
         finally:
             if conn:
