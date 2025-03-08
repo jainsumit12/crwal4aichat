@@ -18,6 +18,7 @@ from rich.markdown import Markdown
 from rich.text import Text
 from rich.prompt import Prompt
 from rich.table import Table
+import datetime
 
 # Create a rich console
 console = Console()
@@ -133,6 +134,8 @@ class ChatBot:
         
         # Set up the user ID
         self.user_id = user_id or os.getenv("CHAT_USER_ID")
+        if self.user_id:
+            console.print(f"[bold blue]User ID:[/bold blue] [green]{self.user_id}[/green]")
         
         # Set up the profile
         self.profile_name = profile or os.getenv("CHAT_PROFILE", "default")
@@ -174,23 +177,61 @@ class ChatBot:
         
         # Add a system message with the profile's system prompt
         if not self.conversation_history:
-            self.add_system_message(self.profile.get('system_prompt', DEFAULT_PROFILES['default']['system_prompt']))
+            # Add user information to the system prompt if available
+            system_prompt = self.profile.get('system_prompt', DEFAULT_PROFILES['default']['system_prompt'])
+            if self.user_id:
+                system_prompt += f"\n\nThe user's name is {self.user_id}."
+            
+            self.add_system_message(system_prompt)
     
     def load_conversation_history(self):
         """Load conversation history from the database."""
-        # Get conversation history from the database
-        db_messages = self.crawler.db_client.get_conversation_history(self.session_id)
-        
-        # Convert to the format expected by the OpenAI API
-        self.conversation_history = []
-        
-        for message in db_messages:
-            self.conversation_history.append({
-                "role": message["role"],
-                "content": message["content"]
-            })
-        
-        console.print(f"[bold blue]Loaded[/bold blue] [green]{len(self.conversation_history)}[/green] [bold blue]messages from history[/bold blue]")
+        try:
+            # Get conversation history from the database
+            db_messages = self.crawler.db_client.get_conversation_history(self.session_id)
+            
+            # Convert to the format expected by the OpenAI API
+            self.conversation_history = []
+            
+            # Track user preferences
+            user_preferences = []
+            
+            for message in db_messages:
+                # Add the message to the conversation history
+                self.conversation_history.append({
+                    "role": message["role"],
+                    "content": message["content"],
+                    "timestamp": message.get("timestamp", "")
+                })
+                
+                # Extract preferences from metadata
+                if message["role"] == "user" and message.get("metadata") and "preference" in message["metadata"]:
+                    user_preferences.append(message["metadata"]["preference"])
+            
+            # Print the number of messages loaded
+            if self.conversation_history:
+                console.print(f"[bold green]Loaded {len(self.conversation_history)} messages from history[/bold green]")
+                
+                # Print a summary of the conversation
+                user_messages = [msg for msg in self.conversation_history if msg["role"] == "user"]
+                if user_messages:
+                    console.print(f"[blue]Previous conversation includes {len(user_messages)} user messages[/blue]")
+                    
+                    # Show the first and last user message as a preview
+                    if len(user_messages) > 1:
+                        console.print(f"[blue]First message: '{user_messages[0]['content'][:50]}...'[/blue]")
+                        console.print(f"[blue]Last message: '{user_messages[-1]['content'][:50]}...'[/blue]")
+                
+                # Print user preferences if any were found
+                if user_preferences:
+                    console.print(f"[green]Remembered user preferences:[/green]")
+                    for pref in user_preferences:
+                        console.print(f"[green]- {pref}[/green]")
+            else:
+                console.print("[yellow]No conversation history found for this session[/yellow]")
+        except Exception as e:
+            console.print(f"[red]Error loading conversation history: {e}[/red]")
+            self.conversation_history = []
     
     def add_system_message(self, content: str):
         """Add a system message to the conversation history.
@@ -219,20 +260,40 @@ class ChatBot:
         Args:
             content: The message content.
         """
-        # Add to the database with profile metadata
-        self.crawler.db_client.save_message(
-            session_id=self.session_id,
-            user_id=self.user_id,
-            role="user",
-            content=content,
-            metadata={"profile": self.profile_name}
-        )
-        
-        # Add to the in-memory history
-        self.conversation_history.append({
+        # Add the message to the conversation history
+        message = {
             "role": "user",
-            "content": content
-        })
+            "content": content,
+            "timestamp": datetime.datetime.now().isoformat()
+        }
+        self.conversation_history.append(message)
+        
+        # Save the message to the database with user preferences as metadata
+        metadata = {}
+        
+        # Extract potential preferences from the message
+        preference_keywords = ["like", "love", "prefer", "favorite", "enjoy", "hate", "dislike"]
+        for keyword in preference_keywords:
+            if keyword in content.lower():
+                # Simple extraction of preferences
+                parts = content.lower().split(keyword)
+                if len(parts) > 1 and parts[1].strip():
+                    preference = parts[1].strip().split(".")[0].split("!")[0].split("?")[0].strip()
+                    metadata["preference"] = f"{keyword} {preference}"
+                    console.print(f"[dim blue]Saved preference: {keyword} {preference}[/dim blue]")
+                    break
+        
+        # Save to database
+        try:
+            self.crawler.db_client.save_message(
+                session_id=self.session_id,
+                role="user",
+                content=content,
+                user_id=self.user_id,
+                metadata=metadata
+            )
+        except Exception as e:
+            console.print(f"[red]Error saving user message to database: {e}[/red]")
     
     def add_assistant_message(self, content: str):
         """Add an assistant message to the conversation history.
@@ -240,20 +301,24 @@ class ChatBot:
         Args:
             content: The message content.
         """
-        # Add to the database with profile metadata
-        self.crawler.db_client.save_message(
-            session_id=self.session_id,
-            user_id=self.user_id,
-            role="assistant",
-            content=content,
-            metadata={"profile": self.profile_name}
-        )
-        
-        # Add to the in-memory history
-        self.conversation_history.append({
+        # Add the message to the conversation history
+        message = {
             "role": "assistant",
-            "content": content
-        })
+            "content": content,
+            "timestamp": datetime.datetime.now().isoformat()
+        }
+        self.conversation_history.append(message)
+        
+        # Save the message to the database
+        try:
+            self.crawler.db_client.save_message(
+                session_id=self.session_id,
+                role="assistant",
+                content=content,
+                user_id=self.user_id
+            )
+        except Exception as e:
+            console.print(f"[red]Error saving assistant message to database: {e}[/red]")
     
     def clear_conversation_history(self):
         """Clear the conversation history."""
@@ -449,17 +514,62 @@ class ChatBot:
         Returns:
             The LLM's response.
         """
+        # Check for user-specific queries
+        user_queries = ["my name", "who am i", "what's my name", "what is my name"]
+        is_user_query = any(user_query in query.lower() for user_query in user_queries)
+        
+        # Check for time-related queries
+        time_queries = ["time", "date", "day", "month", "year", "today", "current time", "current date", "what time", "what day"]
+        is_time_query = any(time_query in query.lower() for time_query in time_queries)
+        
+        # Check for memory-related queries
+        memory_queries = ["remember", "said", "told", "mentioned", "earlier", "before", "previous", "last time"]
+        preference_queries = ["like", "love", "prefer", "favorite", "enjoy", "hate", "dislike", "my favorite"]
+        
+        is_memory_query = any(memory_query in query.lower() for memory_query in memory_queries)
+        is_preference_query = any(pref_query in query.lower() for pref_query in preference_queries)
+        
         # Add the user message to the conversation history
         self.add_user_message(query)
         
-        # Search for relevant context
+        # If it's a user-specific query and we have user information
+        if is_user_query and self.user_id:
+            response_text = f"Your name is {self.user_id}."
+            self.add_assistant_message(response_text)
+            return response_text
+        
+        # If it's a time-related query, provide the current date and time
+        if is_time_query:
+            now = datetime.datetime.now()
+            date_str = now.strftime("%A, %B %d, %Y")
+            time_str = now.strftime("%I:%M %p")
+            response_text = f"The current date is {date_str} and the time is {time_str}."
+            self.add_assistant_message(response_text)
+            return response_text
+        
+        # Search for relevant context from the database
         results = self.search_for_context(query)
         
         # Format the context
         context = self.format_context(results)
         
+        # Analyze conversation history for relevant information
+        conversation_analysis = ""
+        if is_memory_query or is_preference_query or "what" in query.lower() or "do i" in query.lower():
+            conversation_analysis = self.analyze_conversation_history(query)
+        
         # Get the system prompt from the profile
         system_prompt = self.profile.get('system_prompt', DEFAULT_PROFILES['default']['system_prompt'])
+        
+        # Add user information to the system prompt if available
+        if self.user_id:
+            system_prompt += f"\n\nThe user's name is {self.user_id}."
+        
+        # Add current date and time to the system prompt
+        now = datetime.datetime.now()
+        date_str = now.strftime("%A, %B %d, %Y")
+        time_str = now.strftime("%I:%M %p")
+        system_prompt += f"\n\nThe current date is {date_str} and the time is {time_str}."
         
         # Create a system message that guides the LLM's behavior
         system_message = f"""You are acting according to this profile: {self.profile_name}
@@ -472,18 +582,13 @@ If the answer is not in the context but you can infer it from the conversation h
 If the answer is not in either, acknowledge that you don't have specific information about that topic,
 but you can provide general information if relevant.
 
+IMPORTANT: Pay close attention to the conversation history. If the user refers to something they mentioned earlier,
+make sure to reference that information in your response. Remember user preferences, likes, dislikes, and any
+personal information they've shared during the conversation.
+
 When presenting URLs to users, make sure to remove any '#chunk-X' fragments from the URLs to make them cleaner.
 For example, change 'https://example.com/page/#chunk-0' to 'https://example.com/page/'.
 """
-        
-        # Check if we have relevant results
-        if not results or context == "No relevant information found.":
-            # If no relevant context was found, update the system message
-            system_message += """
-No relevant information was found in the database for this query.
-You should check if you can answer based on the conversation history.
-If not, politely inform the user that you don't have specific information about their query in your database,
-but you can try to provide general information if appropriate."""
         
         # Create a new list of messages for this specific query
         messages = [
@@ -491,12 +596,26 @@ but you can try to provide general information if appropriate."""
         ]
         
         # Add the conversation history (excluding the system message)
+        # Make sure to include ALL previous messages to maintain context
         for message in self.conversation_history:
-            if message["role"] != "system":
-                messages.append(message)
+            if message["role"] != "system" and message["content"] != query:  # Skip the current query which was just added
+                messages.append({
+                    "role": message["role"],
+                    "content": message["content"]
+                })
         
-        # Add the context as a system message
-        messages.append({"role": "system", "content": f"Context for the current query:\n{context}"})
+        # Add the current query
+        messages.append({"role": "user", "content": query})
+        
+        # Add the conversation analysis if available
+        if conversation_analysis and conversation_analysis != "No relevant information found.":
+            messages.append({
+                "role": "system", 
+                "content": f"Relevant information from conversation history:\n{conversation_analysis}"
+            })
+        
+        # Add the context from the database search
+        messages.append({"role": "system", "content": f"Context from database search:\n{context}"})
         
         # Get a response from the LLM
         response = self.client.chat.completions.create(
@@ -515,20 +634,42 @@ but you can try to provide general information if appropriate."""
         return response_text
     
     def show_conversation_history(self):
-        """Display the conversation history in a table."""
-        table = Table(title="Conversation History")
+        """Display the conversation history."""
+        if not self.conversation_history:
+            console.print("[yellow]No conversation history[/yellow]")
+            return
+        
+        # Create a table for the conversation history
+        table = Table(title=f"Conversation History (Session: {self.session_id})")
         
         table.add_column("Role", style="cyan")
         table.add_column("Content", style="green")
+        table.add_column("Timestamp", style="yellow")
         
+        # Add rows for each message
         for message in self.conversation_history:
-            if message["role"] != "system":  # Skip system messages
-                table.add_row(
-                    message["role"].capitalize(),
-                    message["content"][:100] + "..." if len(message["content"]) > 100 else message["content"]
-                )
+            role = message.get("role", "unknown")
+            content = message.get("content", "")
+            timestamp = message.get("timestamp", "")
+            
+            # Truncate long messages for display
+            if len(content) > 100:
+                content = content[:97] + "..."
+            
+            table.add_row(
+                role,
+                content,
+                str(timestamp)
+            )
         
         console.print(table)
+        
+        # Print information about persistence
+        console.print(f"[blue]Conversation is stored with session ID: {self.session_id}[/blue]")
+        if self.user_id:
+            console.print(f"[blue]User ID: {self.user_id}[/blue]")
+        console.print("[blue]To continue this conversation later, use:[/blue]")
+        console.print(f"[green]python chat.py --session {self.session_id}{' --user ' + self.user_id if self.user_id else ''}[/green]")
     
     def show_profiles(self):
         """Display available chat profiles."""
@@ -567,6 +708,14 @@ but you can try to provide general information if appropriate."""
             "[bold red]'profiles'[/bold red] to list available profiles",
             border_style="blue"
         ))
+        
+        # Show session information
+        if self.user_id:
+            console.print(f"[bold green]Session ID:[/bold green] [blue]{self.session_id}[/blue] - [bold green]User:[/bold green] [blue]{self.user_id}[/blue]")
+            console.print("[green]Your conversation history will be saved and can be continued later.[/green]")
+        else:
+            console.print(f"[bold green]Session ID:[/bold green] [blue]{self.session_id}[/blue]")
+            console.print("[yellow]To save your name for future sessions, use --user parameter (e.g., python chat.py --user YourName)[/yellow]")
         
         while True:
             # Get user input
@@ -607,26 +756,90 @@ but you can try to provide general information if appropriate."""
             console.print("\n[bold purple]Assistant[/bold purple]")
             console.print(Panel(Markdown(response), border_style="purple"))
 
+    def analyze_conversation_history(self, query: str) -> str:
+        """Analyze the conversation history using an LLM to extract relevant information.
+        
+        Args:
+            query: The user's current query.
+            
+        Returns:
+            A summary of relevant information from the conversation history.
+        """
+        # If there's no conversation history, return an empty string
+        if not self.conversation_history or len(self.conversation_history) < 3:
+            return ""
+        
+        console.print("[blue]Analyzing conversation history with LLM...[/blue]")
+        
+        # Format the conversation history for the LLM
+        history_text = ""
+        for message in self.conversation_history:
+            if message["role"] != "system":  # Skip system messages
+                role = "User" if message["role"] == "user" else "Assistant"
+                history_text += f"{role}: {message['content']}\n\n"
+        
+        # Create a prompt for the LLM
+        prompt = f"""Analyze the following conversation history and extract relevant information that would help answer the user's current query: "{query}"
+
+Focus on:
+1. User preferences (likes, dislikes, favorites)
+2. Personal information the user has shared
+3. Previous topics discussed that relate to the current query
+4. Any commitments or promises made by the assistant
+
+Conversation History:
+{history_text}
+
+Provide a concise summary of ONLY the information that is directly relevant to the current query. 
+If there is no relevant information, respond with "No relevant information found."
+"""
+        
+        # Use a smaller, faster model for this analysis
+        analysis_model = os.getenv("OPENAI_CONTENT_MODEL", "gpt-4o-mini")
+        
+        try:
+            # Get a response from the LLM
+            response = self.client.chat.completions.create(
+                model=analysis_model,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.3,
+                max_tokens=500
+            )
+            
+            # Extract the response text
+            analysis = response.choices[0].message.content
+            
+            if analysis and analysis != "No relevant information found.":
+                console.print(f"[blue]Found relevant information in conversation history[/blue]")
+            
+            return analysis
+        except Exception as e:
+            console.print(f"[red]Error analyzing conversation history: {e}[/red]")
+            return ""
+
 def main():
-    """Main entry point for the script."""
-    parser = argparse.ArgumentParser(description="Chat with crawled data using an LLM")
-    parser.add_argument("--model", help="OpenAI model to use (default: from CHAT_MODEL env var or gpt-4o)")
-    parser.add_argument("--limit", type=int, help="Maximum number of results to return (default: from CHAT_RESULT_LIMIT env var or 5)")
-    parser.add_argument("--threshold", type=float, help="Similarity threshold for vector search (default: from CHAT_SIMILARITY_THRESHOLD env var or 0.5)")
-    parser.add_argument("--session", help="Session ID for the conversation (default: generate a new one)")
-    parser.add_argument("--user", help="User ID for the conversation (default: none)")
-    parser.add_argument("--profile", help="Chat profile to use (default: default)")
-    parser.add_argument("--profiles-dir", help="Directory containing profile YAML files (default: profiles)")
-    
+    """Run the chat interface."""
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description='Chat with the Crawl4AI database.')
+    parser.add_argument('--model', type=str, help='OpenAI model to use')
+    parser.add_argument('--limit', type=int, help='Maximum number of results to return')
+    parser.add_argument('--threshold', type=float, help='Similarity threshold for vector search')
+    parser.add_argument('--session', type=str, help='Session ID for the conversation (to continue a previous session)')
+    parser.add_argument('--user', type=str, help='User ID for the conversation (e.g., your name)')
+    parser.add_argument('--profile', type=str, help='Chat profile to use')
+    parser.add_argument('--profiles-dir', type=str, help='Directory containing profile YAML files')
     args = parser.parse_args()
     
-    # Load profiles from the specified directory
-    if args.profiles_dir:
-        global CHAT_PROFILES
-        CHAT_PROFILES = load_profiles_from_directory(args.profiles_dir)
+    # Load profiles from the specified directory or the default directory
+    profiles_dir = args.profiles_dir or os.getenv("CHAT_PROFILES_DIR", "profiles")
+    global CHAT_PROFILES
+    CHAT_PROFILES = load_profiles_from_directory(profiles_dir)
+    
+    # Print the number of profiles loaded
+    console.print(f"Loaded {len(CHAT_PROFILES)} profiles from {profiles_dir}")
     
     # Create a chat interface
-    chat_bot = ChatBot(
+    chat = ChatBot(
         model=args.model,
         result_limit=args.limit,
         similarity_threshold=args.threshold,
@@ -635,8 +848,15 @@ def main():
         profile=args.profile
     )
     
-    # Start the chat loop
-    chat_bot.chat_loop()
+    # Print session continuation information if a session ID was provided
+    if args.session:
+        console.print(f"[bold green]Continuing session:[/bold green] [blue]{args.session}[/blue]")
+        if args.user:
+            console.print(f"[bold green]User:[/bold green] [blue]{args.user}[/blue]")
+        console.print("[green]Your conversation history has been loaded.[/green]")
+    
+    # Run the chat loop
+    chat.chat_loop()
 
 if __name__ == "__main__":
     main() 
