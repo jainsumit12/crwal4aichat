@@ -12,11 +12,16 @@ RUN apt-get update && apt-get install -y \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Copy the Supabase Explorer requirements and install them
+COPY supabase_explorer/requirements.txt ./supabase_explorer_requirements.txt
+RUN pip install --no-cache-dir -r supabase_explorer_requirements.txt
+
 # Copy the rest of the application
 COPY . .
 
-# Expose the port the app runs on
+# Expose the ports the app runs on, 8001 for the API and 8501 for the Explorer
 EXPOSE 8001
+EXPOSE 8501
 
 # Command to run the application
 CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8001"] 

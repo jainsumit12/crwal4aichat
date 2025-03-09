@@ -15,7 +15,28 @@ services:
       - PYTHONUNBUFFERED=1 
     networks:
       - crawl-network
-      
+    security_opt:
+      - no-new-privileges
+
+  explorer:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: supa-explorer
+    ports:
+      - "8501:8501"
+    volumes:
+      - ../.env:/app/.env
+    restart: unless-stopped
+    environment:
+      - PYTHONUNBUFFERED=1
+    working_dir: /app/supabase_explorer
+    command: streamlit run supabase_explorer.py --server.address=0.0.0.0
+    networks:
+      - crawl-network
+    security_opt:
+      - no-new-privileges
+
 networks:
   crawl-network:
     driver: bridge

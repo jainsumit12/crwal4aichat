@@ -20,8 +20,28 @@ services:
     restart: unless-stopped
     networks:
       - crawl-network
+    security_opt:
+      - no-new-privileges
 
- 
+  explorer:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: supa-explorer
+    ports:
+      - "8501:8501"
+    volumes:
+      - ../.env:/app/.env
+    environment:
+      - PYTHONUNBUFFERED=1
+    working_dir: /app/supabase_explorer
+    command: streamlit run supabase_explorer.py --server.address=0.0.0.0
+    restart: unless-stopped
+    networks:
+      - crawl-network
+    security_opt:
+      - no-new-privileges
+
   crawl4ai:
     image: unclecode/crawl4ai:basic-amd64
     container_name: crawl4ai
@@ -47,6 +67,8 @@ services:
       start_period: 40s
     networks:
       - crawl-network
+    security_opt:
+      - no-new-privileges
 
 networks:
   crawl-network:

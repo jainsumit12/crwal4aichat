@@ -683,6 +683,24 @@ streamlit run supabase_explorer.py
 
 The app will automatically connect to your Supabase database using the credentials in your `.env` file.
 
+#### Running Supabase Explorer in Docker
+
+The Supabase Explorer is also available as part of the Docker setup. When you run either of the Docker Compose configurations, the Streamlit app will be accessible at:
+
+```
+http://localhost:8501
+```
+
+This allows you to explore your database directly from the Docker container without having to install Streamlit locally.
+
+```bash
+# Start the Docker containers including the Supabase Explorer
+docker-compose -f docker/docker-compose.yml up -d
+
+# Or with the integrated Crawl4AI setup
+docker-compose -f docker/crawl4ai-docker-compose.yml up -d
+```
+
 ### Adding Custom Queries
 
 You can add your own custom queries to the predefined list by editing the `supabase_explorer/supabase_queries.md` file. Follow the existing format:
