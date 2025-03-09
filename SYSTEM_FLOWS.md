@@ -150,19 +150,28 @@ This document provides a detailed explanation of all the components, flows, and 
 - Uses hybrid search (vector + text) for best results
 - Formats results grouped by site
 
-### Vector Search Process
-1. Generate an embedding for the query using OpenAI's embedding model
-2. Search the database for documents with similar embeddings
-3. Filter results based on similarity threshold and site ID (if specified)
-4. Sort results by similarity score
-5. Return the top results based on the limit
+### Hybrid Search Process
+The system uses a sophisticated hybrid search approach that combines vector similarity with text matching:
 
-### Text Search Process
-1. Parse the query for keywords
-2. Search the database for documents containing those keywords
-3. Filter results based on site ID (if specified)
-4. Sort results by relevance
-5. Return the top results based on the limit
+1. **Vector Search Component**:
+   - Generate an embedding for the query using OpenAI's embedding model
+   - Search the database for documents with similar embeddings
+   - Filter results based on similarity threshold and site ID (if specified)
+   - Sort results by similarity score
+
+2. **Text Search Component**:
+   - Parse the query for keywords
+   - Search the database for documents containing those keywords
+   - Filter results based on site ID (if specified)
+   - Sort results by relevance
+
+3. **Combined Results**:
+   - Merge results from both search methods
+   - Remove duplicates
+   - Prioritize results that appear in both search methods
+   - Return the top results based on the limit
+
+This hybrid approach ensures that even when vector similarity might not find exact matches, the text search component can still retrieve relevant information. The system automatically adjusts the search strategy based on the query type and available content.
 
 ## Response Generation
 
@@ -224,6 +233,7 @@ This document provides a detailed explanation of all the components, flows, and 
 - `CHAT_USER_ID`: Default user ID
 - `CHAT_PROFILE`: Default chat profile (default: default)
 - `CHAT_PROFILES_DIR`: Directory containing profile YAML files (default: profiles)
+- `CHAT_VERBOSE`: Enable verbose debug output (default: false)
 
 ### Command-Line Parameters
 - `--model`: OpenAI model to use
@@ -234,6 +244,7 @@ This document provides a detailed explanation of all the components, flows, and 
 - `--profile`: Chat profile to use
 - `--profiles-dir`: Directory containing profile YAML files
 - `--new-session`: Start a new session (ignore saved session ID)
+- `--verbose`: Enable verbose debug output
 
 ### Profile Settings (YAML)
 ```yaml
@@ -265,9 +276,10 @@ search_settings:
 ### Scenario: Returning User Asks About a Topic
 
 1. **Startup**:
-   - User starts chat with `python chat.py --user Joe --session abc123`
+   - User starts chat with `python chat.py --user Joe --session abc123 --verbose`
    - System loads profiles from the profiles directory
    - ChatBot is initialized with the specified user and session
+   - System enables verbose debug output
    - System loads conversation history for session abc123
    - System extracts user preferences from the conversation history
    - Welcome message and session information are displayed

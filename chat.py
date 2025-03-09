@@ -16,15 +16,88 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.markdown import Markdown
 from rich.text import Text
-from rich.prompt import Prompt
+from rich.prompt import Prompt, Confirm
 from rich.table import Table
 import datetime
+import sys
+from rich.progress import Progress, SpinnerColumn, TextColumn
+import time
+
+from utils import print_header, print_success, print_error, print_warning, print_info
 
 # Create a rich console
 console = Console()
 
 # Load environment variables
 load_dotenv()
+
+# Create a flag to control verbose output
+VERBOSE_OUTPUT = False
+
+# Override print functions to respect verbose mode
+def chat_print_info(text: str):
+    """Print info message only if verbose mode is enabled."""
+    if VERBOSE_OUTPUT:
+        print_info(text)
+
+def chat_print_warning(text: str):
+    """Print warning message only if verbose mode is enabled."""
+    if VERBOSE_OUTPUT:
+        print_warning(text)
+
+def chat_print_error(text: str):
+    """Print error message only if verbose mode is enabled."""
+    print_error(text)  # Always show errors
+
+def chat_print_success(text: str):
+    """Print success message only if verbose mode is enabled."""
+    if VERBOSE_OUTPUT:
+        print_success(text)
+
+# Replace the original print functions in the modules that need quieter output
+import crawler
+import db_client
+import embeddings
+
+# Store original functions
+original_print_info = crawler.print_info
+original_print_warning = crawler.print_warning
+original_print_error = crawler.print_error
+original_print_success = crawler.print_success
+
+def set_quiet_mode():
+    """Set quiet mode by replacing print functions with chat versions."""
+    crawler.print_info = chat_print_info
+    crawler.print_warning = chat_print_warning
+    crawler.print_error = chat_print_error
+    crawler.print_success = chat_print_success
+    
+    db_client.print_info = chat_print_info
+    db_client.print_warning = chat_print_warning
+    db_client.print_error = chat_print_error
+    db_client.print_success = chat_print_success
+    
+    embeddings.print_info = chat_print_info
+    embeddings.print_warning = chat_print_warning
+    embeddings.print_error = chat_print_error
+    embeddings.print_success = chat_print_success
+
+def restore_verbose_mode():
+    """Restore original print functions."""
+    crawler.print_info = original_print_info
+    crawler.print_warning = original_print_warning
+    crawler.print_error = original_print_error
+    crawler.print_success = original_print_success
+    
+    db_client.print_info = original_print_info
+    db_client.print_warning = original_print_warning
+    db_client.print_error = original_print_error
+    db_client.print_success = original_print_success
+    
+    embeddings.print_info = original_print_info
+    embeddings.print_warning = original_print_warning
+    embeddings.print_error = original_print_error
+    embeddings.print_success = original_print_success
 
 # Define default chat profiles (fallback if files not found)
 DEFAULT_PROFILES = {
@@ -97,28 +170,49 @@ def load_profiles_from_directory(profiles_dir="profiles"):
     return profiles
 
 # Load profiles from the profiles directory
-CHAT_PROFILES = load_profiles_from_directory()
+# CHAT_PROFILES = load_profiles_from_directory()
 
 class ChatBot:
     """Chat interface for interacting with crawled data using an LLM."""
     
-    def __init__(self, model: str = None, result_limit: int = None, similarity_threshold: float = None, 
-                session_id: str = None, user_id: str = None, profile: str = None):
+    def __init__(self, model: Optional[str] = None, 
+                result_limit: Optional[int] = None,
+                similarity_threshold: Optional[float] = None,
+                session_id: Optional[str] = None,
+                user_id: Optional[str] = None,
+                profile: str = "default",
+                profiles_dir: str = "profiles",
+                verbose: bool = False):
         """Initialize the chat interface.
         
         Args:
-            model: OpenAI model to use.
-            result_limit: Maximum number of results to return.
+            model: The OpenAI model to use.
+            result_limit: Maximum number of search results to return.
             similarity_threshold: Similarity threshold for vector search.
             session_id: Session ID for the conversation.
             user_id: User ID for the conversation.
-            profile: Chat profile to use.
+            profile: Profile to use for the conversation.
+            profiles_dir: Directory containing profile YAML files.
+            verbose: Whether to show verbose output.
         """
-        # Load environment variables
-        load_dotenv()
+        # Set verbose output flag
+        global VERBOSE_OUTPUT
+        VERBOSE_OUTPUT = verbose
+        
+        # Set quiet mode by default for chat
+        set_quiet_mode()
+        
+        # Initialize the crawler
+        self.crawler = WebCrawler()
+        
+        # Set up the OpenAI API key
+        self.api_key = os.getenv("OPENAI_API_KEY")
+        if not self.api_key:
+            console.print("[red]Error: OpenAI API key not found. Please set the OPENAI_API_KEY environment variable.[/red]")
+            sys.exit(1)
         
         # Set up the OpenAI client
-        self.client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        self.client = OpenAI(api_key=self.api_key)
         
         # Set up the model
         self.model = model or os.getenv("CHAT_MODEL", "gpt-4o")
@@ -130,64 +224,54 @@ class ChatBot:
         self.similarity_threshold = similarity_threshold or float(os.getenv("CHAT_SIMILARITY_THRESHOLD", "0.5"))
         
         # Set up the session ID
-        self.session_id = session_id or os.getenv("CHAT_SESSION_ID") or str(uuid.uuid4())
+        if session_id:
+            self.session_id = session_id
+        else:
+            env_session_id = os.getenv("CHAT_SESSION_ID")
+            if env_session_id and env_session_id.strip():
+                self.session_id = env_session_id
+            else:
+                self.session_id = str(uuid.uuid4())
+                console.print(f"Generated new session ID: {self.session_id}")
         
         # Set up the user ID
         self.user_id = user_id or os.getenv("CHAT_USER_ID")
-        if self.user_id:
-            console.print(f"[bold blue]User ID:[/bold blue] [green]{self.user_id}[/green]")
         
-        # Set up the profile
-        self.profile_name = profile or os.getenv("CHAT_PROFILE", "default")
-        if self.profile_name not in CHAT_PROFILES:
-            console.print(f"[yellow]Warning: Profile '{self.profile_name}' not found, using default profile[/yellow]")
-            self.profile_name = "default"
+        # Load profiles
+        self.profiles_dir = profiles_dir or os.getenv("CHAT_PROFILES_DIR", "profiles")
+        self.profiles = load_profiles_from_directory(self.profiles_dir)
         
-        self.profile = CHAT_PROFILES[self.profile_name]
+        # Initialize the database client
+        self.db_client = self.crawler.db_client
         
-        # Get search settings from the profile
-        search_settings = self.profile.get('search_settings', {})
-        self.search_sites = search_settings.get('sites', [])
-        
-        # Override result limit and similarity threshold if specified in the profile
-        if 'limit' in search_settings:
-            self.result_limit = search_settings['limit']
-        if 'threshold' in search_settings:
-            self.similarity_threshold = search_settings['threshold']
-        
-        # Print the current profile and settings
-        console.print(f"[bold green]Using profile:[/bold green] [blue]{self.profile_name}[/blue] - {self.profile.get('description', '')}")
-        console.print(f"[bold blue]Using chat model:[/bold blue] [green]{self.model}[/green]")
-        console.print(f"[bold blue]Result limit:[/bold blue] [green]{self.result_limit}[/green]")
-        console.print(f"[bold blue]Similarity threshold:[/bold blue] [green]{self.similarity_threshold}[/green]")
-        if self.search_sites:
-            console.print(f"[bold blue]Filtering sites:[/bold blue] [green]{', '.join(self.search_sites)}[/green]")
-        
-        # Set up the crawler
-        try:
-            self.crawler = WebCrawler()
-            
-            # Set up the conversation history table
-            self.crawler.db_client.setup_conversation_history_table()
-        except Exception as e:
-            console.print(f"[red]Error initializing crawler: {e}[/red]")
-            console.print("[yellow]Running in chat-only mode (no database access)[/yellow]")
-            self.crawler = None
+        # Set up the conversation history table
+        self.db_client.setup_conversation_history_table()
         
         # Set up the conversation history
         self.conversation_history = []
-        
-        # Load the conversation history
         self.load_conversation_history()
         
-        # Add a system message with the profile's system prompt
-        if not self.conversation_history:
-            # Add user information to the system prompt if available
-            system_prompt = self.profile.get('system_prompt', DEFAULT_PROFILES['default']['system_prompt'])
-            if self.user_id:
-                system_prompt += f"\n\nThe user's name is {self.user_id}."
-            
-            self.add_system_message(system_prompt)
+        # Set up the profile (must be done after conversation_history is initialized)
+        profile_name = profile or os.getenv("CHAT_PROFILE", "default")
+        self.set_profile(profile_name)
+        
+        # Print configuration
+        console.print(f"Using chat model: {self.model}")
+        console.print(f"Result limit: {self.result_limit}")
+        console.print(f"Similarity threshold: {self.similarity_threshold}")
+        
+        # Get search settings from the profile
+        self.search_sites = self.profile.get('search_settings', {}).get('sites', [])
+        self.search_threshold = self.profile.get('search_settings', {}).get('threshold', self.similarity_threshold)
+        self.search_limit = self.profile.get('search_settings', {}).get('limit', self.result_limit)
+        
+        # Print search settings if they differ from the defaults
+        if self.search_threshold != self.similarity_threshold:
+            console.print(f"[bold blue]Profile search threshold:[/bold blue] [green]{self.search_threshold}[/green]")
+        if self.search_limit != self.result_limit:
+            console.print(f"[bold blue]Profile search limit:[/bold blue] [green]{self.search_limit}[/green]")
+        if self.search_sites:
+            console.print(f"[bold blue]Filtering sites:[/bold blue] [green]{', '.join(self.search_sites)}[/green]")
     
     def load_conversation_history(self):
         """Load conversation history from the database."""
@@ -404,25 +488,8 @@ Keep it concise (2-4 words) and focus on the main preference only.
         Args:
             profile_name: The name of the profile to use.
         """
-        if profile_name not in CHAT_PROFILES:
-            console.print(f"[yellow]Warning: Profile '{profile_name}' not found, using default profile[/yellow]")
-            profile_name = "default"
-        
-        self.profile_name = profile_name
-        self.profile = CHAT_PROFILES[profile_name]
-        
-        # Update settings from profile
-        search_settings = self.profile.get('search_settings', {})
-        self.result_limit = search_settings.get('limit', 5)
-        self.similarity_threshold = search_settings.get('threshold', 0.5)
-        self.search_sites = search_settings.get('sites', [])
-        
-        # Add a system message with the new profile
-        self.add_system_message(self.profile.get('system_prompt', DEFAULT_PROFILES['default']['system_prompt']))
-        
-        console.print(f"[bold green]Changed profile to:[/bold green] [blue]{profile_name}[/blue] - {self.profile.get('description', '')}")
-        if self.search_sites:
-            console.print(f"[bold blue]Filtering sites:[/bold blue] [green]{', '.join(self.search_sites)}[/green]")
+        # For backward compatibility, call the new set_profile method
+        self.set_profile(profile_name)
     
     def search_for_context(self, query: str) -> List[Dict[str, Any]]:
         """Search for relevant context based on the query.
@@ -843,7 +910,7 @@ Respond with ONLY the strategy name (e.g., "REGULAR_SEARCH").
         # If we have both messages, check if this is a follow-up
         if last_assistant_message and last_user_message:
             try:
-                # Use the LLM to determine if this is a follow-up question
+                # Use the LLM to determine if this is a follow-up question about something mentioned in the assistant's previous response
                 followup_prompt = f"""Determine if this user query is a follow-up question about something mentioned in the assistant's previous response.
 
 Previous assistant response: 
@@ -1075,14 +1142,13 @@ For example, change 'https://example.com/page/#chunk-0' to 'https://example.com/
         console.print(f"[green]python chat.py --session {self.session_id}{' --user ' + self.user_id if self.user_id else ''}[/green]")
     
     def show_profiles(self):
-        """Display available chat profiles."""
-        table = Table(title="Available Chat Profiles")
-        
+        """Show available profiles."""
+        table = Table(title="Available Profiles")
         table.add_column("Name", style="cyan")
         table.add_column("Description", style="green")
         table.add_column("Search Sites", style="yellow")
         
-        for name, profile in CHAT_PROFILES.items():
+        for name, profile in self.profiles.items():
             # Get the description
             description = profile.get('description', 'No description')
             
@@ -1123,7 +1189,7 @@ For example, change 'https://example.com/page/#chunk-0' to 'https://example.com/
     def chat_loop(self):
         """Run an interactive chat loop."""
         console.print(Panel.fit(
-            "[bold cyan]Welcome to the Crawl4AI Chat Interface![/bold cyan]\n"
+            "[bold cyan]Welcome to the Supa Chat Interface![/bold cyan]\n"
             "Ask questions about the crawled data or use these commands:\n"
             "[bold red]'exit'[/bold red] to quit\n"
             "[bold red]'clear'[/bold red] to clear the current session's conversation history\n"
@@ -1153,9 +1219,9 @@ For example, change 'https://example.com/page/#chunk-0' to 'https://example.com/
                         console.print("[yellow]Please enter a question or command.[/yellow]")
                         continue
                     
-                    # Check if the user wants to exit
-                    if query.lower() in ['exit', 'quit', 'bye']:
-                        console.print(Panel("[bold cyan]Goodbye![/bold cyan]", border_style="blue"))
+                    # Check for exit commands
+                    if query.lower() in ["exit", "quit", "bye", "goodbye", "q"]:
+                        console.print("[green]Exiting chat. Goodbye![/green]")
                         break
                     
                     # Check if the user wants to clear the current conversation history
@@ -1309,57 +1375,149 @@ If there is no relevant information, respond with "No relevant information found
             console.print(f"[red]Error analyzing conversation history: {e}[/red]")
             return "Error analyzing conversation history. Proceeding without historical context."
 
+    def set_profile(self, profile_name: str):
+        """Set the profile for the chat interface.
+        
+        Args:
+            profile_name: The name of the profile to use.
+        """
+        if profile_name not in self.profiles:
+            console.print(f"[yellow]Warning: Profile '{profile_name}' not found, using default profile[/yellow]")
+            profile_name = "default"
+        
+        self.profile_name = profile_name
+        self.profile = self.profiles[profile_name]
+        
+        # Update search settings from the profile
+        self.search_sites = self.profile.get('search_settings', {}).get('sites', [])
+        self.search_threshold = self.profile.get('search_settings', {}).get('threshold', self.similarity_threshold)
+        self.search_limit = self.profile.get('search_settings', {}).get('limit', self.result_limit)
+        
+        console.print(f"[green]Using profile: {self.profile['name']} - {self.profile['description']}[/green]")
+        
+        # If we have a conversation history, add a new system message with the profile's system prompt
+        if self.conversation_history:
+            # Add user information to the system prompt if available
+            system_prompt = self.profile.get('system_prompt', DEFAULT_PROFILES['default']['system_prompt'])
+            if self.user_id:
+                system_prompt += f"\n\nThe user's name is {self.user_id}."
+            
+            # Add a new system message
+            self.add_system_message(system_prompt)
+
 def main():
-    """Run the chat interface."""
-    # Parse command line arguments
-    parser = argparse.ArgumentParser(description='Chat with the Crawl4AI database.')
-    parser.add_argument('--model', type=str, help='OpenAI model to use')
-    parser.add_argument('--limit', type=int, help='Maximum number of results to return')
-    parser.add_argument('--threshold', type=float, help='Similarity threshold for vector search')
-    parser.add_argument('--session', type=str, help='Session ID for the conversation (to continue a previous session)')
-    parser.add_argument('--user', type=str, help='User ID for the conversation (e.g., your name)')
-    parser.add_argument('--profile', type=str, help='Chat profile to use')
-    parser.add_argument('--profiles-dir', type=str, help='Directory containing profile YAML files')
-    parser.add_argument('--new-session', action='store_true', help='Start a new session (ignore saved session ID)')
+    """Main function for the chat interface."""
+    parser = argparse.ArgumentParser(description="Chat with crawled data using an LLM")
+    parser.add_argument("--model", help="Model to use for chat")
+    parser.add_argument("--limit", type=int, help="Maximum number of results")
+    parser.add_argument("--threshold", type=float, help="Similarity threshold for vector search")
+    parser.add_argument("--session", help="Session ID for the conversation")
+    parser.add_argument("--user", help="User ID for the conversation")
+    parser.add_argument("--profile", help="Chat profile to use")
+    parser.add_argument("--profiles-dir", help="Directory containing profile YAML files")
+    parser.add_argument("--new-session", action="store_true", help="Start a new session (ignore saved session ID)")
+    parser.add_argument("--verbose", action="store_true", help="Show verbose debug output")
     args = parser.parse_args()
     
-    # Load profiles from the specified directory or the default directory
-    profiles_dir = args.profiles_dir or os.getenv("CHAT_PROFILES_DIR", "profiles")
+    # If new-session is specified, ignore any saved session ID
+    session_id = None if args.new_session else args.session
     
-    # Only load profiles once and store in global variable
-    global CHAT_PROFILES
-    if not CHAT_PROFILES:
-        CHAT_PROFILES = load_profiles_from_directory(profiles_dir)
-        # Print the number of profiles loaded
-        console.print(f"Loaded {len(CHAT_PROFILES)} profiles from {profiles_dir}")
-    
-    # Use the provided session ID or get it from the environment variable or generate a new one
-    session_id = args.session or os.getenv("CHAT_SESSION_ID")
-    
-    # If we still don't have a session ID or new session is requested, generate a new one
-    if not session_id or args.new_session:
-        session_id = str(uuid.uuid4())
-        console.print(f"[blue]Generated new session ID: {session_id}[/blue]")
-    
-    # Create a chat interface
-    chat = ChatBot(
+    # Create the chat bot
+    chat_bot = ChatBot(
         model=args.model,
         result_limit=args.limit,
         similarity_threshold=args.threshold,
         session_id=session_id,
         user_id=args.user,
-        profile=args.profile
+        profile=args.profile,
+        profiles_dir=args.profiles_dir,
+        verbose=args.verbose
     )
     
-    # Print session continuation information if a session ID was provided
-    if args.session:
-        console.print(f"[bold green]Continuing session:[/bold green] [blue]{session_id}[/blue]")
-        if args.user:
-            console.print(f"[bold green]User:[/bold green] [blue]{args.user}[/blue]")
-        console.print("[green]Your conversation history has been loaded.[/green]")
+    # Print welcome message
+    console.print(Panel(
+        "[bold green]Welcome to the Supa Chat Interface![/bold green]\n"
+        "Ask questions about the crawled data or use these commands:\n"
+            "[bold red]'exit'[/bold red] to quit\n"
+            "[bold red]'clear'[/bold red] to clear the current session's conversation history\n"
+            "[bold red]'clear all'[/bold red] to clear ALL conversation history from the database\n"
+            "[bold red]'history'[/bold red] to view the conversation history\n"
+            "[bold red]'profile <name>'[/bold red] to change the chat profile\n"
+            "[bold red]'profiles'[/bold red] to list available profiles",
+            border_style="blue"
+    ))
     
-    # Run the chat loop
-    chat.chat_loop()
+    # Print session ID
+    console.print(f"Session ID: {chat_bot.session_id}")
+    
+    # Print user ID or instructions to set one
+    if chat_bot.user_id:
+        console.print(f"User: {chat_bot.user_id}")
+    else:
+        console.print("To save your name for future sessions, use --user parameter (e.g., python chat.py --user YourName)")
+    
+    # Start the chat loop
+    try:
+        while True:
+            # Get user input
+            user_input = Prompt.ask("\nYou")
+            
+            # Check for exit commands
+            if user_input.lower() in ["exit", "quit", "bye", "goodbye", "q"]:
+                console.print("[green]Exiting chat. Goodbye![/green]")
+                break
+            
+            # Check for clear command
+            if user_input.lower() == "clear":
+                chat_bot.clear_conversation_history()
+                console.print("[green]Conversation history cleared for this session[/green]")
+                continue
+            
+            # Check for clear all command
+            if user_input.lower() == "clear all":
+                if Confirm.ask("[bold red]Are you sure you want to clear ALL conversation history?[/bold red]"):
+                    chat_bot.clear_all_conversation_history()
+                    console.print("[green]All conversation history cleared[/green]")
+                continue
+            
+            # Check for history command
+            if user_input.lower() == "history":
+                chat_bot.show_conversation_history()
+                continue
+            
+            # Check for profiles command
+            if user_input.lower() == "profiles":
+                chat_bot.show_profiles()
+                continue
+            
+            # Check for profile command
+            if user_input.lower().startswith("profile "):
+                profile_name = user_input.split(" ", 1)[1].strip()
+                chat_bot.change_profile(profile_name)
+                continue
+            
+            # Process the user input
+            console.print("Searching all sites...")
+            
+            # Show a spinner while processing
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[bold blue]Thinking...[/bold blue]"),
+                transient=True,
+            ) as progress:
+                progress.add_task("thinking", total=None)
+                response = chat_bot.get_response(user_input)
+            
+            # Print the response
+            console.print("\nAssistant", style="bold")
+            console.print(Panel(response, border_style="green"))
+            
+    except KeyboardInterrupt:
+        console.print("\n[yellow]Chat session interrupted[/yellow]")
+    except Exception as e:
+        console.print(f"\n[red]Error: {e}[/red]")
+    
+    console.print("[green]Chat session ended[/green]")
 
 if __name__ == "__main__":
     main() 

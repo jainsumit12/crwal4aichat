@@ -806,7 +806,7 @@ class WebCrawler:
         if use_embedding:
             try:
                 # Generate an embedding for the query
-                print_info("Using hybrid search (combining semantic and keyword search)...")
+                print_info(f"Generating embedding for query: '{query}'")
                 query_embedding = self.embedding_generator.generate_embedding(query)
                 
                 if not query_embedding or len(query_embedding) == 0:
@@ -821,6 +821,7 @@ class WebCrawler:
                     return self.db_client.search_by_text(query, limit, site_id)
                 
                 # Use hybrid search that combines vector similarity with text matching
+                print_info(f"Using hybrid search with threshold {threshold}...")
                 results = self.db_client.hybrid_search(query, query_embedding, threshold, limit, site_id)
                 
                 # If no results from hybrid search, fall back to text search
@@ -839,8 +840,18 @@ class WebCrawler:
                         
                         # Add context about which part of the document this is
                         result['context'] = f"From: {result.get('parent_title') or 'Parent Document'} (Part {result.get('chunk_index', 0) + 1})"
+                    else:
+                        # For non-chunks, still add a snippet
+                        content = result.get('content', '')
+                        result['snippet'] = content[:200] + '...' if len(content) > 200 else content
                     
                     enhanced_results.append(result)
+                
+                # Log the final results for debugging
+                print_info(f"Final search results: {len(enhanced_results)} items")
+                for i, result in enumerate(enhanced_results[:3]):
+                    print_info(f"Result {i+1}: {result.get('title', 'No title')} - Similarity: {result.get('similarity', 0):.4f}")
+                    print_info(f"  URL: {result.get('url', 'No URL')}")
                 
                 return enhanced_results
             except Exception as e:
@@ -864,8 +875,18 @@ class WebCrawler:
                     
                     # Add context about which part of the document this is
                     result['context'] = f"From: {result.get('parent_title') or 'Parent Document'} (Part {result.get('chunk_index', 0) + 1})"
+                else:
+                    # For non-chunks, still add a snippet
+                    content = result.get('content', '')
+                    result['snippet'] = content[:200] + '...' if len(content) > 200 else content
                 
                 enhanced_results.append(result)
+            
+            # Log the final results for debugging
+            print_info(f"Final text search results: {len(enhanced_results)} items")
+            for i, result in enumerate(enhanced_results[:3]):
+                print_info(f"Result {i+1}: {result.get('title', 'No title')}")
+                print_info(f"  URL: {result.get('url', 'No URL')}")
             
             return enhanced_results
     

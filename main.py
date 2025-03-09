@@ -177,7 +177,7 @@ def main():
     search_parser = subparsers.add_parser("search", help="Search the crawled data")
     search_parser.add_argument("query", help="Search query")
     search_parser.add_argument("--text-only", action="store_true", help="Use text search instead of embeddings")
-    search_parser.add_argument("--threshold", type=float, default=0.7, help="Similarity threshold (0-1)")
+    search_parser.add_argument("--threshold", type=float, default=0.3, help="Similarity threshold (0-1)")
     search_parser.add_argument("--limit", type=int, default=10, help="Maximum number of results")
     search_parser.add_argument("--output", help="Save results to a JSON file")
     

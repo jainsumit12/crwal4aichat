@@ -282,6 +282,8 @@ class SupabaseClient:
             conn = self._get_connection()
             cur = conn.cursor()
             
+            print_info(f"Performing text search for: '{query}'")
+            
             # Extract domain names from the query
             import re
             domain_pattern = re.compile(r'([a-zA-Z0-9][-a-zA-Z0-9]*\.)+[a-zA-Z0-9][-a-zA-Z0-9]*')
@@ -289,49 +291,57 @@ class SupabaseClient:
             
             # If we found domain names in the query, prioritize those
             if domains:
-                domain = domains[0]
-                print_info(f"Found domain in query: {domain}, using domain-specific search")
+                domain_list = ', '.join([f"'{domain}'" for domain in domains])
+                print_info(f"Found domains in query: {domain_list}, prioritizing these domains")
                 
                 # Prepare the site filter
                 site_filter = ""
-                domain_pattern = f'%{domain}%'
+                params = [query]
                 
                 if site_id is not None:
                     # Ensure site_id is an integer
                     try:
                         site_id = int(site_id)
                         site_filter = "AND p.site_id = %s"
-                        params = [domain_pattern, domain_pattern, domain_pattern, site_id, limit]
+                        params.append(site_id)
                     except (ValueError, TypeError):
                         print_error(f"Invalid site_id: {site_id}, must be an integer")
-                        site_filter = ""
-                        params = [domain_pattern, domain_pattern, domain_pattern, limit]
-                else:
-                    params = [domain_pattern, domain_pattern, domain_pattern, limit]
                 
-                # Use a simple ILIKE query with priority for URLs containing the domain
+                # Add the limit parameter
+                params.append(limit * 2)  # Get more results initially
+                
+                # Search using PostgreSQL full-text search with domain prioritization
                 search_query = f"""
                 SELECT 
                     p.id, p.site_id, s.name as site_name, p.url, p.title, 
                     p.content, p.summary, p.metadata, p.is_chunk, p.chunk_index,
-                    p.parent_id, parent.title as parent_title
+                    p.parent_id, parent.title as parent_title,
+                    ts_rank_cd(to_tsvector('english', COALESCE(p.title, '') || ' ' || COALESCE(p.content, '')), 
+                              plainto_tsquery('english', %s)) AS rank
                 FROM 
                     crawl_pages p
                     JOIN crawl_sites s ON p.site_id = s.id
                     LEFT JOIN crawl_pages parent ON p.parent_id = parent.id
                 WHERE 
-                    (p.url ILIKE %s OR p.title ILIKE %s OR p.content ILIKE %s)
+                    to_tsvector('english', COALESCE(p.title, '') || ' ' || COALESCE(p.content, '')) @@ plainto_tsquery('english', %s)
                     {site_filter}
+                    AND (
+                        {' OR '.join([f"p.url LIKE '%{domain}%'" for domain in domains])}
+                    )
                 ORDER BY 
-                    p.is_chunk DESC
+                    rank DESC,
+                    p.is_chunk ASC
                 LIMIT %s
                 """
+                
+                # Add the query again for ts_rank_cd
+                params.insert(0, query)
                 
                 cur.execute(search_query, params)
                 
                 # Convert results to dictionaries
                 columns = [desc[0] for desc in cur.description]
-                results = []
+                all_results = []
                 
                 for row in cur.fetchall():
                     result = dict(zip(columns, row))
@@ -343,10 +353,16 @@ class SupabaseClient:
                     if result.get('is_chunk'):
                         result['context'] = f"From: {result.get('parent_title') or 'Parent Document'} (Part {result.get('chunk_index', 0) + 1})"
                     
-                    results.append(result)
+                    all_results.append(result)
                 
-                print_info(f"Domain-specific search found {len(results)} results")
-                return results
+                print_info(f"Domain-specific search found {len(all_results)} results")
+                
+                # Log some results for debugging
+                for i, result in enumerate(all_results[:3]):
+                    print_info(f"Result {i+1}: {result.get('title', 'No title')} - Rank: {result.get('rank', 0)}")
+                    print_info(f"  URL: {result.get('url', 'No URL')}")
+                
+                return all_results[:limit]
             
             # Regular search for other queries
             # Prepare the site filter
@@ -363,14 +379,67 @@ class SupabaseClient:
                     print_error(f"Invalid site_id: {site_id}, must be an integer")
             
             # Add the limit parameter
-            params.append(limit)
+            params.append(limit * 2)  # Get more results initially
             
-            # Search using PostgreSQL full-text search
+            # Try different search approaches
+            # First, try exact title match
+            title_query = f"""
+            SELECT 
+                p.id, p.site_id, s.name as site_name, p.url, p.title, 
+                p.content, p.summary, p.metadata, p.is_chunk, p.chunk_index,
+                p.parent_id, parent.title as parent_title,
+                1.0 AS rank
+            FROM 
+                crawl_pages p
+                JOIN crawl_sites s ON p.site_id = s.id
+                LEFT JOIN crawl_pages parent ON p.parent_id = parent.id
+            WHERE 
+                p.title ILIKE %s
+                {site_filter}
+            ORDER BY 
+                p.is_chunk ASC
+            LIMIT %s
+            """
+            
+            title_params = ['%' + query + '%']
+            if site_id is not None:
+                title_params.append(site_id)
+            title_params.append(limit)
+            
+            cur.execute(title_query, title_params)
+            title_results = []
+            
+            columns = [desc[0] for desc in cur.description]
+            for row in cur.fetchall():
+                result = dict(zip(columns, row))
+                # Convert any JSON fields from string to dict
+                if result.get('metadata') and isinstance(result['metadata'], str):
+                    result['metadata'] = json.loads(result['metadata'])
+                
+                # Add context about chunking
+                if result.get('is_chunk'):
+                    result['context'] = f"From: {result.get('parent_title') or 'Parent Document'} (Part {result.get('chunk_index', 0) + 1})"
+                
+                title_results.append(result)
+            
+            if title_results:
+                print_info(f"Found {len(title_results)} results with title match")
+                # Log some results for debugging
+                for i, result in enumerate(title_results[:3]):
+                    print_info(f"Title match {i+1}: {result.get('title', 'No title')}")
+                    print_info(f"  URL: {result.get('url', 'No URL')}")
+                
+                return title_results[:limit]
+            
+            # If no title matches, try full-text search
+            # Search using PostgreSQL full-text search with ranking
             search_query = f"""
             SELECT 
                 p.id, p.site_id, s.name as site_name, p.url, p.title, 
                 p.content, p.summary, p.metadata, p.is_chunk, p.chunk_index,
-                p.parent_id, parent.title as parent_title
+                p.parent_id, parent.title as parent_title,
+                ts_rank_cd(to_tsvector('english', COALESCE(p.title, '') || ' ' || COALESCE(p.content, '')), 
+                          plainto_tsquery('english', %s)) AS rank
             FROM 
                 crawl_pages p
                 JOIN crawl_sites s ON p.site_id = s.id
@@ -379,19 +448,19 @@ class SupabaseClient:
                 to_tsvector('english', COALESCE(p.title, '') || ' ' || COALESCE(p.content, '')) @@ plainto_tsquery('english', %s)
                 {site_filter}
             ORDER BY 
-                p.is_chunk DESC
+                rank DESC,
+                p.is_chunk ASC
             LIMIT %s
             """
             
-            # Add the query again for ts_rank_cd if needed
-            if "ts_rank_cd" in search_query:
-                params.insert(1, query)
+            # Add the query again for ts_rank_cd
+            params.insert(0, query)
             
             cur.execute(search_query, params)
             
             # Convert results to dictionaries
             columns = [desc[0] for desc in cur.description]
-            results = []
+            all_results = []
             
             for row in cur.fetchall():
                 result = dict(zip(columns, row))
@@ -403,10 +472,61 @@ class SupabaseClient:
                 if result.get('is_chunk'):
                     result['context'] = f"From: {result.get('parent_title') or 'Parent Document'} (Part {result.get('chunk_index', 0) + 1})"
                 
-                results.append(result)
+                all_results.append(result)
             
-            print_info(f"Text search found {len(results)} results")
-            return results
+            print_info(f"Full-text search found {len(all_results)} results")
+            
+            # If no results from full-text search, try a more relaxed search
+            if not all_results:
+                print_warning("No results from full-text search, trying ILIKE search")
+                
+                # Try a more relaxed search with ILIKE
+                ilike_query = f"""
+                SELECT 
+                    p.id, p.site_id, s.name as site_name, p.url, p.title, 
+                    p.content, p.summary, p.metadata, p.is_chunk, p.chunk_index,
+                    p.parent_id, parent.title as parent_title,
+                    0.5 AS rank
+                FROM 
+                    crawl_pages p
+                    JOIN crawl_sites s ON p.site_id = s.id
+                    LEFT JOIN crawl_pages parent ON p.parent_id = parent.id
+                WHERE 
+                    (p.title ILIKE %s OR p.content ILIKE %s)
+                    {site_filter}
+                ORDER BY 
+                    p.is_chunk ASC
+                LIMIT %s
+                """
+                
+                ilike_params = ['%' + query + '%', '%' + query + '%']
+                if site_id is not None:
+                    ilike_params.append(site_id)
+                ilike_params.append(limit)
+                
+                cur.execute(ilike_query, ilike_params)
+                
+                columns = [desc[0] for desc in cur.description]
+                for row in cur.fetchall():
+                    result = dict(zip(columns, row))
+                    # Convert any JSON fields from string to dict
+                    if result.get('metadata') and isinstance(result['metadata'], str):
+                        result['metadata'] = json.loads(result['metadata'])
+                    
+                    # Add context about chunking
+                    if result.get('is_chunk'):
+                        result['context'] = f"From: {result.get('parent_title') or 'Parent Document'} (Part {result.get('chunk_index', 0) + 1})"
+                    
+                    all_results.append(result)
+                
+                print_info(f"ILIKE search found {len(all_results)} results")
+            
+            # Log some results for debugging
+            for i, result in enumerate(all_results[:3]):
+                print_info(f"Result {i+1}: {result.get('title', 'No title')} - Rank: {result.get('rank', 0)}")
+                print_info(f"  URL: {result.get('url', 'No URL')}")
+            
+            return all_results[:limit]
             
         except Exception as e:
             print_error(f"Error searching by text: {e}")
@@ -437,8 +557,8 @@ class SupabaseClient:
             cur = conn.cursor()
             
             # Debug information
-            print(f"Searching with embedding of length: {len(embedding)}")
-            print(f"Similarity threshold: {threshold}")
+            print_info(f"Searching with embedding of length: {len(embedding)}")
+            print_info(f"Similarity threshold: {threshold}")
             
             # Ensure site_id is an integer if provided
             if site_id is not None:
@@ -458,10 +578,10 @@ class SupabaseClient:
             
             cur.execute(f"SELECT COUNT(*) FROM crawl_pages WHERE embedding IS NOT NULL {site_filter}", params)
             count = cur.fetchone()[0]
-            print(f"Found {count} pages with embeddings in the database")
+            print_info(f"Found {count} pages with embeddings in the database")
             
             if count == 0:
-                print("No embeddings found in database, falling back to text search")
+                print_warning("No embeddings found in database, falling back to text search")
                 return []
             
             # Check if pgvector extension is installed
@@ -470,33 +590,29 @@ class SupabaseClient:
                 pgvector_installed = cur.fetchone() is not None
                 
                 if not pgvector_installed:
-                    print("pgvector extension is not installed in the database")
+                    print_error("pgvector extension is not installed in the database")
                     return []
                 
                 # Check the type of the embedding column
                 cur.execute("SELECT pg_typeof(embedding) FROM crawl_pages WHERE embedding IS NOT NULL LIMIT 1")
                 embedding_type = cur.fetchone()[0]
-                print(f"Embedding column type: {embedding_type}")
+                print_info(f"Embedding column type: {embedding_type}")
                 
                 # Check if the type is actually 'vector'
                 if embedding_type != 'vector':
-                    print(f"Embedding column is not of type 'vector' but '{embedding_type}'. Vector search may not work.")
+                    print_error(f"Embedding column is not of type 'vector' but '{embedding_type}'. Vector search may not work.")
                     return []
                 
             except Exception as e:
-                print(f"Error checking database configuration: {e}")
+                print_error(f"Error checking database configuration: {e}")
                 return []
             
             # Format the embedding as a string with square brackets for pgvector
             embedding_str = f"[{','.join(str(x) for x in embedding)}]"
             
-            # Prepare the site filter for the main query
-            site_filter = ""
-            params = []
-            
-            # Try to perform a vector similarity search that prioritizes chunks
+            # Try to perform a vector similarity search
             try:
-                # Get the top results regardless of threshold
+                # Get the top results regardless of threshold initially
                 if site_id is not None:
                     search_query = """
                     SELECT 
@@ -512,11 +628,10 @@ class SupabaseClient:
                         p.embedding IS NOT NULL
                         AND p.site_id = %s
                     ORDER BY 
-                        1 - (p.embedding <=> %s::vector) DESC,
-                        p.is_chunk DESC
+                        1 - (p.embedding <=> %s::vector) DESC
                     LIMIT %s
                     """
-                    params = [embedding_str, site_id, embedding_str, limit]
+                    params = [embedding_str, site_id, embedding_str, limit * 2]  # Get more results initially
                 else:
                     search_query = """
                     SELECT 
@@ -531,17 +646,29 @@ class SupabaseClient:
                     WHERE 
                         p.embedding IS NOT NULL
                     ORDER BY 
-                        1 - (p.embedding <=> %s::vector) DESC,
-                        p.is_chunk DESC
+                        1 - (p.embedding <=> %s::vector) DESC
                     LIMIT %s
                     """
-                    params = [embedding_str, embedding_str, limit]
+                    params = [embedding_str, embedding_str, limit * 2]  # Get more results initially
                 
+                print_info(f"Executing vector search query...")
                 cur.execute(search_query, params)
+                
+                # Get all results first for debugging
+                all_rows = cur.fetchall()
+                print_info(f"Vector search found {len(all_rows)} total results")
+                
+                # Show similarity distribution for debugging
+                if all_rows:
+                    similarities = [row[12] for row in all_rows]
+                    min_sim = min(similarities)
+                    max_sim = max(similarities)
+                    avg_sim = sum(similarities) / len(similarities)
+                    print_info(f"Similarity range: {min_sim:.4f} to {max_sim:.4f}, average: {avg_sim:.4f}")
                 
                 # Filter results by threshold
                 results = []
-                for row in cur.fetchall():
+                for row in all_rows:
                     result = {
                         "id": row[0],
                         "site_id": row[1],
@@ -562,14 +689,27 @@ class SupabaseClient:
                     if result["similarity"] >= threshold:
                         results.append(result)
                 
+                # Log the similarity scores for debugging
+                if results:
+                    print_info(f"Vector search found {len(results)} results above threshold {threshold}")
+                    for i, result in enumerate(results[:3]):
+                        print_info(f"Result {i+1}: {result.get('title', 'No title')} - Similarity: {result.get('similarity', 0):.4f}")
+                else:
+                    print_warning(f"Vector search found {len(all_rows)} results, but none above threshold {threshold}")
+                    # Show the top results anyway for debugging
+                    for i, row in enumerate(all_rows[:3]):
+                        similarity = row[12]
+                        title = row[4] or "Untitled"
+                        print_info(f"Top result {i+1}: {title} - Similarity: {similarity:.4f} (below threshold {threshold})")
+                
                 return results
                 
             except Exception as e:
-                print(f"Error in vector search: {e}")
+                print_error(f"Error in vector search: {e}")
                 return []
                 
         except Exception as e:
-            print(f"Error in search_by_embedding: {e}")
+            print_error(f"Error in search_by_embedding: {e}")
             return []
             
         finally:
@@ -598,28 +738,85 @@ class SupabaseClient:
             conn = self._get_connection()
             cur = conn.cursor()
             
-            # First try the vector search as a fallback
-            try:
-                print_info("Trying vector search first...")
-                vector_results = self.search_by_embedding(embedding, threshold, limit, site_id)
-                if vector_results:
-                    print_info(f"Vector search found {len(vector_results)} results")
-                    return vector_results
-            except Exception as e:
-                print_error(f"Vector search failed: {e}")
+            # First try vector search with a lower threshold to get more results
+            print_info(f"Performing vector search with threshold {threshold}...")
+            vector_results = self.search_by_embedding(embedding, threshold * 0.8, limit * 2, site_id)
             
-            # If vector search fails or returns no results, try text search
-            print_info("Trying text search...")
-            text_results = self.search_by_text(query, limit, site_id)
+            if vector_results:
+                print_info(f"Vector search found {len(vector_results)} results")
+                
+                # Log the top results for debugging
+                for i, result in enumerate(vector_results[:3]):
+                    print_info(f"Top vector result {i+1}: {result.get('title', 'No title')} - Similarity: {result.get('similarity', 0):.4f}")
+                
+                # Return vector results if we found enough
+                if len(vector_results) >= limit:
+                    return vector_results[:limit]
+            else:
+                print_warning("Vector search found no results")
             
-            # Add similarity scores to text results
+            # Also try text search
+            print_info("Performing text search...")
+            text_results = self.search_by_text(query, limit * 2, site_id)
+            
+            if text_results:
+                print_info(f"Text search found {len(text_results)} results")
+                
+                # Add similarity scores to text results
+                for result in text_results:
+                    result['similarity'] = 0.5  # Default similarity score for text results
+                    result['vector_score'] = 0.0
+                    result['text_score'] = 0.5
+                
+                # If we have no vector results, return text results
+                if not vector_results:
+                    return text_results[:limit]
+            else:
+                print_warning("Text search found no results")
+                
+                # If both searches failed, return empty list
+                if not vector_results:
+                    return []
+            
+            # Combine results from both searches
+            print_info("Combining vector and text search results...")
+            
+            # Create a dictionary to track unique results by URL
+            combined_results = {}
+            
+            # Add vector results to the combined results
+            for result in vector_results:
+                url = result.get('url', '')
+                if url:
+                    result['vector_score'] = result.get('similarity', 0)
+                    result['text_score'] = 0.0
+                    combined_results[url] = result
+            
+            # Add text results to the combined results, merging with vector results if needed
             for result in text_results:
-                result['similarity'] = 0.5  # Default similarity score
-                result['vector_score'] = 0.0
-                result['text_score'] = 0.5
+                url = result.get('url', '')
+                if url:
+                    if url in combined_results:
+                        # Update existing result with text score
+                        combined_results[url]['text_score'] = 0.5
+                        # Recalculate combined similarity score (weighted average)
+                        vector_score = combined_results[url].get('vector_score', 0)
+                        combined_results[url]['similarity'] = max(vector_score, 0.5)
+                    else:
+                        # Add new result
+                        result['vector_score'] = 0.0
+                        result['text_score'] = 0.5
+                        result['similarity'] = 0.5
+                        combined_results[url] = result
             
-            print_info(f"Text search found {len(text_results)} results")
-            return text_results
+            # Convert dictionary to list and sort by similarity
+            results = list(combined_results.values())
+            results.sort(key=lambda x: x.get('similarity', 0), reverse=True)
+            
+            print_info(f"Combined search found {len(results)} results")
+            
+            # Return the top results
+            return results[:limit]
             
         except Exception as e:
             print_error(f"Error in hybrid search: {e}")

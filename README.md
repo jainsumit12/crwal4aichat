@@ -14,6 +14,7 @@ Integrates Crawl4AI with Supabase and LLM Chat to create a powerful web crawling
 - Perform semantic search using vector similarity
 - Command-line interface for easy usage
 - Chat interface for interacting with crawled data using an LLM
+- Interactive Streamlit-based Supabase Explorer for database analysis and visualization
 - Configuration via `.env` file for easy switching between URLs/sitemaps
 - Automatic content chunking for better LLM interaction and search precision
 - Configurable limits for sitemap crawling to control resource usage
@@ -91,6 +92,7 @@ Integrates Crawl4AI with Supabase and LLM Chat to create a powerful web crawling
    CHAT_PROFILE=default
    # Directory containing profile YAML files
    CHAT_PROFILES_DIR=profiles 
+   CHAT_VERBOSE=false
    ```
 
 ## Database Connection Options
@@ -277,8 +279,10 @@ python main.py search "your search query" --text-only
 
 To adjust the similarity threshold and limit the number of results:
 
+![Image](https://github.com/user-attachments/assets/806c80ae-1fbf-4680-990e-9d2b9b3bbaa8)
+
 ```
-python main.py search "your search query" --threshold 0.8 --limit 5
+python main.py search "your search query" --threshold 0.8 --limit 2
 ```
 
 To save the search results to a file:
@@ -296,6 +300,8 @@ python main.py list-sites
 ```
 
 By default, this only counts parent pages (not chunks). To include chunks in the page count:
+
+![Image](https://github.com/user-attachments/assets/c7fce24d-50e8-447e-8900-15ffcb56ce92)
 
 ```
 python main.py list-sites --include-chunks
@@ -361,7 +367,20 @@ python main.py chat --session my-chat-session
 
 # Associate the conversation with a specific user
 python main.py chat --user John
+
+# Enable verbose debug output
+python main.py chat --verbose
 ```
+
+#### Search Functionality
+
+The chat interface uses a sophisticated hybrid search approach that combines vector similarity with text matching:
+
+1. **Vector Search**: Uses OpenAI's embeddings to find semantically similar content
+2. **Text Search**: Enhances results with keyword matching for better precision
+3. **Hybrid Approach**: Combines both methods to provide the most relevant results
+
+This approach ensures that even when vector similarity might not find exact matches, the text search component can still retrieve relevant information. The system automatically adjusts the search strategy based on the query type and available content.
 
 #### Persistent Conversation History
 
@@ -512,6 +531,7 @@ CHAT_SESSION_ID=default-session
 CHAT_USER_ID=default-user
 CHAT_PROFILE=default
 CHAT_PROFILES_DIR=profiles
+CHAT_VERBOSE=false
 ```
 
 This allows you to maintain consistent settings and continue the same conversation across multiple sessions.
@@ -545,11 +565,17 @@ You can also use the crawler programmatically in your own Python code. See `test
 - `run_crawl.py`: Script to run a crawl using the configuration from the `.env` file
 - `update_content.py`: Script to update existing pages with titles and summaries
 - `utils.py`: Utility functions for the CLI
+- `supabase_explorer/`: Directory containing the Supabase Explorer Streamlit app
+  - `supabase_explorer.py`: Interactive Streamlit app for database exploration
+  - `supabase_queries.md`: Collection of useful SQL queries
+  - `database_explorer_readme.md`: Documentation for the Supabase Explorer
 - `tests/`: Directory containing test scripts
   - `example.py`: Example script demonstrating programmatic usage
   - `test_db_connection.py`: Script to test the database connection
   - `test_crawl_api.py`: Script to test the Crawl4AI API
   - `reset_database.py`: Script to delete tables or reset the database
+
+![Image](https://github.com/user-attachments/assets/629345d4-3dea-489b-be0e-65cb07f53d9a)
 
 ## Database Structure
 
@@ -587,6 +613,58 @@ The project uses the following tables in the Supabase database:
    - `metadata`: Additional metadata about the message
 
 When you crawl a site multiple times, the system will update existing pages rather than creating duplicates, ensuring you always have the most recent content. Similarly, the chat interface will maintain conversation history across sessions, allowing for more natural and contextual interactions.
+
+## Supabase Explorer
+
+The project includes a powerful Streamlit-based Supabase Explorer app that allows you to interactively explore and analyze your database. This tool makes it easy to run SQL queries, visualize results, and gain insights from your crawled data.
+
+![Image of Supabase Explorer showing a pie chart visualization](https://github.com/user-attachments/assets/c7fce24d-50e8-447e-8900-15ffcb56ce92)
+
+### Features
+
+- **Interactive Query Interface**: Run predefined or custom SQL queries with a single click
+- **Data Visualization**: Create bar charts, line charts, and pie charts from your query results
+- **Database Overview**: View statistics about your database, including site counts and page distribution
+- **Export Functionality**: Download query results as CSV files for further analysis
+- **Predefined Queries**: Access a comprehensive collection of useful SQL queries organized by category:
+  - Site queries
+  - Page queries
+  - Chunk queries
+  - Metadata queries
+  - Conversation history queries
+  - Statistics queries
+  - Embedding analysis queries
+  - Content quality queries
+  - Advanced conversation analysis
+  - Performance queries
+  - Search performance analysis
+
+### Running the Supabase Explorer
+
+To launch the Supabase Explorer:
+
+```bash
+cd supabase_explorer
+streamlit run supabase_explorer.py
+```
+
+The app will automatically connect to your Supabase database using the credentials in your `.env` file.
+
+### Adding Custom Queries
+
+You can add your own custom queries to the predefined list by editing the `supabase_explorer/supabase_queries.md` file. Follow the existing format:
+
+```markdown
+## Your Category
+
+### Your Query Name
+
+```sql
+SELECT * FROM your_table WHERE your_condition;
+```
+```
+
+After adding your queries, restart the Streamlit app to load the new queries.
 
 ## License
 
