@@ -678,10 +678,11 @@ To launch the Supabase Explorer:
 
 ```bash
 cd supabase_explorer
+pip install -r requirements.txt
 streamlit run supabase_explorer.py
 ```
 
-The app will automatically connect to your Supabase database using the credentials in your `.env` file.
+The app will automatically connect to your Supabase database using the credentials in your root `.env` file.
 
 #### Running Supabase Explorer in Docker
 
@@ -726,6 +727,13 @@ The project includes a FastAPI-based REST API that allows you to integrate the S
 To start the API server:
 
 ```bash
+python run_api.py
+```
+
+or use:
+
+```bash
+cd api
 uvicorn api.main:app --host 0.0.0.0 --port 8001 --reload
 ```
 
@@ -735,7 +743,7 @@ The API will be available at `http://localhost:8001`. You can access the interac
 
 ![Image](https://github.com/user-attachments/assets/be41b857-47ca-4804-97e2-98764a270748)
 
-You can run the app like normal once you exec into the container or run the API:
+You can run the app like normal once you exec into the container or use the API:
 
 ```bash
 # Build and start the container
