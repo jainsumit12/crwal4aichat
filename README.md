@@ -659,19 +659,10 @@ The app will automatically connect to your Supabase database using the credentia
 
 ### Adding Custom Queries
 
-You can add your own custom queries to the predefined list by editing the `supabase_explorer/supabase_queries.md` file. Follow the existing format:
-
-```markdown
-## Your Category
-
-### Your Query Name
-
-```sql
-SELECT * FROM your_table WHERE your_condition;
-```
-```
+You can add your own custom queries to the predefined list by editing the `supabase_explorer/supabase_queries.md` file. 
 
 After adding your queries, restart the Streamlit app to load the new queries.
+
 
 ## License
 
