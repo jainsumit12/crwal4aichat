@@ -46,52 +46,61 @@ Integrates Crawl4AI with Supabase and AI Chat to create a powerful web crawling 
 3. Create a `.env` file with your configuration:
 
    ```env
-   # Crawl4AI Configuration
-   CRAWL4AI_API_TOKEN=your_crawl4ai_api_token
-   CRAWL4AI_BASE_URL=your_crawl4ai_base_url
+    # Crawl4AI Configuration
+    # Locally ran in docker or external service - easily setup with docker compose
+    CRAWL4AI_API_TOKEN=your_crawl4ai_api_token
 
-   # Supabase Configuration
-   # With protocol (for remote instances)
-   # SUPABASE_URL=https://your-project.supabase.co:5432
-   
-   # Without protocol (for local instances)
-   SUPABASE_URL=192.168.xx.xx:54322
-   # Database credentials (required for both options)
-   SUPABASE_DB=postgres
-   SUPABASE_KEY=postgres
-   SUPABASE_PASSWORD=postgres
+    # Local Docker
+    # CRAWL4AI_BASE_URL=http://crawl4ai:11235 
+    # External Service 
+    CRAWL4AI_BASE_URL=your_crawl4ai_base_url 
 
-   # OpenAI Configuration
-   OPENAI_API_KEY=your_openai_api_key
-   # Model to use for embeddings
-   OPENAI_EMBEDDING_MODEL=text-embedding-3-small
-   # Model to use for title and summary generation
-   OPENAI_CONTENT_MODEL=gpt-4o-mini
-   
-   # Crawl Configuration
-   # Set to 'url' for regular website or 'sitemap' for sitemap crawling
-   CRAWL_TYPE=url
-   # URL to crawl (can be a website URL or sitemap URL)
-   CRAWL_URL=https://example.com
-   # Maximum number of URLs to crawl from a sitemap (set to 0 for unlimited)
-   MAX_URLS=50
-   # Optional name for the site (if not provided, one will be generated)
-   CRAWL_SITE_NAME=
-   # Optional description for the site
-   CRAWL_SITE_DESCRIPTION=
-   # Number of results to retrieve for each query
-   CHAT_RESULT_LIMIT=5
-   # Similarity threshold for vector search (0-1)
-   CHAT_SIMILARITY_THRESHOLD=0.4 
-   # Default session ID (if not provided, a new one will be generated)
-   CHAT_SESSION_ID=
-   # Default user ID (optional, name, user, i.e. pete)
-   CHAT_USER_ID=
-   # Default chat profile (default, pydantic, technical, concise,  etc. see profiles directory)
-   CHAT_PROFILE=default
-   # Directory containing profile YAML files
-   CHAT_PROFILES_DIR=profiles 
-   CHAT_VERBOSE=false
+    # Supabase Configuration
+    # Option 1: Use a single URL (can be with or without protocol) 
+    SUPABASE_URL=your_supabase_host:port
+    # Database credentials (required for both options)
+    SUPABASE_DB=postgres
+    SUPABASE_KEY=postgres
+    SUPABASE_PASSWORD=postgres
+
+    # OpenAI Configuration
+    OPENAI_API_KEY=sk-proj-
+    # Model to use for embeddings
+    OPENAI_EMBEDDING_MODEL=text-embedding-3-small
+    # Model to use for title and summary generation and chat analysis
+    OPENAI_CONTENT_MODEL=gpt-4o-mini
+    # Model to use for the chat interface
+    CHAT_MODEL=gpt-4o
+
+    # Crawl Configuration
+    # Set to 'url' for regular website or 'sitemap' for sitemap crawling, will crawl child pages from the sitemap
+    CRAWL_TYPE=url
+    # URL to crawl (can be a website URL or sitemap URL)
+    CRAWL_URL=https://example.com
+    # Maximum number of URLs to crawl from a sitemap (set to 0 for unlimited)
+    MAX_URLS=30
+    # Optional name for the site (if not provided, one will be generated)
+    CRAWL_SITE_NAME=
+    # Optional description for the site (if not provided, one will be generated)
+    CRAWL_SITE_DESCRIPTION=
+
+    # Chat Configuration
+    # Model to use for the chat interface
+    CHAT_MODEL=gpt-4o
+    # Number of results to retrieve for each query
+    CHAT_RESULT_LIMIT=5
+    # Similarity threshold for vector search (0-1)
+    CHAT_SIMILARITY_THRESHOLD=0.4
+    # Default session ID (if not provided, a new one will be generated) you can use a random string
+    CHAT_SESSION_ID=
+    # Default user ID (optional, name, user, i.e. larry)
+    CHAT_USER_ID=
+    # Default chat profile (default, pydantic, technical, concise, scifi, pirate, supabase_expert, medieval, etc.)
+    CHAT_PROFILE=default
+    # Directory containing profile YAML files
+    CHAT_PROFILES_DIR=profiles
+    # Verbose mode (true, false) - enable to see more during chat
+    CHAT_VERBOSE=false
    ```
 
 ### Start Crawling and chatting right away
