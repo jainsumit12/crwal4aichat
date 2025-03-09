@@ -29,7 +29,7 @@ This project integrates a Crawl4AI api with Supabase and LLM Chat to create a po
 
 1. Clone this repository:
    ```
-   git clone <repository-url>
+   git clone https://github.com/bigsk1/supa-crawl-chat.git
    cd crawl4ai-supabase
    ```
 
