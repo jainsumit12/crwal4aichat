@@ -717,7 +717,9 @@ The API will be available at `http://localhost:8001`. You can access the interac
 
 ## Docker Deployment
 
-You can also run the API using Docker:
+![Image](https://github.com/user-attachments/assets/be41b857-47ca-4804-97e2-98764a270748)
+
+You can run the app like normal once you exec into the container or run the API:
 
 ```bash
 # Build and start the container
