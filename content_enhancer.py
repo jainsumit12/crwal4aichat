@@ -29,8 +29,22 @@ class ContentEnhancer:
         if not self.api_key:
             raise ValueError("OpenAI API key not provided and not found in environment variables.")
         
-        self.client = OpenAI(api_key=self.api_key)
-        self.async_client = AsyncOpenAI(api_key=self.api_key)
+        try:
+            # Try to initialize the clients with the standard parameters
+            self.client = OpenAI(api_key=self.api_key)
+            self.async_client = AsyncOpenAI(api_key=self.api_key)
+        except TypeError as e:
+            # If there's an error about unexpected keyword arguments, try a different approach
+            if "unexpected keyword argument" in str(e):
+                print(f"Warning: {e}. Trying alternative initialization.")
+                # Initialize without the problematic parameter
+                import httpx
+                http_client = httpx.Client()
+                async_http_client = httpx.AsyncClient()
+                self.client = OpenAI(api_key=self.api_key, http_client=http_client)
+                self.async_client = AsyncOpenAI(api_key=self.api_key, http_client=async_http_client)
+            else:
+                raise
         
         # Initialize tokenizer
         # gpt-4o-mini uses cl100k_base encoding

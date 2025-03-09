@@ -198,13 +198,8 @@ python main.py setup
 
 This will create the necessary tables and extensions in your Supabase database.
 
-If you're upgrading from a previous version without chunking support, run the migration script:
 
-```
-python tests/migrate_db_for_chunking.py
-```
-
-### Crawling a website
+### Crawling a website with args
 
 You can crawl a website in two ways:
 
@@ -225,7 +220,7 @@ You can crawl a website in two ways:
 
    Note: If you don't provide a description, the system will automatically generate one based on the content of the homepage or main page.
 
-2. Using the `.env` file configuration:
+2. Using the `.env` file configuration: ( recommended )
    
    First, update the `.env` file with your crawl settings:
    ```

@@ -212,7 +212,19 @@ class ChatBot:
             sys.exit(1)
         
         # Set up the OpenAI client
-        self.client = OpenAI(api_key=self.api_key)
+        try:
+            # Try to initialize the client with the standard parameters
+            self.client = OpenAI(api_key=self.api_key)
+        except TypeError as e:
+            # If there's an error about unexpected keyword arguments, try a different approach
+            if "unexpected keyword argument" in str(e):
+                print(f"Warning: {e}. Trying alternative initialization.")
+                # Initialize without the problematic parameter
+                import httpx
+                http_client = httpx.Client()
+                self.client = OpenAI(api_key=self.api_key, http_client=http_client)
+            else:
+                raise
         
         # Set up the model
         self.model = model or os.getenv("CHAT_MODEL", "gpt-4o")
