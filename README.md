@@ -1,6 +1,6 @@
 # Crawl4AI with Supabase Vector Search and Chat
 
-Integrates Crawl4AI with Supabase and LLM Chat to create a powerful web crawling and semantic search solution quickly. It crawls websites, stores the content in a Supabase database with vector embeddings, and provides semantic search capabilities with real Chat memory.
+Integrates Crawl4AI with Supabase and AI Chat to create a powerful web crawling and semantic search solution quickly. It crawls websites, stores the content in a Supabase database with vector embeddings, and provides semantic search capabilities with AI Chat.
 
 ![crawl](https://imagedelivery.net/WfhVb8dSNAAvdXUdMfBuPQ/cbbb5f3b-d089-49a1-704f-c2ebd6bcef00/public)
 
@@ -18,7 +18,8 @@ Integrates Crawl4AI with Supabase and LLM Chat to create a powerful web crawling
 - Configuration via `.env` file for easy switching between URLs/sitemaps
 - Automatic content chunking for better LLM interaction and search precision
 - Configurable limits for sitemap crawling to control resource usage
-
+- Run all in Docker - Just need a Supabase URL and API Key to connect with
+- Supa-Crawl-Chat API provides a RESTful interface to interact with the Supa-Crawl-Chat system
 
 
 ## Prerequisites
@@ -27,6 +28,7 @@ Integrates Crawl4AI with Supabase and LLM Chat to create a powerful web crawling
 - A running Crawl4AI instance (self-hosted or cloud)
 - A Supabase instance (local or cloud)
 - OpenAI API key for generating embeddings and content summaries
+- Docker (optional)
 
 ## Installation
 
@@ -684,7 +686,7 @@ uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
 
 The API will be available at `http://localhost:8000`. You can access the interactive API documentation at `http://localhost:8000/docs`.
 
-### Docker Deployment
+## Docker Deployment
 
 You can also run the API using Docker:
 
@@ -723,6 +725,12 @@ CRAWL4AI_API_TOKEN=your_crawl4ai_api_token
 ```
 
 ### API Endpoints
+
+The interactive API documentation is available at:
+
+```
+http://localhost:8001/docs
+```
 
 The API provides the following endpoints:
 
@@ -804,18 +812,20 @@ Here's an example of how to use the API with curl:
 
 ```bash
 # Search for content
-curl -X GET "http://localhost:8000/api/search?query=pydantic&threshold=0.3&limit=5" -H "accept: application/json"
+curl -X GET "http://localhost:8001/api/search?query=pydantic&threshold=0.3&limit=5" -H "accept: application/json"
 
 # Start a chat session
-curl -X POST "http://localhost:8000/api/chat" \
+curl -X POST "http://localhost:8001/api/chat" \
   -H "Content-Type: application/json" \
   -d '{"message": "Tell me about pydantic", "user_id": "example_user"}'
 
 # Continue the conversation with the same session ID
-curl -X POST "http://localhost:8000/api/chat" \
+curl -X POST "http://localhost:8001/api/chat" \
   -H "Content-Type: application/json" \
   -d '{"message": "How do I use BaseModel?", "session_id": "SESSION_ID_FROM_PREVIOUS_RESPONSE", "user_id": "example_user"}'
 ```
+
+![Image](https://github.com/user-attachments/assets/ee12f7f1-1347-4968-9e2b-6466ac835b40)
 
 ## License
 

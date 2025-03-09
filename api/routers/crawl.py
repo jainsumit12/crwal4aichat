@@ -29,6 +29,7 @@ class CrawlResponse(BaseModel):
     url: str
     message: str
     status: str
+    next_steps: Dict[str, str]
 
 # Background task for crawling
 def crawl_in_background(url: str, site_name: Optional[str], site_description: Optional[str], is_sitemap: bool, max_urls: Optional[int]):
@@ -36,9 +37,25 @@ def crawl_in_background(url: str, site_name: Optional[str], site_description: Op
         crawler = WebCrawler()
         
         if is_sitemap:
-            crawler.crawl_sitemap(url, site_name, site_description, max_urls=max_urls)
+            site_id = crawler.crawl_sitemap(url, site_name, site_description, max_urls=max_urls)
         else:
-            crawler.crawl_site(url, site_name, site_description)
+            site_id = crawler.crawl_site(url, site_name, site_description)
+            
+        # Get the final page count
+        page_count = crawler.db_client.get_page_count_by_site_id(site_id, include_chunks=True)
+        parent_page_count = crawler.db_client.get_page_count_by_site_id(site_id, include_chunks=False)
+        
+        # Print a completion message
+        print("\n" + "="*80)
+        print("✅  CRAWL COMPLETED SUCCESSFULLY!")
+        print("="*80)
+        print(f"📊  Site ID: {site_id}")
+        print(f"📄  Pages crawled: {parent_page_count}")
+        print(f"🧩  Total chunks: {page_count - parent_page_count}")
+        print(f"🔍  To check status: GET /api/crawl/status/{site_id}")
+        print(f"📚  To view pages: GET /api/sites/{site_id}/pages")
+        print(f"🔎  To search content: GET /api/search/?query=your_query&site_id={site_id}")
+        print("="*80 + "\n")
     except Exception as e:
         print(f"Error in background crawl task: {str(e)}")
 
@@ -96,7 +113,12 @@ async def crawl(
             site_name=site.get("name", ""),
             url=site.get("url", ""),
             message="Crawl started successfully",
-            status="in_progress"
+            status="in_progress",
+            next_steps={
+                "check_status": f"GET /api/crawl/status/{site_id}",
+                "view_pages": f"GET /api/sites/{site_id}/pages",
+                "search_content": f"GET /api/search/?query=your_query&site_id={site_id}"
+            }
         )
     except Exception as e:
         raise HTTPException(
@@ -110,6 +132,9 @@ async def crawl_status(site_id: int):
     Get the status of a crawl by site ID.
     
     - **site_id**: The ID of the site
+    
+    Returns detailed information about the site, including the number of pages crawled,
+    chunks created, and suggested next steps for working with the crawled content.
     """
     try:
         crawler = WebCrawler()
@@ -124,14 +149,22 @@ async def crawl_status(site_id: int):
         
         # Get page count
         page_count = crawler.db_client.get_page_count_by_site_id(site_id)
+        parent_page_count = crawler.db_client.get_page_count_by_site_id(site_id, include_chunks=False)
+        chunk_count = page_count - parent_page_count
         
         return {
             "site_id": site_id,
             "site_name": site.get("name", ""),
             "url": site.get("url", ""),
-            "page_count": page_count,
+            "page_count": parent_page_count,
+            "chunk_count": chunk_count,
+            "total_count": page_count,
             "created_at": site.get("created_at", ""),
-            "updated_at": site.get("updated_at", "")
+            "updated_at": site.get("updated_at", ""),
+            "next_steps": {
+                "view_pages": f"GET /api/sites/{site_id}/pages",
+                "search_content": f"GET /api/search/?query=your_query&site_id={site_id}"
+            }
         }
     except HTTPException:
         raise

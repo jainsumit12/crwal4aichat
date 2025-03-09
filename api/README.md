@@ -57,6 +57,8 @@ POST /api/crawl/
 
 Starts a crawl for a website or sitemap. The crawl process runs in the background, and the endpoint returns immediately with a site ID that can be used to check the status.
 
+When the crawl completes, a detailed completion message will be printed to the server logs with information about the site ID, number of pages crawled, and suggested next API calls.
+
 **Request Body:**
 
 ```json
@@ -85,9 +87,19 @@ Starts a crawl for a website or sitemap. The crawl process runs in the backgroun
   "site_name": "Example Site",
   "url": "https://example.com",
   "message": "Crawl started successfully",
-  "status": "in_progress"
+  "status": "in_progress",
+  "next_steps": {
+    "check_status": "GET /api/crawl/status/4",
+    "view_pages": "GET /api/sites/4/pages",
+    "search_content": "GET /api/search/?query=your_query&site_id=4"
+  }
 }
 ```
+### Example 
+
+![Image](https://github.com/user-attachments/assets/ee12f7f1-1347-4968-9e2b-6466ac835b40)
+
+The `next_steps` field provides suggested API calls for the next actions you might want to take, such as checking the status of the crawl, viewing the pages, or searching the content.
 
 **Status Codes:**
 
@@ -114,10 +126,22 @@ Checks the status of a crawl by site ID.
   "site_name": "Example Site",
   "url": "https://example.com",
   "page_count": 1,
+  "chunk_count": 1,
+  "total_count": 2,
   "created_at": "2025-03-09T12:13:01.828635",
-  "updated_at": "2025-03-09T12:13:01.828635"
+  "updated_at": "2025-03-09T12:13:01.828635",
+  "next_steps": {
+    "view_pages": "GET /api/sites/4/pages",
+    "search_content": "GET /api/search/?query=your_query&site_id=4"
+  }
 }
 ```
+
+The response includes:
+- `page_count`: Number of parent pages (not including chunks)
+- `chunk_count`: Number of chunks
+- `total_count`: Total number of pages and chunks
+- `next_steps`: Suggested API calls for the next actions
 
 **Status Codes:**
 
