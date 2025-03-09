@@ -902,6 +902,44 @@ class SupabaseClient:
             if conn:
                 conn.close()
     
+    def get_page_count_by_site_id(self, site_id: int, include_chunks: bool = False) -> int:
+        """Get the number of pages for a specific site.
+        
+        Args:
+            site_id: The ID of the site.
+            include_chunks: Whether to include chunks in the count.
+            
+        Returns:
+            The number of pages.
+        """
+        conn = None
+        try:
+            conn = self._get_connection()
+            cur = conn.cursor()
+            
+            if include_chunks:
+                # Count all pages including chunks
+                cur.execute(
+                    "SELECT COUNT(*) FROM crawl_pages WHERE site_id = %s",
+                    (site_id,)
+                )
+            else:
+                # Count only parent pages (not chunks)
+                cur.execute(
+                    "SELECT COUNT(*) FROM crawl_pages WHERE site_id = %s AND is_chunk = FALSE",
+                    (site_id,)
+                )
+            
+            result = cur.fetchone()
+            return result[0] if result else 0
+            
+        except Exception as e:
+            print_error(f"Error getting page count by site ID: {e}")
+            raise
+        finally:
+            if conn:
+                conn.close()
+    
     def get_pages_by_site_id(self, site_id: int, limit: int = 100, include_chunks: bool = False) -> List[Dict[str, Any]]:
         """Get pages for a specific site.
         
