@@ -56,9 +56,8 @@ Integrates Crawl4AI with Supabase and AI Chat to create a powerful web crawling 
     CRAWL4AI_BASE_URL=your_crawl4ai_base_url 
 
     # Supabase Configuration
-    # Option 1: Use a single URL (can be with or without protocol) 
     SUPABASE_URL=your_supabase_host:port
-    # Database credentials (required for both options)
+    # Database credentials
     SUPABASE_DB=postgres
     SUPABASE_KEY=postgres
     SUPABASE_PASSWORD=postgres
