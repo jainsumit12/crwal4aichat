@@ -19,10 +19,7 @@ Integrates Crawl4AI with Supabase and LLM Chat to create a powerful web crawling
 - Automatic content chunking for better LLM interaction and search precision
 - Configurable limits for sitemap crawling to control resource usage
 
-![Image](https://github.com/user-attachments/assets/bd49c8df-4f45-4981-bd29-64fadf29a0e0)
-![Image](https://github.com/user-attachments/assets/c3071ef4-c516-43f9-8496-b49ddc59a55e)
 
-![Image](https://github.com/user-attachments/assets/7aa1d142-4a70-4d86-a17d-860ab633ae3f)
 
 ## Prerequisites
 
@@ -94,6 +91,13 @@ Integrates Crawl4AI with Supabase and LLM Chat to create a powerful web crawling
    CHAT_PROFILES_DIR=profiles 
    CHAT_VERBOSE=false
    ```
+
+### Start Crawling and chatting right away
+
+![Image](https://github.com/user-attachments/assets/bd49c8df-4f45-4981-bd29-64fadf29a0e0)
+![Image](https://github.com/user-attachments/assets/c3071ef4-c516-43f9-8496-b49ddc59a55e)
+
+![Image](https://github.com/user-attachments/assets/7aa1d142-4a70-4d86-a17d-860ab633ae3f)
 
 ## Database Connection Options
 
@@ -331,6 +335,9 @@ The search results will include:
 - Which part of the document it represents (e.g., "Part 2 of 5")
 
 This makes it easier to understand the context of each search result, even when it's a small chunk of a larger document.
+
+---
+
 
 ![Image](https://github.com/user-attachments/assets/34d79a96-2d60-4221-a1f7-3a8582129855)
 
@@ -575,6 +582,8 @@ You can also use the crawler programmatically in your own Python code. See `test
   - `test_crawl_api.py`: Script to test the Crawl4AI API
   - `reset_database.py`: Script to delete tables or reset the database
 
+---
+
 ![Image](https://github.com/user-attachments/assets/629345d4-3dea-489b-be0e-65cb07f53d9a)
 
 ## Database Structure
@@ -618,9 +627,9 @@ When you crawl a site multiple times, the system will update existing pages rath
 
 The project includes a powerful Streamlit-based Supabase Explorer app that allows you to interactively explore and analyze your database. This tool makes it easy to run SQL queries, visualize results, and gain insights from your crawled data.
 
-![Image of Supabase Explorer showing a pie chart visualization](https://github.com/user-attachments/assets/c7fce24d-50e8-447e-8900-15ffcb56ce92)
+![Image of Supabase Explorer showing a pie chart visualization](https://github.com/user-attachments/assets/3dbb948d-5776-4862-9a98-474d4dc6b66d)
 
-### Features
+
 
 - **Interactive Query Interface**: Run predefined or custom SQL queries with a single click
 - **Data Visualization**: Create bar charts, line charts, and pie charts from your query results
@@ -648,7 +657,10 @@ cd supabase_explorer
 streamlit run supabase_explorer.py
 ```
 
-The app will automatically connect to your Supabase database using the credentials in your `.env` file.
+The app will automatically connect to your Supabase database using the credentials in your root `.env` file.
+
+
+![Image](https://github.com/user-attachments/assets/452dc561-ef6c-4472-8501-1004362a7a3b)
 
 ### Adding Custom Queries
 
