@@ -445,7 +445,7 @@ To get the most out of this feature, always use the same session ID and user ID 
 
 #### Chat Profiles
 
-The chat interface supports different profiles that customize the behavior of the assistant. Each profile has its own system prompt, search settings, and site filtering capabilities. So ideally use crawl the sitemap for a doc site and then use or create a profile with an additional system prompt to be an expert about those docs.
+The chat interface supports different profiles that customize the behavior of the assistant. Each profile has its own system prompt, search settings, and site filtering capabilities. So ideally crawl the sitemap for a doc site and then use or create a profile with an additional system prompt to be an expert about those docs.
 
 Built-in profiles:
 - **default**: General-purpose assistant that searches all sites
@@ -606,9 +606,10 @@ You can also use the crawler programmatically in your own Python code. See `test
 
 ---
 
+## Database Structure
+
 ![Image](https://github.com/user-attachments/assets/629345d4-3dea-489b-be0e-65cb07f53d9a)
 
-## Database Structure
 
 The project uses the following tables in the Supabase database:
 
@@ -649,8 +650,6 @@ When you crawl a site multiple times, the system will update existing pages rath
 
 The project includes a powerful Streamlit-based Supabase Explorer app that allows you to interactively explore and analyze your database. This tool makes it easy to run SQL queries, visualize results, and gain insights from your crawled data.
 
-![Image of Supabase Explorer showing a pie chart visualization](https://github.com/user-attachments/assets/c7fce24d-50e8-447e-8900-15ffcb56ce92)
-
 ### Features
 
 - **Interactive Query Interface**: Run predefined or custom SQL queries with a single click
@@ -686,14 +685,14 @@ The app will automatically connect to your Supabase database using the credentia
 You can add your own custom queries to the predefined list by editing the `supabase_explorer/supabase_queries.md` file. Follow the existing format:
 
 ```markdown
-## Your Category
+Your Category
 
-### Your Query Name
+Your Query Name
 
 ```sql
 SELECT * FROM your_table WHERE your_condition;
 ```
-```
+
 
 After adding your queries, restart the Streamlit app to load the new queries.
 
@@ -706,10 +705,10 @@ The project includes a FastAPI-based REST API that allows you to integrate the S
 To start the API server:
 
 ```bash
-uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
+uvicorn api.main:app --host 0.0.0.0 --port 8001 --reload
 ```
 
-The API will be available at `http://localhost:8000`. You can access the interactive API documentation at `http://localhost:8000/docs`.
+The API will be available at `http://localhost:8001`. You can access the interactive API documentation at `http://localhost:8001/docs`.
 
 ## Docker Deployment
 
@@ -849,6 +848,7 @@ curl -X POST "http://localhost:8001/api/chat" \
   -H "Content-Type: application/json" \
   -d '{"message": "How do I use BaseModel?", "session_id": "SESSION_ID_FROM_PREVIOUS_RESPONSE", "user_id": "example_user"}'
 ```
+Finished crawl example 
 
 ![Image](https://github.com/user-attachments/assets/ee12f7f1-1347-4968-9e2b-6466ac835b40)
 
