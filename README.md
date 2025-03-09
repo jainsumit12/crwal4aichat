@@ -1,6 +1,8 @@
 # Crawl4AI with Supabase Vector Search and Chat
 
-This project integrates a Crawl4AI api with Supabase and LLM Chat to create a powerful web crawling and semantic search solution. It crawls websites, stores the content in a Supabase database with vector embeddings, and provides semantic search capabilities with real Chat memory.
+Cli project that integrates a Crawl4AI with Supabase and LLM Chat to create a powerful web crawling and semantic search solution quickly. It crawls websites, stores the content in a Supabase database with vector embeddings, and provides semantic search capabilities with real Chat memory.
+
+![crawl](https://imagedelivery.net/WfhVb8dSNAAvdXUdMfBuPQ/cbbb5f3b-d089-49a1-704f-c2ebd6bcef00/public)
 
 ## Features
 
