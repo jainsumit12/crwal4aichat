@@ -648,6 +648,11 @@ When you crawl a site multiple times, the system will update existing pages rath
 
 ## Supabase Explorer
 
+![Image](https://github.com/user-attachments/assets/26e7681b-7835-4bc3-9d64-08f2d314f77f)
+
+
+![Image](https://github.com/user-attachments/assets/85388083-a1d0-4054-8913-e67c6c1fb90e)
+
 The project includes a powerful Streamlit-based Supabase Explorer app that allows you to interactively explore and analyze your database. This tool makes it easy to run SQL queries, visualize results, and gain insights from your crawled data.
 
 ### Features
