@@ -72,14 +72,15 @@ To add your own queries to the predefined list:
 
 1. Edit the `supabase_queries.md` file
 2. Follow the existing format:
-   ```markdown
-   ## Your Category
+
+
+   Your Category
    
-   ### Your Query Name
+   Your Query Name
    
    ```sql
    SELECT * FROM your_table WHERE your_condition;
    ```
-   ```
+   
 
 3. Restart the Streamlit app to load the new queries 
