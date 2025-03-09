@@ -16,7 +16,10 @@ This project integrates a Crawl4AI api with Supabase and LLM Chat to create a po
 - Automatic content chunking for better LLM interaction and search precision
 - Configurable limits for sitemap crawling to control resource usage
 
-![Image](https://github.com/user-attachments/assets/34d79a96-2d60-4221-a1f7-3a8582129855)
+![Image](https://github.com/user-attachments/assets/bd49c8df-4f45-4981-bd29-64fadf29a0e0)
+![Image](https://github.com/user-attachments/assets/c3071ef4-c516-43f9-8496-b49ddc59a55e)
+
+![Image](https://github.com/user-attachments/assets/7aa1d142-4a70-4d86-a17d-860ab633ae3f)
 
 ## Prerequisites
 
@@ -320,6 +323,8 @@ The search results will include:
 - Which part of the document it represents (e.g., "Part 2 of 5")
 
 This makes it easier to understand the context of each search result, even when it's a small chunk of a larger document.
+
+![Image](https://github.com/user-attachments/assets/34d79a96-2d60-4221-a1f7-3a8582129855)
 
 ### Using the chat interface
 
