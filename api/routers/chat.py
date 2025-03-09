@@ -14,6 +14,17 @@ class Message(BaseModel):
     role: str
     content: str
     timestamp: Optional[str] = None
+    
+    class Config:
+        arbitrary_types_allowed = True
+        
+    @classmethod
+    def from_dict(cls, message_dict):
+        """Create a Message from a dictionary, converting datetime to string if needed."""
+        if 'timestamp' in message_dict and message_dict['timestamp'] is not None:
+            if not isinstance(message_dict['timestamp'], str):
+                message_dict['timestamp'] = str(message_dict['timestamp'])
+        return cls(**message_dict)
 
 class ChatRequest(BaseModel):
     message: str
@@ -245,11 +256,7 @@ async def get_conversation_history(
         # Convert to Message model
         messages = []
         for msg in chat_bot.conversation_history:
-            messages.append(Message(
-                role=msg["role"],
-                content=msg["content"],
-                timestamp=msg.get("timestamp")
-            ))
+            messages.append(Message.from_dict(msg))
         
         return ConversationHistoryResponse(
             messages=messages,

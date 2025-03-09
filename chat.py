@@ -1416,6 +1416,15 @@ If there is no relevant information, respond with "No relevant information found
             
             # Add a new system message
             self.add_system_message(system_prompt)
+    
+    @property
+    def current_profile(self):
+        """Get the current profile name.
+        
+        Returns:
+            The name of the current profile.
+        """
+        return self.profile_name
 
 def main():
     """Main function for the chat interface."""
