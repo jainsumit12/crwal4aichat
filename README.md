@@ -69,7 +69,6 @@ Integrates Crawl4AI with Supabase and AI Chat to create a powerful web crawling 
     # Model to use for title and summary generation and chat analysis
     OPENAI_CONTENT_MODEL=gpt-4o-mini
     # Model to use for the chat interface
-    CHAT_MODEL=gpt-4o
 
     # Crawl Configuration
     # Set to 'url' for regular website or 'sitemap' for sitemap crawling, will crawl child pages from the sitemap
