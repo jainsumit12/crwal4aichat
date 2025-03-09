@@ -80,7 +80,7 @@ Integrates Crawl4AI with Supabase and LLM Chat to create a powerful web crawling
    # Number of results to retrieve for each query
    CHAT_RESULT_LIMIT=5
    # Similarity threshold for vector search (0-1)
-   CHAT_SIMILARITY_THRESHOLD=0.7 
+   CHAT_SIMILARITY_THRESHOLD=0.4 
    # Default session ID (if not provided, a new one will be generated)
    CHAT_SESSION_ID=
    # Default user ID (optional, name, user, i.e. pete)
