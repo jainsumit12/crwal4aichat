@@ -287,9 +287,9 @@ To use text-based search instead of semantic search:
 python main.py search "your search query" --text-only
 ```
 
-To adjust the similarity threshold and limit the number of results:
-
 ![Image](https://github.com/user-attachments/assets/806c80ae-1fbf-4680-990e-9d2b9b3bbaa8)
+
+To adjust the similarity threshold and limit the number of results:
 
 ```
 python main.py search "your search query" --threshold 0.8 --limit 2
@@ -309,9 +309,9 @@ To list all the sites that have been crawled:
 python main.py list-sites
 ```
 
-By default, this only counts parent pages (not chunks). To include chunks in the page count:
-
 ![Image](https://github.com/user-attachments/assets/c7fce24d-50e8-447e-8900-15ffcb56ce92)
+
+By default, this only counts parent pages (not chunks). To include chunks in the page count:
 
 ```
 python main.py list-sites --include-chunks
@@ -343,11 +343,10 @@ The search results will include:
 This makes it easier to understand the context of each search result, even when it's a small chunk of a larger document.
 
 ---
-
+### Using the chat interface
 
 ![Image](https://github.com/user-attachments/assets/34d79a96-2d60-4221-a1f7-3a8582129855)
 
-### Using the chat interface
 
 The project includes a chat interface that uses an LLM to answer questions based on the crawled data. The chat interface now supports persistent conversation history, allowing the LLM to remember previous interactions even after restarting the application.
 
@@ -369,7 +368,7 @@ You can customize the chat interface with various options:
 # Specify a different OpenAI model
 python main.py chat --model gpt-4
 
-# Set the maximum number of search results to retrieve
+# Set the maximum number of search results to retrieve when chatting
 python main.py chat --limit 10
 
 # Adjust the similarity threshold for vector search (0-1)
@@ -383,6 +382,9 @@ python main.py chat --user John
 
 # Enable verbose debug output
 python main.py chat --verbose
+
+# Combined
+python main.py chat --model gpt-4 --limit 15 --threshold 0.3 --session 12123111111 --user John --verbose
 ```
 
 #### Search Functionality
@@ -406,7 +408,7 @@ Key features:
 - **Chat commands**:
   - Type `clear` to clear the conversation history
   - Type `history` to view the conversation history
-  - Type `exit` to quit the chat interface
+  - Type `exit` or `bye` or `exit` to quit the chat interface
 
 **Important**: To maintain the same conversation across multiple chat sessions, you must use the same session ID. The session ID is displayed when you start the chat interface. You can specify it before starting a new chat session:
 
@@ -443,14 +445,13 @@ To get the most out of this feature, always use the same session ID and user ID 
 
 #### Chat Profiles
 
-The chat interface supports different profiles that customize the behavior of the assistant. Each profile has its own system prompt, search settings, and site filtering capabilities.
+The chat interface supports different profiles that customize the behavior of the assistant. Each profile has its own system prompt, search settings, and site filtering capabilities. So ideally use crawl the sitemap for a doc site and then use or create a profile with an additional system prompt to be an expert about those docs.
 
 Built-in profiles:
 - **default**: General-purpose assistant that searches all sites
 - **pydantic**: Specialized for Pydantic documentation, focusing on technical details and code examples
 - **technical**: Provides detailed technical explanations with step-by-step instructions
 - **concise**: Gives brief, to-the-point answers without unnecessary details
-- **bigsk1_expert**: Expert on bigsk1.com technical documentation
 
 You can switch profiles during a chat session:
 ```
@@ -537,7 +538,7 @@ You can set default values for the chat interface in your `.env` file:
 
 ```
 # Chat Configuration
-CHAT_MODEL=gpt-4o-mini
+CHAT_MODEL=gpt-4o
 CHAT_RESULT_LIMIT=5
 CHAT_SIMILARITY_THRESHOLD=0.5
 CHAT_SESSION_ID=default-session
@@ -578,10 +579,25 @@ You can also use the crawler programmatically in your own Python code. See `test
 - `run_crawl.py`: Script to run a crawl using the configuration from the `.env` file
 - `update_content.py`: Script to update existing pages with titles and summaries
 - `utils.py`: Utility functions for the CLI
+- `api/`: Directory containing the FastAPI implementation
+  - `main.py`: FastAPI application entry point
+  - `routers/`: Directory containing API route definitions
+    - `crawl.py`: Endpoints for crawling websites and sitemaps
+    - `search.py`: Endpoints for searching crawled content
+    - `sites.py`: Endpoints for managing and retrieving site information
+    - `chat.py`: Endpoints for interacting with the chat interface
+  - `README.md`: Comprehensive API documentation
+- `docker/`: Directory containing Docker-related files
+  - `Dockerfile`: Docker image definition for the application
+  - `docker-compose.yml`: Docker Compose configuration for the API service
+  - `crawl4ai-docker-compose.yml`: Docker Compose configuration for integrated API and Crawl4AI services
+  - `.dockerignore`: Specifies files to exclude from Docker builds
 - `supabase_explorer/`: Directory containing the Supabase Explorer Streamlit app
   - `supabase_explorer.py`: Interactive Streamlit app for database exploration
   - `supabase_queries.md`: Collection of useful SQL queries
   - `database_explorer_readme.md`: Documentation for the Supabase Explorer
+- `profiles/`: Directory containing chat profile configurations
+  - Various YAML files defining different chat personalities and behaviors
 - `tests/`: Directory containing test scripts
   - `example.py`: Example script demonstrating programmatic usage
   - `test_db_connection.py`: Script to test the database connection
