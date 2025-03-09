@@ -622,9 +622,9 @@ When you crawl a site multiple times, the system will update existing pages rath
 
 The project includes a powerful Streamlit-based Supabase Explorer app that allows you to interactively explore and analyze your database. This tool makes it easy to run SQL queries, visualize results, and gain insights from your crawled data.
 
-![Image of Supabase Explorer showing a pie chart visualization](https://github.com/user-attachments/assets/3dbb948d-5776-4862-9a98-474d4dc6b66d)
+![Image of Supabase Explorer showing a pie chart visualization](https://github.com/user-attachments/assets/c7fce24d-50e8-447e-8900-15ffcb56ce92)
 
-
+### Features
 
 - **Interactive Query Interface**: Run predefined or custom SQL queries with a single click
 - **Data Visualization**: Create bar charts, line charts, and pie charts from your query results
@@ -652,17 +652,170 @@ cd supabase_explorer
 streamlit run supabase_explorer.py
 ```
 
-The app will automatically connect to your Supabase database using the credentials in your root `.env` file.
-
-
-![Image](https://github.com/user-attachments/assets/452dc561-ef6c-4472-8501-1004362a7a3b)
+The app will automatically connect to your Supabase database using the credentials in your `.env` file.
 
 ### Adding Custom Queries
 
-You can add your own custom queries to the predefined list by editing the `supabase_explorer/supabase_queries.md` file. 
+You can add your own custom queries to the predefined list by editing the `supabase_explorer/supabase_queries.md` file. Follow the existing format:
+
+```markdown
+## Your Category
+
+### Your Query Name
+
+```sql
+SELECT * FROM your_table WHERE your_condition;
+```
+```
 
 After adding your queries, restart the Streamlit app to load the new queries.
 
+## API
+
+The project includes a FastAPI-based REST API that allows you to integrate the Supa-Crawl-Chat functionality with other applications or build custom frontends. The API provides endpoints for searching, crawling, managing sites, and chatting.
+
+### Running the API
+
+To start the API server:
+
+```bash
+uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+The API will be available at `http://localhost:8000`. You can access the interactive API documentation at `http://localhost:8000/docs`.
+
+### Docker Deployment
+
+You can also run the API using Docker:
+
+```bash
+# Build and start the container
+docker-compose -f docker/docker-compose.yml up -d
+
+# View logs
+docker-compose -f docker/docker-compose.yml logs -f
+```
+
+### Integrated Crawl4AI Docker Deployment
+
+If you want to run both the API and Crawl4AI in Docker containers, you can use the provided `crawl4ai-docker-compose.yml` file:
+
+```bash
+# Build and start both containers
+docker-compose -f docker/crawl4ai-docker-compose.yml up -d
+
+# View logs
+docker-compose -f docker/crawl4ai-docker-compose.yml logs -f
+```
+
+This setup will:
+1. Start a Crawl4AI container using the official image from Docker Hub
+2. Start your API container with the correct configuration to connect to Crawl4AI
+3. Create a network for the containers to communicate with each other
+
+Make sure your `.env` file includes the necessary Crawl4AI configuration:
+
+```env
+# Crawl4AI Configuration
+CRAWL4AI_API_TOKEN=your_crawl4ai_api_token
+# This will be automatically set to the Docker service name in the container
+# CRAWL4AI_BASE_URL=http://crawl4ai:11235
+```
+
+### API Endpoints
+
+The API provides the following endpoints:
+
+#### Search
+
+- `GET /api/search`: Search for content using semantic search or text search
+  - Parameters:
+    - `query`: The search query
+    - `threshold`: Similarity threshold (0-1)
+    - `limit`: Maximum number of results
+    - `text_only`: Use text search instead of embeddings
+    - `site_id`: Optional site ID to filter results by
+
+#### Crawl
+
+- `POST /api/crawl`: Crawl a website or sitemap
+  - Body:
+    - `url`: URL to crawl
+    - `site_name`: Optional name for the site
+    - `site_description`: Optional description of the site
+    - `is_sitemap`: Whether the URL is a sitemap
+    - `max_urls`: Maximum number of URLs to crawl from a sitemap
+
+- `GET /api/crawl/status/{site_id}`: Get the status of a crawl by site ID
+
+#### Sites
+
+- `GET /api/sites`: List all crawled sites
+  - Parameters:
+    - `include_chunks`: Whether to include chunks in the page count
+
+- `GET /api/sites/{site_id}`: Get a site by ID
+  - Parameters:
+    - `include_chunks`: Whether to include chunks in the page count
+
+- `GET /api/sites/{site_id}/pages`: Get pages for a specific site
+  - Parameters:
+    - `include_chunks`: Whether to include chunks in the results
+    - `limit`: Maximum number of pages to return
+
+#### Chat
+
+- `POST /api/chat`: Send a message to the chat bot and get a response
+  - Body:
+    - `message`: The user's message
+    - `session_id`: Optional session ID for persistent conversations
+    - `user_id`: Optional user ID
+    - `profile`: Optional profile to use
+  - Parameters:
+    - `model`: Optional model to use
+    - `result_limit`: Optional maximum number of search results
+    - `similarity_threshold`: Optional similarity threshold (0-1)
+    - `include_context`: Whether to include search context in the response
+    - `include_history`: Whether to include conversation history in the response
+
+- `GET /api/chat/profiles`: List all available profiles
+  - Parameters:
+    - `session_id`: Optional session ID to get active profile
+    - `user_id`: Optional user ID
+
+- `POST /api/chat/profiles/{profile_name}`: Set the active profile for a session
+  - Parameters:
+    - `session_id`: Session ID
+    - `user_id`: Optional user ID
+
+- `GET /api/chat/history`: Get conversation history for a session
+  - Parameters:
+    - `session_id`: Session ID
+    - `user_id`: Optional user ID
+
+- `DELETE /api/chat/history`: Clear conversation history for a session
+  - Parameters:
+    - `session_id`: Session ID
+    - `user_id`: Optional user ID
+
+### Example API Usage
+
+Here's an example of how to use the API with curl:
+
+```bash
+# Search for content
+curl -X GET "http://localhost:8000/api/search?query=pydantic&threshold=0.3&limit=5" -H "accept: application/json"
+
+# Start a chat session
+curl -X POST "http://localhost:8000/api/chat" \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Tell me about pydantic", "user_id": "example_user"}'
+
+# Continue the conversation with the same session ID
+curl -X POST "http://localhost:8000/api/chat" \
+  -H "Content-Type: application/json" \
+  -d '{"message": "How do I use BaseModel?", "session_id": "SESSION_ID_FROM_PREVIOUS_RESPONSE", "user_id": "example_user"}'
+```
 
 ## License
 

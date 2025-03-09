@@ -1,0 +1,22 @@
+version: '3'
+
+services:
+  api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: supa-chat-api
+    ports:
+      - "8001:8001"
+    volumes:
+      - ../.env:/app/.env
+    restart: unless-stopped
+    environment:
+      - PYTHONUNBUFFERED=1 
+    networks:
+      - crawl-network
+      
+networks:
+  crawl-network:
+    driver: bridge
+      

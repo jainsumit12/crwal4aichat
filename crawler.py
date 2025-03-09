@@ -559,17 +559,21 @@ class WebCrawler:
         return all_pages
     
     def crawl_site(self, url: str, site_name: Optional[str] = None, 
-                  description: Optional[str] = None) -> int:
+                  description: Optional[str] = None, start_only: bool = False) -> int:
         """Crawl a site, generate embeddings, and store in the database.
         
         Args:
             url: The URL to crawl.
             site_name: Optional name for the site. If not provided, one will be generated.
             description: Optional description of the site.
+            start_only: If True, only start the crawl and return the site ID without waiting for completion.
             
         Returns:
             The site ID in the database.
         """
+        # Ensure URL is a string
+        url = str(url)
+        
         # Generate a site name if not provided
         if not site_name:
             site_name = self.generate_site_name(url)
@@ -577,18 +581,24 @@ class WebCrawler:
         print_info(f"Crawling site: {site_name} ({url})")
         
         # Check if the site already exists
-        existing_site = self.db_client.get_site_by_url(url)
-        if existing_site:
-            print_warning(f"Site already exists with ID: {existing_site['id']}. Updating existing site.")
-            site_id = existing_site['id']
-            
-            # If the existing site doesn't have a description, we'll generate one later
-            if not description and not existing_site.get('description'):
-                description = None  # Mark for generation
+        try:
+            existing_site = self.db_client.get_site_by_url(url)
+            if existing_site:
+                print_warning(f"Site already exists with ID: {existing_site['id']}. Updating existing site.")
+                site_id = existing_site['id']
+                
+                # If the existing site doesn't have a description, we'll generate one later
+                if not description and not existing_site.get('description'):
+                    description = None  # Mark for generation
+                else:
+                    description = description or existing_site.get('description')
             else:
-                description = description or existing_site.get('description')
-        else:
-            # Add the site to the database (description might be None, we'll update it later)
+                # Add the site to the database (description might be None, we'll update it later)
+                site_id = self.db_client.add_site(site_name, url, description)
+                print_success(f"Added new site with ID: {site_id}")
+        except Exception as e:
+            print_error(f"Error checking for existing site: {e}")
+            # Add the site to the database as a fallback
             site_id = self.db_client.add_site(site_name, url, description)
             print_success(f"Added new site with ID: {site_id}")
         
@@ -600,10 +610,13 @@ class WebCrawler:
         
         # Start the crawl
         try:
-            crawl_results = self.crawl_client.crawl_and_wait(
-                url,
-                extraction_config=extraction_config
-            )
+            if start_only:
+                return site_id
+            else:
+                crawl_results = self.crawl_client.crawl_and_wait(
+                    url,
+                    extraction_config=extraction_config
+                )
             
             # Process the results
             pages = self.process_crawl_results(crawl_results)
@@ -647,7 +660,8 @@ class WebCrawler:
         return site_id
     
     def crawl_sitemap(self, sitemap_url: str, site_name: Optional[str] = None,
-                     description: Optional[str] = None, max_urls: Optional[int] = None) -> int:
+                     description: Optional[str] = None, max_urls: Optional[int] = None,
+                     start_only: bool = False) -> int:
         """Crawl a sitemap, generate embeddings, and store in the database.
         
         Args:
@@ -655,10 +669,14 @@ class WebCrawler:
             site_name: Optional name for the site. If not provided, one will be generated.
             description: Optional description of the site.
             max_urls: Maximum number of URLs to crawl from the sitemap. If None, uses the MAX_URLS env var.
+            start_only: If True, only start the crawl and return the site ID without waiting for completion.
             
         Returns:
             The site ID in the database.
         """
+        # Ensure URL is a string
+        sitemap_url = str(sitemap_url)
+        
         # Get the maximum URLs to crawl from environment variable or use default
         if max_urls is None:
             try:
@@ -675,21 +693,31 @@ class WebCrawler:
         print_info(f"Maximum URLs to crawl: {max_urls}")
         
         # Check if the site already exists
-        existing_site = self.db_client.get_site_by_url(sitemap_url)
-        if existing_site:
-            print_warning(f"Site already exists with ID: {existing_site['id']}. Updating existing site.")
-            site_id = existing_site['id']
-            
-            # If the existing site doesn't have a description, we'll generate one later
-            if not description and not existing_site.get('description'):
-                description = None  # Mark for generation
+        try:
+            existing_site = self.db_client.get_site_by_url(sitemap_url)
+            if existing_site:
+                print_warning(f"Site already exists with ID: {existing_site['id']}. Updating existing site.")
+                site_id = existing_site['id']
+                
+                # If the existing site doesn't have a description, we'll generate one later
+                if not description and not existing_site.get('description'):
+                    description = None  # Mark for generation
+                else:
+                    description = description or existing_site.get('description')
             else:
-                description = description or existing_site.get('description')
-        else:
-            # Add the site to the database (description might be None, we'll update it later)
+                # Add the site to the database (description might be None, we'll update it later)
+                site_id = self.db_client.add_site(site_name, sitemap_url, description)
+                print_success(f"Added new site with ID: {site_id}")
+        except Exception as e:
+            print_error(f"Error checking for existing site: {e}")
+            # Add the site to the database as a fallback
             site_id = self.db_client.add_site(site_name, sitemap_url, description)
             print_success(f"Added new site with ID: {site_id}")
         
+        # If start_only is True, return the site_id without waiting for the crawl to complete
+        if start_only:
+            return site_id
+            
         try:
             # First, fetch the sitemap XML directly
             print_info(f"Fetching sitemap XML from: {sitemap_url}")

@@ -863,6 +863,45 @@ class SupabaseClient:
             if conn:
                 conn.close()
     
+    def get_site_by_id(self, site_id: int) -> Optional[Dict[str, Any]]:
+        """Get a site by its ID.
+        
+        Args:
+            site_id: The ID of the site.
+            
+        Returns:
+            Site data or None if not found.
+        """
+        conn = None
+        try:
+            conn = self._get_connection()
+            cur = conn.cursor()
+            
+            cur.execute(
+                "SELECT id, name, url, description, created_at, updated_at FROM crawl_sites WHERE id = %s",
+                (site_id,)
+            )
+            
+            result = cur.fetchone()
+            if not result:
+                return None
+            
+            return {
+                'id': result[0],
+                'name': result[1],
+                'url': result[2],
+                'description': result[3],
+                'created_at': result[4],
+                'updated_at': result[5]
+            }
+            
+        except Exception as e:
+            print_error(f"Error getting site by ID: {e}")
+            raise
+        finally:
+            if conn:
+                conn.close()
+    
     def get_pages_by_site_id(self, site_id: int, limit: int = 100, include_chunks: bool = False) -> List[Dict[str, Any]]:
         """Get pages for a specific site.
         
