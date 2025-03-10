@@ -34,6 +34,7 @@ venv.bak/
 .vscode/
 *.swp
 *.swo
+.cursor/*
 
 # Logs
 *.log
