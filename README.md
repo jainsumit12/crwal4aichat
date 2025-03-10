@@ -753,6 +753,8 @@ docker-compose -f docker/docker-compose.yml up -d
 docker-compose -f docker/docker-compose.yml logs -f
 ```
 
+---
+
 ### Integrated Crawl4AI Docker Deployment
 
 If you want to run both the API and Crawl4AI in Docker containers, you can use the provided `crawl4ai-docker-compose.yml` file:
@@ -778,6 +780,59 @@ CRAWL4AI_API_TOKEN=your_crawl4ai_api_token
 # This will be automatically set to the Docker service name in the container
 # CRAWL4AI_BASE_URL=http://crawl4ai:11235
 ```
+---
+
+### Full Stack Docker Setup (Supabase + API + Crawl4AI)
+
+We provide a comprehensive Docker setup that includes everything you need to run the entire application stack:
+
+- Supa Chat API
+- Supabase (Database, Auth, Storage, etc.)
+- Crawl4AI for web crawling
+
+This setup is perfect for development, testing, or even production deployments.
+
+#### Important Note on Environment Files
+
+The full-stack Docker setup uses its own `.env` file located in the `docker/` directory, which is separate from the root `.env` file:
+
+- **docker/.env**: Used exclusively by the full-stack Docker setup
+- **Root .env**: Used by the standard setup or API + Crawl4ai Docker setup
+
+This separation allows users to run either setup without conflicts.
+
+#### Setting Up the Full Stack
+
+To use the full stack Docker setup:
+
+1. Navigate to the docker directory:
+   ```bash
+   cd docker
+   ```
+
+2. Run the setup script:
+   ```bash
+   chmod +x setup.sh
+   ./setup.sh
+   ```
+
+3. Edit the Docker-specific `.env` file with your actual values:
+   ```bash
+   nano .env
+   ```
+
+4. Start the services:
+   ```bash
+   docker-compose -f full-stack-compose.yml up -d
+   ```
+
+5. Access the services:
+   - Supa Chat API: http://localhost:8001
+   - Supabase Studio: http://localhost:8002 (username: supabase, password: from your .env file)
+   - Crawl4AI: http://localhost:11235
+
+For more detailed instructions, see the [Docker README](dockerfull-stack/README.md).
+
 
 ### API Endpoints
 
@@ -882,6 +937,9 @@ curl -X POST "http://localhost:8001/api/chat" \
 Finished crawl example 
 
 ![Image](https://github.com/user-attachments/assets/ee12f7f1-1347-4968-9e2b-6466ac835b40)
+
+
+
 
 ## License
 

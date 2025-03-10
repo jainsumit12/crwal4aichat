@@ -28,6 +28,7 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+docker/.env
 
 # IDE files
 .idea/
@@ -48,3 +49,5 @@ logs/
 # OS specific
 .DS_Store
 Thumbs.db 
+
+docker/volumes/
