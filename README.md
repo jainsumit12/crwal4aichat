@@ -911,7 +911,7 @@ To use the full stack Docker setup:
    - Supabase Studio: http://localhost:8002 (username: supabase, password: from your .env file)
    - Crawl4AI: http://localhost:11235
 
-For more detailed instructions, see the [Docker README](dockerfull-stack/README.md).
+For more detailed instructions, see the [Docker README](docker/full-stack/README.md).
 </details>
 
 ## API
