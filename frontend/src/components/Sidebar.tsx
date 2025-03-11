@@ -24,9 +24,11 @@ const navigation = [
 ];
 
 const Sidebar = ({ open, setOpen }: SidebarProps) => {
+  console.log("Sidebar rendered with open state:", open);
+  
   return (
     <>
-      {/* Mobile sidebar - only visible when 'open' is true */}
+      {/* Mobile sidebar */}
       <Transition.Root show={open} as={Fragment}>
         <Dialog as="div" className="relative z-50 md:hidden" onClose={setOpen}>
           <Transition.Child
@@ -108,36 +110,34 @@ const Sidebar = ({ open, setOpen }: SidebarProps) => {
         </Dialog>
       </Transition.Root>
 
-      {/* Desktop sidebar - always visible on desktop */}
-      <div className="hidden md:fixed md:inset-y-0 md:flex md:w-64 md:flex-col">
-        <div className="flex min-h-0 flex-1 flex-col border-r border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
-          <div className="flex flex-1 flex-col overflow-y-auto pt-5 pb-4">
-            <div className="flex flex-shrink-0 items-center px-4">
-              <h1 className="text-xl font-bold text-gray-900 dark:text-white">Supa Crawl Chat</h1>
-            </div>
-            <nav className="mt-5 flex-1 space-y-1 px-2">
-              {navigation.map((item) => (
-                <NavLink
-                  key={item.name}
-                  to={item.href}
-                  className={({ isActive }) =>
-                    `group flex items-center px-2 py-2 text-sm font-medium rounded-md ${
-                      isActive
-                        ? 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white'
-                        : 'text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white'
-                    }`
-                  }
-                >
-                  <item.icon
-                    className="mr-3 h-5 w-5 flex-shrink-0 text-gray-500 dark:text-gray-400"
-                    aria-hidden="true"
-                  />
-                  {item.name}
-                </NavLink>
-              ))}
-            </nav>
+      {/* Desktop sidebar - always visible but narrower */}
+      <div className="hidden md:block md:fixed md:inset-y-0 md:left-0 md:w-48 md:z-10">
+        <div className="h-full w-48 border-r border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+          <div className="flex items-center p-4">
+            <h1 className="text-lg font-bold text-gray-900 dark:text-white">Supa Crawl Chat</h1>
           </div>
-          <div className="flex flex-shrink-0 border-t border-gray-200 dark:border-gray-700 p-4">
+          <nav className="mt-2 px-2">
+            {navigation.map((item) => (
+              <NavLink
+                key={item.name}
+                to={item.href}
+                className={({ isActive }) =>
+                  `group flex items-center px-2 py-2 text-sm font-medium rounded-md my-1 ${
+                    isActive
+                      ? 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white'
+                      : 'text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white'
+                  }`
+                }
+              >
+                <item.icon
+                  className="mr-2 h-5 w-5 flex-shrink-0 text-gray-500 dark:text-gray-400"
+                  aria-hidden="true"
+                />
+                <span className="text-sm">{item.name}</span>
+              </NavLink>
+            ))}
+          </nav>
+          <div className="absolute bottom-0 left-0 right-0 border-t border-gray-200 dark:border-gray-700 p-4">
             <div className="flex items-center">
               <div>
                 <p className="text-xs text-gray-500 dark:text-gray-400">

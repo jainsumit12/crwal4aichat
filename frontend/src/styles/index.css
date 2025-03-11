@@ -4,7 +4,7 @@
 
 @layer base {
   body {
-    @apply bg-gray-50 text-gray-900 dark:bg-dark-900 dark:text-gray-100;
+    @apply bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-gray-100;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
@@ -28,7 +28,7 @@
   }
   
   .card {
-    @apply bg-white rounded-lg shadow-sm border border-gray-200 dark:bg-dark-800 dark:border-gray-700 dark:shadow-none;
+    @apply bg-white rounded-lg shadow-sm border border-gray-200 dark:bg-gray-800 dark:border-gray-700 dark:shadow-none;
   }
   
   .input {
@@ -75,4 +75,39 @@
 
 ::-webkit-scrollbar-thumb:hover {
   @apply bg-gray-400 dark:bg-gray-500;
+}
+
+/* Improve dark mode text visibility */
+.dark .text-gray-400 {
+  color: #a0aec0 !important; /* Lighter gray for better visibility */
+}
+
+.dark .text-gray-500 {
+  color: #a8b2c1 !important; /* Lighter gray for better visibility */
+}
+
+.dark .text-gray-600 {
+  color: #b2bfd0 !important; /* Lighter gray for better visibility */
+}
+
+.dark p, .dark span, .dark div {
+  color: #e2e8f0; /* Default light color for text in dark mode */
+}
+
+/* Ensure links are visible in dark mode */
+.dark a {
+  color: #63b3ed !important; /* Brighter blue for links */
+}
+
+/* Fix for dark mode background */
+.dark {
+  background-color: #1a202c;
+}
+
+.dark .bg-dark-900 {
+  background-color: #1a202c !important;
+}
+
+.dark .bg-dark-800 {
+  background-color: #2d3748 !important;
 } 

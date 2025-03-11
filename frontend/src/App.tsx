@@ -8,8 +8,19 @@ import SearchPage from './pages/SearchPage';
 import SitesPage from './pages/SitesPage';
 import SiteDetailPage from './pages/SiteDetailPage';
 import NotFoundPage from './pages/NotFoundPage';
+import React from 'react';
 
 function App() {
+  // Add a flag to disable automatic API calls in development mode
+  const isDevelopment = process.env.NODE_ENV === 'development';
+  
+  // Log once on initial render to help with debugging
+  React.useEffect(() => {
+    if (isDevelopment) {
+      console.log('App running in development mode - some background API calls may occur due to hot reloading');
+    }
+  }, [isDevelopment]);
+
   return (
     <>
       <Toaster position="top-right" />

@@ -1,47 +1,72 @@
+import React, { useState } from 'react';
 import { Bars3Icon, MoonIcon, SunIcon } from '@heroicons/react/24/outline';
 import { useTheme } from '@/context/ThemeContext';
+import { useUser } from '@/context/UserContext';
+import UserProfileModal from './UserProfileModal';
 
 interface NavbarProps {
   toggleSidebar: () => void;
 }
 
-const Navbar = ({ toggleSidebar }: NavbarProps) => {
+const Navbar: React.FC<NavbarProps> = ({ toggleSidebar }) => {
   const { theme, toggleTheme } = useTheme();
+  const { userProfile } = useUser();
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
 
   return (
-    <header className="sticky top-0 z-10 flex h-16 flex-shrink-0 bg-white dark:bg-gray-800 shadow-sm dark:shadow-gray-700/20">
-      <div className="flex flex-1 justify-between px-4">
-        <div className="flex flex-1">
+    <nav className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-2.5">
+      <div className="flex justify-between items-center">
+        <div className="flex items-center">
           <button
-            type="button"
-            className="px-4 text-gray-500 dark:text-gray-400 md:hidden focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500 dark:focus:ring-blue-400"
             onClick={toggleSidebar}
-            aria-label="Open sidebar"
+            className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 md:hidden"
+            aria-label="Toggle sidebar"
           >
-            <Bars3Icon className="h-6 w-6" aria-hidden="true" />
+            <Bars3Icon className="h-6 w-6" />
           </button>
-          <div className="flex items-center md:ml-0">
-            <span className="md:hidden text-lg font-semibold text-gray-900 dark:text-white">
-              Supa Crawl Chat
-            </span>
-          </div>
+          <span className="ml-2 text-lg font-semibold text-gray-900 dark:text-white md:hidden">
+            Supa Crawl Chat
+          </span>
         </div>
-        <div className="ml-4 flex items-center md:ml-6">
+        
+        <div className="flex items-center space-x-3">
           <button
-            type="button"
             onClick={toggleTheme}
-            className="rounded-full bg-white dark:bg-gray-700 p-1 text-gray-500 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
+            className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
             aria-label="Toggle dark mode"
           >
             {theme === 'dark' ? (
-              <SunIcon className="h-6 w-6" aria-hidden="true" />
+              <SunIcon className="h-6 w-6" />
             ) : (
-              <MoonIcon className="h-6 w-6" aria-hidden="true" />
+              <MoonIcon className="h-6 w-6" />
             )}
+          </button>
+          
+          <button
+            onClick={() => setIsProfileModalOpen(true)}
+            className="flex items-center space-x-2 p-2 rounded-lg text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            {userProfile.avatar ? (
+              <img 
+                src={userProfile.avatar} 
+                alt={userProfile.name} 
+                className="h-8 w-8 rounded-full object-cover"
+              />
+            ) : (
+              <div className="h-8 w-8 rounded-full bg-blue-500 flex items-center justify-center text-white">
+                {userProfile.name.charAt(0).toUpperCase()}
+              </div>
+            )}
+            <span className="hidden md:inline-block">{userProfile.name}</span>
           </button>
         </div>
       </div>
-    </header>
+      
+      <UserProfileModal 
+        isOpen={isProfileModalOpen} 
+        onClose={() => setIsProfileModalOpen(false)} 
+      />
+    </nav>
   );
 };
 
