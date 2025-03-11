@@ -37,7 +37,9 @@ const SearchPage = () => {
       setHasSearched(true);
       
       if (processedResults.length === 0) {
-        toast.info('No results found for your query');
+        toast('No results found for your query', {
+          icon: 'ℹ️',
+        });
       }
     } catch (error) {
       console.error('Error searching:', error);

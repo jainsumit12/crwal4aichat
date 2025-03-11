@@ -257,11 +257,14 @@ export const apiService = {
       if (Array.isArray(response.data)) {
         return response.data;
       } else if (response.data && response.data.sites && Array.isArray(response.data.sites)) {
+        // This is the expected format from the API: { sites: [...], count: number }
+        console.log('Found sites array in response:', response.data.sites);
         return response.data.sites;
       } else if (response.data && typeof response.data === 'object') {
         // Try to extract sites from the response object
         const possibleSites = Object.values(response.data).find(val => Array.isArray(val));
         if (possibleSites && Array.isArray(possibleSites)) {
+          console.log('Found possible sites array in response:', possibleSites);
           return possibleSites as Site[];
         }
       }
@@ -270,7 +273,7 @@ export const apiService = {
       console.error('Unexpected sites response format:', response.data);
       return [];
     } catch (error) {
-      console.error('Error getting sites:', error);
+      console.error('Error fetching sites:', error);
       throw error;
     }
   },
@@ -332,33 +335,22 @@ export const apiService = {
 
   getCrawlStatus: async (siteId?: string | number): Promise<CrawlStatus | CrawlStatus[]> => {
     try {
-      // If no siteId is provided, get all active crawls
-      let endpoint = '/crawl/status/';
-      
-      // Add trailing slash to the endpoint if it doesn't have one
-      if (!endpoint.endsWith('/')) {
-        endpoint += '/';
+      // If no siteId is provided, try to get all sites instead
+      if (!siteId) {
+        console.log('No siteId provided, fetching all sites instead');
+        return apiService.getSites();
       }
       
-      // If siteId is provided, append it to the endpoint
-      if (siteId) {
-        endpoint = `/crawl/status/${siteId}/`;
-      }
+      // Use the correct endpoint format with siteId
+      const endpoint = `/crawl/status/${siteId}/`;
       
       console.log('Fetching crawl status from:', endpoint);
       const response = await apiClient.get(endpoint);
       console.log('Crawl status response:', response.data);
       
       return response.data;
-    } catch (error: any) {
-      console.error('Error getting crawl status:', error);
-      
-      // If the endpoint returns 404, return an empty array instead of throwing
-      if (error.response && error.response.status === 404) {
-        console.log('Crawl status endpoint not found, returning empty array');
-        return [];
-      }
-      
+    } catch (error) {
+      console.error('Error fetching crawl status:', error);
       throw error;
     }
   },

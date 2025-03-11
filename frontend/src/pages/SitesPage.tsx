@@ -1,58 +1,84 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { apiService, Site } from '@/api/apiService';
+import { api } from '@/api/apiWrapper';
 import axios from 'axios';
+import { Button } from '@/components/ui/button';
+import { RefreshCw } from 'lucide-react';
 
 const SitesPage = () => {
   const [sites, setSites] = useState<Site[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [debugInfo, setDebugInfo] = useState<string | null>(null);
-  const [lastLoadTime, setLastLoadTime] = useState<number>(0);
+  const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
-  // Only load sites when the component mounts
+  // Load sites when the component mounts and set up polling
   useEffect(() => {
-    // Set a flag in sessionStorage to prevent duplicate API calls
-    const hasLoadedSites = sessionStorage.getItem('sitesLoaded');
-    const currentTime = Date.now();
+    // Initial load
+    loadSites();
     
-    // Only load if not loaded before or if it's been more than 5 minutes
-    if (!hasLoadedSites || currentTime - lastLoadTime > 5 * 60 * 1000) {
-      loadSites();
-      sessionStorage.setItem('sitesLoaded', 'true');
-      setLastLoadTime(currentTime);
-    } else {
-      // If we've loaded sites recently, just set loading to false
-      setIsLoading(false);
-    }
-  }, [lastLoadTime]);
+    // Set up polling every 10 seconds to check for new sites
+    const interval = setInterval(loadSites, 10000);
+    setPollingInterval(interval);
+    
+    // Clean up interval when component unmounts
+    return () => {
+      if (pollingInterval) {
+        clearInterval(pollingInterval);
+      }
+    };
+  }, []);
 
-  const loadSites = async () => {
+  const loadSites = async (bypassCache = false) => {
     setIsLoading(true);
-    setError(null);
-    setDebugInfo(null);
-
     try {
-      const sitesData = await apiService.getSites();
-      console.log('Sites data:', sitesData); // Debug log
+      let sitesData;
       
-      // Check if the response is an array
-      if (Array.isArray(sitesData)) {
-        setSites(sitesData);
-        if (sitesData.length === 0) {
-          console.log('No sites found in the response');
+      if (bypassCache) {
+        // Bypass cache by making a direct API call
+        const response = await axios.get('/api/sites/');
+        console.log('Direct API response for sites (bypass cache):', response.data);
+        
+        // Handle the response format with a sites array
+        if (response.data && response.data.sites && Array.isArray(response.data.sites)) {
+          sitesData = response.data.sites;
+        } else {
+          sitesData = response.data;
         }
       } else {
-        // If it's not an array, log the unexpected format and set an empty array
+        // Use the API wrapper which might use cached data
+        sitesData = await api.getSites();
+        console.log('API wrapper response for sites:', sitesData);
+      }
+      
+      // Debug each site's created_at field
+      if (Array.isArray(sitesData)) {
+        sitesData.forEach((site, index) => {
+          console.log(`Site ${index} (${site.name || 'unnamed'}) created_at:`, site.created_at);
+          console.log(`Formatted date:`, formatDate(site.created_at));
+        });
+        
+        // Sort sites by created_at date (newest first)
+        const sortedSites = [...sitesData].sort((a, b) => {
+          // Convert dates to timestamps for comparison
+          const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
+          const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
+          // Sort in descending order (newest first)
+          return dateB - dateA;
+        });
+        
+        setSites(sortedSites);
+      } else {
         console.error('Unexpected sites data format:', sitesData);
         setSites([]);
-        setError('Received unexpected data format from the server');
       }
-    } catch (err) {
-      console.error('Error loading sites:', err);
-      setError('Failed to load sites. Please try again later.');
+    } catch (error) {
+      console.error('Error loading sites:', error);
       toast.error('Failed to load sites');
+      setSites([]);
     } finally {
       setIsLoading(false);
     }
@@ -85,75 +111,109 @@ const SitesPage = () => {
 
   const formatDate = (dateString: string) => {
     try {
+      // Check if dateString is null, undefined, or empty
+      if (!dateString) {
+        return 'No date';
+      }
+      
+      // Check for epoch dates (1970-01-01 or close to it)
       const date = new Date(dateString);
+      if (date.getFullYear() < 1980) {
+        console.log('Epoch date detected:', dateString);
+        return 'Recent';
+      }
+      
       // Check if the date is valid (not Invalid Date)
       if (isNaN(date.getTime())) {
-        return 'Invalid date';
+        console.error('Invalid date string:', dateString);
+        return 'No date';
       }
+      
       return date.toLocaleDateString('en-US', {
         year: 'numeric',
         month: 'short',
         day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
       });
     } catch (error) {
-      console.error('Error formatting date:', error);
-      return 'Invalid date';
+      console.error('Error formatting date:', error, 'Date string:', dateString);
+      return 'No date';
+    }
+  };
+
+  const manualRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await loadSites(true); // Pass true to bypass cache
+      toast.success('Sites list refreshed');
+    } catch (error) {
+      console.error('Error refreshing sites:', error);
+      toast.error('Failed to refresh sites');
+    } finally {
+      setRefreshing(false);
     }
   };
 
   return (
-    <div className="max-w-6xl mx-auto px-4">
+    <div className="container mx-auto px-4 py-8">
+      {debugInfo && (
+        <div className="mb-6 p-4 bg-gray-100 dark:bg-gray-800 rounded-lg overflow-auto max-h-96">
+          <h3 className="text-lg font-medium mb-2">Debug Info</h3>
+          <pre className="text-xs">{debugInfo}</pre>
+        </div>
+      )}
+      
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Crawled Sites</h1>
+        <h1 className="text-2xl font-bold">Sites</h1>
         <div className="flex gap-2">
-          <button 
-            onClick={checkApiDirectly} 
-            className="btn-secondary px-4 py-2"
-            disabled={isLoading}
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={checkApiDirectly}
+            className="text-gray-700 dark:text-gray-300"
           >
             Debug API
-          </button>
-          <button 
-            onClick={loadSites} 
-            className="btn-secondary px-4 py-2"
-            disabled={isLoading}
+          </Button>
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={manualRefresh}
+            disabled={refreshing}
+            className="flex items-center gap-2"
           >
-            Refresh
-          </button>
-          <Link to="/crawl" className="btn-secondary bg-green-600 hover:bg-green-700 text-white dark:bg-green-700 dark:hover:bg-green-800 px-4 py-2">
+            {refreshing ? (
+              <>
+                <div className="h-4 w-4 animate-spin rounded-full border-2 border-gray-500 border-t-transparent"></div>
+                <span>Refreshing...</span>
+              </>
+            ) : (
+              <>
+                <RefreshCw className="h-4 w-4" />
+                <span>Refresh Sites</span>
+              </>
+            )}
+          </Button>
+          <Link 
+            to="/crawl" 
+            className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+          >
             Crawl New Site
           </Link>
         </div>
       </div>
 
-      {debugInfo && (
-        <div className="mb-6 overflow-auto">
-          <div className="card p-4">
-            <h3 className="text-lg font-semibold mb-2">API Debug Info</h3>
-            <pre className="text-xs bg-gray-100 dark:bg-gray-800 p-4 rounded overflow-auto max-h-96">
-              {debugInfo}
-            </pre>
-            <button 
-              onClick={() => setDebugInfo(null)} 
-              className="mt-2 text-sm text-red-500 hover:text-red-700"
-            >
-              Close Debug Info
-            </button>
-          </div>
-        </div>
-      )}
-
       {isLoading ? (
         <div className="text-center py-12">
-          <div className="inline-block animate-spin text-4xl">↻</div>
+          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent align-[-0.125em] motion-reduce:animate-[spin_1.5s_linear_infinite]"></div>
           <p className="mt-4 text-gray-600 dark:text-gray-400">Loading sites...</p>
         </div>
       ) : error ? (
-        <div className="card p-6 text-center">
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 text-center">
           <p className="text-red-500 mb-4">{error}</p>
-          <button onClick={loadSites} className="btn-secondary px-4 py-2">
+          <Button onClick={manualRefresh} variant="outline">
             Try Again
-          </button>
+          </Button>
         </div>
       ) : sites.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -161,12 +221,12 @@ const SitesPage = () => {
             <Link
               key={site.id}
               to={`/sites/${site.id}`}
-              className="card p-6 hover:shadow-md transition-shadow duration-200"
+              className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 hover:shadow-md transition-shadow duration-200 flex flex-col h-full"
             >
-              <h2 className="text-xl font-semibold mb-2 truncate">{site.name}</h2>
+              <h2 className="text-xl font-semibold mb-2 truncate">{site.name || 'Unnamed Site'}</h2>
               
               <p className="text-sm text-gray-600 dark:text-gray-400 mb-4 truncate">
-                {site.url}
+                {site.url || 'No URL'}
               </p>
               
               {site.description && (
@@ -175,27 +235,30 @@ const SitesPage = () => {
               
               <div className="flex justify-between items-center mt-auto pt-4 border-t border-gray-200 dark:border-gray-700">
                 <div className="flex items-center">
-                  <span className="text-sm font-medium">{site.page_count}</span>
+                  <span className="text-sm font-medium">{site.page_count || 0}</span>
                   <span className="text-xs text-gray-600 dark:text-gray-400 ml-1">
                     {site.page_count === 1 ? 'page' : 'pages'}
                   </span>
                 </div>
                 
                 <div className="text-xs text-gray-600 dark:text-gray-400">
-                  {formatDate(site.created_at)}
+                  {site.created_at ? formatDate(site.created_at) : 'No date'}
                 </div>
               </div>
             </Link>
           ))}
         </div>
       ) : (
-        <div className="card p-6 text-center">
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 text-center">
           <h2 className="text-xl font-semibold mb-4">No Sites Found</h2>
-          <p className="mb-6">
+          <p className="mb-6 text-gray-600 dark:text-gray-400">
             You haven't crawled any websites yet. Start by crawling your first site.
           </p>
-          <Link to="/crawl" className="btn-secondary bg-green-600 hover:bg-green-700 text-white dark:bg-green-700 dark:hover:bg-green-800 px-6 py-2">
-            Crawl Your First Site
+          <Link 
+            to="/crawl" 
+            className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+          >
+            Crawl New Site
           </Link>
         </div>
       )}

@@ -1,18 +1,19 @@
-import React, { useState, useEffect } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { apiService, Site, Page } from '@/api/apiService';
 import axios from 'axios';
 import ReactMarkdown from 'react-markdown';
+import { Button } from '@/components/ui/button';
+import { Separator } from '@/components/ui/separator';
 
 const SiteDetailPage = () => {
   const { siteId } = useParams<{ siteId: string }>();
-  const navigate = useNavigate();
   
   const [site, setSite] = useState<Site | null>(null);
   const [pages, setPages] = useState<Page[]>([]);
   const [filteredPages, setFilteredPages] = useState<Page[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [debugInfo, setDebugInfo] = useState<any | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -27,6 +28,7 @@ const SiteDetailPage = () => {
   const [liveContent, setLiveContent] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'database' | 'live'>('database');
   const [relatedChunks, setRelatedChunks] = useState<Page[]>([]);
+  const [showDebugPanel, setShowDebugPanel] = useState(false);
 
   useEffect(() => {
     if (siteId) {

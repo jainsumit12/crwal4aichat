@@ -11,7 +11,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Separator } from '@/components/ui/separator';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { MessageSquare, Plus, Trash2, Edit, RefreshCw, Bot, Send } from 'lucide-react';
@@ -25,23 +25,25 @@ interface ChatSession {
 }
 
 const ChatPage = () => {
+  const [messages, setMessages] = useState<Message[]>([]);
   const [message, setMessage] = useState('');
-  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [sessionId, setSessionId] = useState<string | null>(null);
   const [profiles, setProfiles] = useState<Profile[]>([]);
-  const [selectedProfile, setSelectedProfile] = useState<string>('');
+  const [activeProfile, setActiveProfile] = useState<Profile | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const { userProfile } = useUser();
+  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
   const [isLoadingProfiles, setIsLoadingProfiles] = useState(false);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [sessionId, setSessionId] = useState<string>('');
   const [chatInitialized, setChatInitialized] = useState(false);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [showSessionManager, setShowSessionManager] = useState(false);
   const [newSessionName, setNewSessionName] = useState('');
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
-  const { userProfile, extractPreferencesFromText, addPreference } = useUser();
+  const { extractPreferencesFromText, addPreference } = useUser();
 
   // Initialize sessions and session ID when component mounts
   useEffect(() => {
@@ -194,8 +196,8 @@ const ChatPage = () => {
           const profilesData = await apiService.getProfiles();
           if (Array.isArray(profilesData)) {
             setProfiles(profilesData);
-            if (profilesData.length > 0 && !selectedProfile) {
-              setSelectedProfile(profilesData[0].name);
+            if (profilesData.length > 0 && !activeProfile) {
+              setActiveProfile(profilesData[0]);
             }
           }
         } catch (error) {
@@ -229,7 +231,7 @@ const ChatPage = () => {
         fetchChatHistory();
       }
     }
-  }, [sessionId, chatInitialized, isLoadingProfiles, isLoadingHistory, selectedProfile]); // Added dependencies
+  }, [sessionId, chatInitialized, isLoadingProfiles, isLoadingHistory, activeProfile]); // Added dependencies
 
   // Scroll to bottom when chat history changes
   useEffect(() => {
@@ -240,21 +242,6 @@ const ChatPage = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  // Wrap API calls in error handling
-  const safeApiCall = useCallback(async <T,>(
-    apiFunction: () => Promise<T>,
-    errorMessage: string
-  ): Promise<T | null> => {
-    try {
-      return await apiFunction();
-    } catch (err) {
-      console.error(`${errorMessage}:`, err);
-      setError(errorMessage);
-      toast.error(errorMessage);
-      return null;
-    }
-  }, []);
-
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -264,7 +251,7 @@ const ChatPage = () => {
       return;
     }
 
-    if (!selectedProfile) {
+    if (!activeProfile) {
       toast.error('Please select a profile');
       return;
     }
@@ -324,7 +311,7 @@ const ChatPage = () => {
       // Send message to API with sessionId and user's name
       const response = await apiService.sendMessage(
         message, 
-        selectedProfile, 
+        activeProfile.name, 
         sessionId,
         userProfile?.name // Pass the user's name as the user_id
       );
@@ -360,33 +347,21 @@ const ChatPage = () => {
     }
   };
 
+  // Function to clear chat history
   const handleClearChat = async () => {
-    if (!sessionId) {
-      toast.error('No session ID available');
-      return;
-    }
+    if (!sessionId) return;
     
-    if (window.confirm('Are you sure you want to clear the chat history?')) {
-      setError(null);
-      try {
-        await apiService.clearChatHistory(sessionId);
-        
-        // Clear the chat history in the UI
-        setChatHistory([]);
-        
-        // Reset chat initialization state
-        setChatInitialized(false);
-        localStorage.setItem('chat_initialized', 'false');
-        
-        // Update session activity
-        updateSessionActivity(sessionId);
-        
-        toast.success('Chat history cleared');
-      } catch (error) {
-        console.error('Error clearing chat history:', error);
-        setError('Failed to clear chat history. Please try again.');
-        toast.error('Failed to clear chat history');
-      }
+    try {
+      setIsLoading(true);
+      await apiService.clearChatHistory(sessionId);
+      setChatHistory([]);
+      toast.success('Chat history cleared');
+    } catch (error) {
+      console.error('Error clearing chat history:', error);
+      setError('Failed to clear chat history');
+      toast.error('Failed to clear chat history');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -409,7 +384,7 @@ const ChatPage = () => {
       return;
     }
     
-    setSelectedProfile(profileId);
+    setActiveProfile(profiles.find(p => p.name === profileId) || null);
     setError(null);
     
     // Optionally set the profile in the backend
@@ -452,66 +427,170 @@ const ChatPage = () => {
   // Filter out system messages completely when rendering
   const filteredChatHistory = chatHistory.filter(message => message.role !== 'system');
 
-  const renderMessage = (message: ChatMessage) => {
-    // Skip system messages completely
-    if (message.role === 'system') return null;
+  // Function to format links
+  const formatLinks = (content: string) => {
+    // Replace markdown links with HTML links
+    const markdownLinkPattern = /\[([^\]]+)\]\(([^)]+)\)/g;
+    return content.replace(
+      markdownLinkPattern,
+      '<a href="$2" target="_blank" rel="noopener noreferrer" class="text-primary underline hover:no-underline">$1</a>'
+    );
+  };
 
-    const isUser = message.role === 'user';
-    const timestamp = message.created_at ? formatTimestamp(message.created_at) : 'Just now';
+  // Function to get user avatar
+  const getUserAvatar = () => {
+    if (userProfile && userProfile.avatar) {
+      return (
+        <div className="chat-avatar chat-avatar-user overflow-hidden">
+          <img src={userProfile.avatar} alt="User" className="w-full h-full object-cover" />
+        </div>
+      );
+    }
     
-    // Create a unique key using message ID or content hash if ID is not available
-    const messageKey = message.id || `${message.role}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-
     return (
-      <div key={messageKey} className={`flex items-start mb-4 ${isUser ? 'justify-end' : 'justify-start'}`}>
-        {!isUser && (
-          <Avatar className="h-10 w-10 mr-3">
-            <AvatarFallback className="bg-primary text-primary-foreground">
-              <Bot size={20} />
-            </AvatarFallback>
-          </Avatar>
+      <div className="chat-avatar chat-avatar-user">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path>
+          <circle cx="12" cy="7" r="4"></circle>
+        </svg>
+      </div>
+    );
+  };
+
+  const renderMessage = (message: ChatMessage) => {
+    // Function to format code blocks
+    const formatCodeBlocks = (content: string) => {
+      // Replace code blocks with properly styled elements that include a copy button
+      return content.replace(/```([\s\S]*?)```/g, (match, code) => {
+        const language = code.split('\n')[0].trim();
+        const codeContent = language ? code.substring(language.length).trim() : code.trim();
+        
+        const uniqueId = `code-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+        
+        return `
+          <div class="relative group">
+            <pre class="bg-[#171923] p-4 rounded-md overflow-x-auto my-2 text-sm">
+              <div class="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button 
+                  class="bg-primary/10 hover:bg-primary/20 text-primary rounded p-1 text-xs"
+                  onclick="navigator.clipboard.writeText(document.getElementById('${uniqueId}').textContent); this.innerText='Copied!'; setTimeout(() => this.innerText='Copy', 2000);"
+                >
+                  Copy
+                </button>
+              </div>
+              <code id="${uniqueId}">${codeContent}</code>
+            </pre>
+          </div>
+        `;
+      });
+    };
+    
+    // Function to format lists
+    const formatLists = (content: string) => {
+      // Process the content line by line to handle lists properly
+      const lines = content.split('\n');
+      let inOrderedList = false;
+      let inUnorderedList = false;
+      let formattedLines = [];
+      
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        
+        // Check for ordered list items (e.g., "1. Item")
+        const orderedMatch = line.match(/^\s*(\d+)\.\s+(.+)$/);
+        if (orderedMatch) {
+          if (!inOrderedList) {
+            // Start a new ordered list
+            formattedLines.push('<ol class="list-decimal ml-6 my-2">');
+            inOrderedList = true;
+          }
+          formattedLines.push(`<li class="my-1">${orderedMatch[2]}</li>`);
+          continue;
+        }
+        
+        // Check for unordered list items (e.g., "- Item" or "* Item")
+        const unorderedMatch = line.match(/^\s*[-*]\s+(.+)$/);
+        if (unorderedMatch) {
+          if (!inUnorderedList) {
+            // Start a new unordered list
+            formattedLines.push('<ul class="list-disc ml-6 my-2">');
+            inUnorderedList = true;
+          }
+          formattedLines.push(`<li class="my-1">${unorderedMatch[1]}</li>`);
+          continue;
+        }
+        
+        // If we're in a list but the current line is not a list item, close the list
+        if (inOrderedList && !orderedMatch) {
+          formattedLines.push('</ol>');
+          inOrderedList = false;
+        }
+        
+        if (inUnorderedList && !unorderedMatch) {
+          formattedLines.push('</ul>');
+          inUnorderedList = false;
+        }
+        
+        // Add the line as is if it's not part of a list
+        formattedLines.push(line);
+      }
+      
+      // Close any open lists at the end
+      if (inOrderedList) {
+        formattedLines.push('</ol>');
+      }
+      
+      if (inUnorderedList) {
+        formattedLines.push('</ul>');
+      }
+      
+      return formattedLines.join('\n');
+    };
+    
+    // Apply formatting to message content
+    let formattedContent = message.content;
+    formattedContent = formatCodeBlocks(formattedContent);
+    formattedContent = formatLists(formattedContent);
+    formattedContent = formatLinks(formattedContent);
+    
+    // Add line breaks for paragraphs
+    formattedContent = formattedContent.replace(/\n\n/g, '<br /><br />');
+    
+    return (
+      <div
+        key={message.id}
+        className={`flex ${
+          message.role === 'user' ? 'justify-end' : 'justify-start'
+        } mb-4 gap-3`}
+      >
+        {message.role !== 'user' && (
+          <div className="chat-avatar chat-avatar-ai">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 8V4H8"></path>
+              <rect width="16" height="12" x="4" y="8" rx="2"></rect>
+              <path d="M2 14h2"></path>
+              <path d="M20 14h2"></path>
+              <path d="M15 13v2"></path>
+              <path d="M9 13v2"></path>
+            </svg>
+          </div>
         )}
         <div
-          className={`px-4 py-3 rounded-lg max-w-3xl ${
-            isUser
-              ? 'bg-primary/90 text-primary-foreground'
-              : 'bg-[#1e2130] text-gray-200 border border-white/[0.05]'
+          className={`max-w-[70%] rounded-lg p-3 ${
+            message.role === 'user'
+              ? 'bg-primary text-primary-foreground'
+              : 'bg-[#171923] text-gray-200'
           }`}
         >
-          <div className="text-xs text-gray-400 mb-1">{timestamp}</div>
-          <div className="prose dark:prose-invert max-w-none">
-            <ReactMarkdown
-              remarkPlugins={[remarkGfm]}
-              className="prose prose-sm max-w-none"
-              components={{
-                pre: ({ node, ...props }) => (
-                  <div className="bg-[#0f1117] p-3 rounded my-2 overflow-auto border border-white/[0.05]">
-                    <pre {...props} />
-                  </div>
-                ),
-                code: ({ node, className, inline, ...props }: any) => 
-                  inline ? (
-                    <code className="bg-[#0f1117] px-1 py-0.5 rounded text-gray-300" {...props} />
-                  ) : (
-                    <code className="text-gray-300" {...props} />
-                  )
-              }}
-            >
-              {message.content}
-            </ReactMarkdown>
+          <div 
+            className="prose prose-invert max-w-none text-sm"
+            dangerouslySetInnerHTML={{ __html: formattedContent }}
+          />
+          <div className="text-xs text-right mt-2 opacity-70">
+            {formatTimestamp(message.created_at)}
           </div>
         </div>
-        {isUser && (
-          <Avatar className="h-10 w-10 ml-3">
-            {userProfile?.avatar ? (
-              <AvatarImage src={userProfile.avatar} alt={userProfile.name} />
-            ) : (
-              <AvatarFallback className="bg-primary text-primary-foreground">
-                {userProfile?.name?.charAt(0)?.toUpperCase() || 'U'}
-              </AvatarFallback>
-            )}
-          </Avatar>
-        )}
+        {message.role === 'user' && getUserAvatar()}
       </div>
     );
   };
@@ -523,8 +602,8 @@ const ChatPage = () => {
       const profilesData = await apiService.getProfiles();
       if (Array.isArray(profilesData)) {
         setProfiles(profilesData);
-        if (profilesData.length > 0 && !selectedProfile) {
-          setSelectedProfile(profilesData[0].name);
+        if (profilesData.length > 0 && !activeProfile) {
+          setActiveProfile(profilesData[0]);
         }
       }
     } catch (error) {
@@ -584,12 +663,10 @@ const ChatPage = () => {
   }
 
   return (
-    <div className="flex flex-col h-full bg-[#0f1117]">
-      {/* Header */}
-      <div className="p-4 border-b border-white/[0.05]">
-        <h1 className="text-2xl font-bold mb-4 text-foreground">Chat</h1>
-        
-        <div className="flex flex-wrap gap-3">
+    <div className="flex flex-col h-full">
+      <div className="flex items-center justify-between mb-4">
+        <h1 className="text-2xl font-bold">Chat</h1>
+        <div className="flex space-x-2">
           {/* Session dropdown */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -713,7 +790,7 @@ const ChatPage = () => {
           {/* Profile selector */}
           <div>
             <Select
-              value={selectedProfile}
+              value={activeProfile?.name}
               onValueChange={handleProfileChange}
               disabled={isLoading}
             >
@@ -750,84 +827,76 @@ const ChatPage = () => {
         </div>
       </div>
       
-      {/* Main chat area */}
-      <div className="flex-1 flex flex-col overflow-hidden p-4">
-        {/* Messages container */}
-        <Card className="flex-1 overflow-hidden mb-4 border-white/[0.05] bg-[#171923]">
-          <CardContent className="p-4 h-full overflow-y-auto" ref={chatContainerRef}>
-            {isLoadingHistory ? (
-              <div className="flex justify-center items-center h-full">
-                <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
+      <div className="flex-1 flex flex-col bg-[#0f1117] rounded-lg border border-white/[0.05] overflow-hidden">
+        <div className="flex-1 overflow-y-auto p-4" ref={chatContainerRef}>
+          {isLoadingHistory ? (
+            <div className="flex justify-center items-center h-full">
+              <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+          ) : error ? (
+            <div className="flex flex-col items-center justify-center h-full">
+              <div className="text-destructive mb-4">{error}</div>
+              <div className="flex justify-center space-x-4">
+                <Button 
+                  onClick={() => window.location.reload()} 
+                  variant="destructive"
+                >
+                  Refresh Page
+                </Button>
+                <Button 
+                  onClick={() => {
+                    setError(null);
+                    refreshProfiles();
+                    refreshChatHistory();
+                  }} 
+                  variant="outline"
+                  className="border-white/[0.05] bg-[#171923] hover:bg-white/[0.06] text-gray-300"
+                >
+                  Try Again
+                </Button>
               </div>
-            ) : error ? (
-              <div className="flex flex-col items-center justify-center h-full">
-                <div className="text-destructive mb-4">{error}</div>
-                <div className="flex justify-center space-x-4">
-                  <Button 
-                    onClick={() => window.location.reload()} 
-                    variant="destructive"
-                  >
-                    Refresh Page
-                  </Button>
-                  <Button 
-                    onClick={() => {
-                      setError(null);
-                      refreshProfiles();
-                      refreshChatHistory();
-                    }} 
-                    variant="outline"
-                    className="border-white/[0.05] bg-[#171923] hover:bg-white/[0.06] text-gray-300"
-                  >
-                    Try Again
-                  </Button>
-                </div>
-              </div>
-            ) : filteredChatHistory.length === 0 ? (
-              <div className="flex flex-col justify-center items-center h-full text-center">
-                <h2 className="text-xl font-semibold mb-2 text-gray-200">No messages yet</h2>
-                <p className="text-gray-400 mb-4">
-                  Start a conversation by sending a message below.
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {filteredChatHistory.map(renderMessage)}
-                <div ref={messagesEndRef} />
-              </div>
-            )}
-          </CardContent>
-        </Card>
-        
-        {/* Message input */}
-        <div className="flex-none">
+            </div>
+          ) : filteredChatHistory.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full text-center text-gray-400">
+              <MessageSquare className="h-12 w-12 mb-4 opacity-20" />
+              <h3 className="text-lg font-medium mb-2">No messages yet</h3>
+              <p className="text-sm max-w-md">
+                Start a conversation by typing a message below.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {filteredChatHistory.map(renderMessage)}
+              <div ref={messagesEndRef} />
+            </div>
+          )}
+        </div>
+
+        <div className="border-t border-white/[0.05] p-4">
           <form onSubmit={handleSendMessage} className="flex space-x-2">
             <Textarea
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               placeholder="Type your message..."
-              className="flex-grow min-h-[60px] bg-[#171923] border-white/[0.05] text-gray-200 placeholder:text-gray-500"
-              disabled={isLoading}
+              className="flex-1 min-h-[60px] max-h-[200px] bg-[#171923] border-white/[0.05] focus-visible:ring-primary"
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault();
-                  if (message.trim()) {
-                    handleSendMessage(e);
-                  }
+                  handleSendMessage(e);
                 }
               }}
             />
-            <Button
-              type="submit"
-              disabled={isLoading || !message.trim()}
+            <Button 
+              type="submit" 
+              disabled={isLoading || message.trim() === ''}
               className="self-end"
             >
               {isLoading ? (
-                <RefreshCw className="h-5 w-5 animate-spin" />
+                <RefreshCw className="h-4 w-4 animate-spin" />
               ) : (
-                <>
-                  <Send className="h-5 w-5 mr-2" /> Send
-                </>
+                <Send className="h-4 w-4" />
               )}
+              <span className="sr-only">Send</span>
             </Button>
           </form>
         </div>

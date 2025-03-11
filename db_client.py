@@ -1240,9 +1240,9 @@ class SupabaseClient:
             # Get all sites
             cur.execute(
                 """
-                SELECT id, name, url, description 
+                SELECT id, name, url, description, created_at, updated_at 
                 FROM crawl_sites
-                ORDER BY name
+                ORDER BY created_at DESC
                 """
             )
             
@@ -1253,7 +1253,9 @@ class SupabaseClient:
                     'id': row[0],
                     'name': row[1],
                     'url': row[2],
-                    'description': row[3]
+                    'description': row[3],
+                    'created_at': row[4],
+                    'updated_at': row[5]
                 })
             
             return sites

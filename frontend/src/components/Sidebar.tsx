@@ -1,5 +1,5 @@
-import React, { Fragment } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import { Fragment } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import { Dialog, Transition } from '@headlessui/react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -17,27 +17,27 @@ import {
 import { useMediaQuery } from '@/hooks/use-media-query';
 
 interface SidebarProps {
-  open: boolean;
-  setOpen: (open: boolean) => void;
+  isOpen: boolean;
+  onClose: () => void;
 }
 
-const navigation = [
-  { name: 'Home', href: '/', icon: Home },
-  { name: 'Chat', href: '/chat', icon: MessageSquare },
-  { name: 'Crawl', href: '/crawl', icon: Globe },
-  { name: 'Search', href: '/search', icon: Search },
-  { name: 'Sites', href: '/sites', icon: Database },
-];
-
-const Sidebar = ({ open, setOpen }: SidebarProps) => {
-  const location = useLocation();
+const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
+  const pathname = useLocation().pathname;
   const isDesktop = useMediaQuery("(min-width: 1024px)");
+  
+  const navItems = [
+    { name: 'Home', href: '/', icon: Home },
+    { name: 'Chat', href: '/chat', icon: MessageSquare },
+    { name: 'Crawl', href: '/crawl', icon: Globe },
+    { name: 'Search', href: '/search', icon: Search },
+    { name: 'Sites', href: '/sites', icon: Database }
+  ];
 
   return (
     <>
       {/* Mobile sidebar */}
-      <Transition.Root show={open && !isDesktop} as={Fragment}>
-        <Dialog as="div" className="relative z-50 lg:hidden" onClose={setOpen}>
+      <Transition.Root show={isOpen && !isDesktop} as={Fragment}>
+        <Dialog as="div" className="relative z-50 lg:hidden" onClose={onClose}>
           <Transition.Child
             as={Fragment}
             enter="transition-opacity ease-linear duration-300"
@@ -74,7 +74,7 @@ const Sidebar = ({ open, setOpen }: SidebarProps) => {
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() => setOpen(false)}
+                      onClick={onClose}
                       className="ml-1 flex h-10 w-10 items-center justify-center rounded-full"
                     >
                       <span className="sr-only">Close sidebar</span>
@@ -89,21 +89,19 @@ const Sidebar = ({ open, setOpen }: SidebarProps) => {
                 
                 <ScrollArea className="flex-1 py-2">
                   <nav className="grid gap-1 px-2">
-                    {navigation.map((item) => (
-                      <NavLink
+                    {navItems.map((item) => (
+                      <Link
                         key={item.name}
                         to={item.href}
-                        className={({ isActive }) =>
-                          cn(
-                            "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium hover:bg-white/[0.06] transition-colors",
-                            isActive ? "bg-white/[0.08] text-primary" : "text-gray-300"
-                          )
-                        }
-                        onClick={() => setOpen(false)}
+                        className={cn(
+                          "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium hover:bg-white/[0.06] transition-colors",
+                          pathname === item.href ? "bg-white/[0.08] text-primary" : "text-gray-300"
+                        )}
+                        onClick={onClose}
                       >
                         <item.icon className="h-4 w-4" />
                         <span>{item.name}</span>
-                      </NavLink>
+                      </Link>
                     ))}
                   </nav>
                 </ScrollArea>
@@ -127,20 +125,18 @@ const Sidebar = ({ open, setOpen }: SidebarProps) => {
         
         <ScrollArea className="flex-1 py-2">
           <nav className="grid gap-1 px-4">
-            {navigation.map((item) => (
-              <NavLink
+            {navItems.map((item) => (
+              <Link
                 key={item.name}
                 to={item.href}
-                className={({ isActive }) =>
-                  cn(
-                    "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium hover:bg-white/[0.06] transition-colors",
-                    isActive ? "bg-white/[0.08] text-primary" : "text-gray-300"
-                  )
-                }
+                className={cn(
+                  "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium hover:bg-white/[0.06] transition-colors",
+                  pathname === item.href ? "bg-white/[0.08] text-primary" : "text-gray-300"
+                )}
               >
                 <item.icon className="h-4 w-4" />
                 <span>{item.name}</span>
-              </NavLink>
+              </Link>
             ))}
           </nav>
         </ScrollArea>
