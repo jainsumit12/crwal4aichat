@@ -1,3 +1,4 @@
+[![Python application](https://github.com/bigsk1/supa-crawl-chat/actions/workflows/python-app.yml/badge.svg)](https://github.com/bigsk1/supa-crawl-chat/actions/workflows/python-app.yml)
 ![Docker support](https://img.shields.io/badge/docker-supported-blue)
 [![License](https://img.shields.io/github/license/bigsk1/supa-crawl-chat)](https://github.com/bigsk1/supa-crawl-chat/blob/main/LICENSE)
 
