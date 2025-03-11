@@ -112,7 +112,8 @@ export const api = {
       successTitle: 'Profiles Loaded',
       successMessage: 'Successfully loaded profiles',
       errorTitle: 'Failed to Load Profiles',
-      showToast: false
+      errorMessage: 'Could not load profiles. Please try again.',
+      showToast: false // Don't show toast for this operation
     }
   ),
 

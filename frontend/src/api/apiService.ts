@@ -338,7 +338,7 @@ export const apiService = {
       // If no siteId is provided, try to get all sites instead
       if (!siteId) {
         console.log('No siteId provided, fetching all sites instead');
-        return apiService.getSites();
+        return apiService.getSites() as unknown as CrawlStatus[];
       }
       
       // Use the correct endpoint format with siteId

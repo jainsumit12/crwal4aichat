@@ -37,6 +37,21 @@ services:
     security_opt:
       - no-new-privileges
 
+  frontend:
+    build:
+      context: ..
+      dockerfile: docker/frontend.Dockerfile
+    container_name: supa-chat-frontend
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+    depends_on:
+      - api
+    networks:
+      - crawl-network
+    security_opt:
+      - no-new-privileges
+
 networks:
   crawl-network:
     driver: bridge
