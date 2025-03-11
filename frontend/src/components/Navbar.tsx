@@ -1,8 +1,25 @@
 import React, { useState } from 'react';
-import { Bars3Icon, MoonIcon, SunIcon } from '@heroicons/react/24/outline';
 import { useTheme } from '@/context/ThemeContext';
 import { useUser } from '@/context/UserContext';
 import UserProfileModal from './UserProfileModal';
+import { Button } from '@/components/ui/button';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { 
+  Menu, 
+  Moon, 
+  Sun, 
+  User,
+  Bell
+} from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { ModeToggle } from './ui/mode-toggle';
 
 interface NavbarProps {
   toggleSidebar: () => void;
@@ -14,59 +31,67 @@ const Navbar: React.FC<NavbarProps> = ({ toggleSidebar }) => {
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
 
   return (
-    <nav className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-2.5">
-      <div className="flex justify-between items-center">
-        <div className="flex items-center">
-          <button
-            onClick={toggleSidebar}
-            className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 md:hidden"
-            aria-label="Toggle sidebar"
-          >
-            <Bars3Icon className="h-6 w-6" />
-          </button>
-          <span className="ml-2 text-lg font-semibold text-gray-900 dark:text-white md:hidden">
-            Supa Crawl Chat
-          </span>
-        </div>
+    <header className="sticky top-0 z-40 flex h-16 items-center gap-4 border-b border-white/[0.05] bg-[#0f1117] px-6">
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={toggleSidebar}
+        className="md:hidden text-gray-300 hover:text-white hover:bg-white/[0.06]"
+        aria-label="Toggle sidebar"
+      >
+        <Menu className="h-5 w-5" />
+      </Button>
+      
+      <div className="flex-1" />
+      
+      <div className="flex items-center gap-2">
+        <ModeToggle />
         
-        <div className="flex items-center space-x-3">
-          <button
-            onClick={toggleTheme}
-            className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            aria-label="Toggle dark mode"
-          >
-            {theme === 'dark' ? (
-              <SunIcon className="h-6 w-6" />
-            ) : (
-              <MoonIcon className="h-6 w-6" />
-            )}
-          </button>
-          
-          <button
-            onClick={() => setIsProfileModalOpen(true)}
-            className="flex items-center space-x-2 p-2 rounded-lg text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            {userProfile.avatar ? (
-              <img 
-                src={userProfile.avatar} 
-                alt={userProfile.name} 
-                className="h-8 w-8 rounded-full object-cover"
-              />
-            ) : (
-              <div className="h-8 w-8 rounded-full bg-blue-500 flex items-center justify-center text-white">
-                {userProfile.name.charAt(0).toUpperCase()}
+        <Button variant="ghost" size="icon" className="relative text-gray-300 hover:text-white hover:bg-white/[0.06]">
+          <Bell className="h-5 w-5" />
+          <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-primary" />
+        </Button>
+        
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" className="relative h-9 w-9 rounded-full hover:bg-white/[0.06]">
+              <Avatar className="h-9 w-9">
+                {userProfile.avatar ? (
+                  <AvatarImage src={userProfile.avatar} alt={userProfile.name} />
+                ) : (
+                  <AvatarFallback className="bg-primary text-primary-foreground">
+                    {userProfile.name.charAt(0).toUpperCase()}
+                  </AvatarFallback>
+                )}
+              </Avatar>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent className="w-56 bg-[#171923] border-white/[0.05]" align="end" forceMount>
+            <DropdownMenuLabel className="font-normal">
+              <div className="flex flex-col space-y-1">
+                <p className="text-sm font-medium leading-none">{userProfile.name}</p>
+                <p className="text-xs leading-none text-muted-foreground">
+                  {userProfile.email || 'No email set'}
+                </p>
               </div>
-            )}
-            <span className="hidden md:inline-block">{userProfile.name}</span>
-          </button>
-        </div>
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator className="bg-white/[0.05]" />
+            <DropdownMenuItem 
+              onClick={() => setIsProfileModalOpen(true)}
+              className="hover:bg-white/[0.06] focus:bg-white/[0.06]"
+            >
+              <User className="mr-2 h-4 w-4" />
+              <span>Profile</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
       
       <UserProfileModal 
         isOpen={isProfileModalOpen} 
         onClose={() => setIsProfileModalOpen(false)} 
       />
-    </nav>
+    </header>
   );
 };
 

@@ -1,14 +1,19 @@
-import { Fragment } from 'react';
+import React, { Fragment } from 'react';
+import { NavLink, useLocation } from 'react-router-dom';
 import { Dialog, Transition } from '@headlessui/react';
-import { XMarkIcon } from '@heroicons/react/24/outline';
-import { NavLink } from 'react-router-dom';
-import {
-  HomeIcon,
-  ChatBubbleLeftRightIcon,
-  GlobeAltIcon,
-  MagnifyingGlassIcon,
-  ServerIcon,
-} from '@heroicons/react/24/outline';
+import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import { Separator } from '@/components/ui/separator';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { 
+  Home, 
+  MessageSquare, 
+  Globe, 
+  Search, 
+  Database, 
+  X,
+  Menu
+} from 'lucide-react';
 
 interface SidebarProps {
   open: boolean;
@@ -16,16 +21,16 @@ interface SidebarProps {
 }
 
 const navigation = [
-  { name: 'Home', href: '/', icon: HomeIcon },
-  { name: 'Chat', href: '/chat', icon: ChatBubbleLeftRightIcon },
-  { name: 'Crawl', href: '/crawl', icon: GlobeAltIcon },
-  { name: 'Search', href: '/search', icon: MagnifyingGlassIcon },
-  { name: 'Sites', href: '/sites', icon: ServerIcon },
+  { name: 'Home', href: '/', icon: Home },
+  { name: 'Chat', href: '/chat', icon: MessageSquare },
+  { name: 'Crawl', href: '/crawl', icon: Globe },
+  { name: 'Search', href: '/search', icon: Search },
+  { name: 'Sites', href: '/sites', icon: Database },
 ];
 
 const Sidebar = ({ open, setOpen }: SidebarProps) => {
-  console.log("Sidebar rendered with open state:", open);
-  
+  const location = useLocation();
+
   return (
     <>
       {/* Mobile sidebar */}
@@ -40,7 +45,7 @@ const Sidebar = ({ open, setOpen }: SidebarProps) => {
             leaveFrom="opacity-100"
             leaveTo="opacity-0"
           >
-            <div className="fixed inset-0 bg-gray-600 bg-opacity-75" />
+            <div className="fixed inset-0 bg-background/80 backdrop-blur-sm" />
           </Transition.Child>
 
           <div className="fixed inset-0 z-40 flex">
@@ -53,7 +58,7 @@ const Sidebar = ({ open, setOpen }: SidebarProps) => {
               leaveFrom="translate-x-0"
               leaveTo="-translate-x-full"
             >
-              <Dialog.Panel className="relative flex w-full max-w-xs flex-1 flex-col bg-white dark:bg-gray-800 pt-5 pb-4">
+              <Dialog.Panel className="relative flex w-full max-w-xs flex-1 flex-col bg-[#0f1117]">
                 <Transition.Child
                   as={Fragment}
                   enter="ease-in-out duration-300"
@@ -63,89 +68,85 @@ const Sidebar = ({ open, setOpen }: SidebarProps) => {
                   leaveFrom="opacity-100"
                   leaveTo="opacity-0"
                 >
-                  <div className="absolute top-0 right-0 -mr-12 pt-2">
-                    <button
-                      type="button"
-                      className="ml-1 flex h-10 w-10 items-center justify-center rounded-full focus:outline-none focus:ring-2 focus:ring-inset focus:ring-white"
+                  <div className="absolute right-0 top-0 flex pt-4 pr-2">
+                    <Button
+                      variant="ghost"
+                      size="icon"
                       onClick={() => setOpen(false)}
+                      className="ml-1 flex h-10 w-10 items-center justify-center rounded-full"
                     >
                       <span className="sr-only">Close sidebar</span>
-                      <XMarkIcon className="h-6 w-6 text-white" aria-hidden="true" />
-                    </button>
+                      <X className="h-5 w-5" aria-hidden="true" />
+                    </Button>
                   </div>
                 </Transition.Child>
-                <div className="flex flex-shrink-0 items-center px-4">
-                  <h1 className="text-xl font-bold text-gray-900 dark:text-white">Supa Crawl Chat</h1>
+                
+                <div className="border-b border-white/[0.05] px-6 py-4">
+                  <h1 className="text-xl font-semibold tracking-tight">Supa Crawl Chat</h1>
                 </div>
-                <div className="mt-5 h-0 flex-1 overflow-y-auto">
-                  <nav className="space-y-1 px-2">
+                
+                <ScrollArea className="flex-1 py-2">
+                  <nav className="grid gap-1 px-2">
                     {navigation.map((item) => (
                       <NavLink
                         key={item.name}
                         to={item.href}
                         className={({ isActive }) =>
-                          `group flex items-center px-2 py-2 text-base font-medium rounded-md ${
-                            isActive
-                              ? 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white'
-                              : 'text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white'
-                          }`
+                          cn(
+                            "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium hover:bg-white/[0.06] transition-colors",
+                            isActive ? "bg-white/[0.08] text-primary" : "text-gray-300"
+                          )
                         }
                         onClick={() => setOpen(false)}
                       >
-                        <item.icon
-                          className="mr-4 h-6 w-6 flex-shrink-0 text-gray-500 dark:text-gray-400"
-                          aria-hidden="true"
-                        />
-                        {item.name}
+                        <item.icon className="h-4 w-4" />
+                        <span>{item.name}</span>
                       </NavLink>
                     ))}
                   </nav>
+                </ScrollArea>
+                
+                <div className="border-t border-white/[0.05] p-4">
+                  <p className="text-xs text-muted-foreground">
+                    Powered by Supabase
+                  </p>
                 </div>
               </Dialog.Panel>
             </Transition.Child>
-            <div className="w-14 flex-shrink-0" aria-hidden="true">
-              {/* Dummy element to force sidebar to shrink to fit close icon */}
-            </div>
           </div>
         </Dialog>
       </Transition.Root>
 
-      {/* Desktop sidebar - always visible but narrower */}
-      <div className="hidden md:block md:fixed md:inset-y-0 md:left-0 md:w-48 md:z-10">
-        <div className="h-full w-48 border-r border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
-          <div className="flex items-center p-4">
-            <h1 className="text-lg font-bold text-gray-900 dark:text-white">Supa Crawl Chat</h1>
-          </div>
-          <nav className="mt-2 px-2">
+      {/* Desktop sidebar */}
+      <div className="hidden border-r border-white/[0.05] bg-[#0f1117] md:fixed md:inset-y-0 md:z-10 md:flex md:w-64 md:flex-col">
+        <div className="border-b border-white/[0.05] px-6 py-4">
+          <h1 className="text-xl font-semibold tracking-tight">Supa Crawl Chat</h1>
+        </div>
+        
+        <ScrollArea className="flex-1 py-2">
+          <nav className="grid gap-1 px-4">
             {navigation.map((item) => (
               <NavLink
                 key={item.name}
                 to={item.href}
                 className={({ isActive }) =>
-                  `group flex items-center px-2 py-2 text-sm font-medium rounded-md my-1 ${
-                    isActive
-                      ? 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white'
-                      : 'text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white'
-                  }`
+                  cn(
+                    "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium hover:bg-white/[0.06] transition-colors",
+                    isActive ? "bg-white/[0.08] text-primary" : "text-gray-300"
+                  )
                 }
               >
-                <item.icon
-                  className="mr-2 h-5 w-5 flex-shrink-0 text-gray-500 dark:text-gray-400"
-                  aria-hidden="true"
-                />
-                <span className="text-sm">{item.name}</span>
+                <item.icon className="h-4 w-4" />
+                <span>{item.name}</span>
               </NavLink>
             ))}
           </nav>
-          <div className="absolute bottom-0 left-0 right-0 border-t border-gray-200 dark:border-gray-700 p-4">
-            <div className="flex items-center">
-              <div>
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  Powered by Supabase
-                </p>
-              </div>
-            </div>
-          </div>
+        </ScrollArea>
+        
+        <div className="border-t border-white/[0.05] p-4">
+          <p className="text-xs text-muted-foreground">
+            Powered by Supabase
+          </p>
         </div>
       </div>
     </>

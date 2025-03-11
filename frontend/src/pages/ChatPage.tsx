@@ -5,6 +5,16 @@ import ReactMarkdown from 'react-markdown';
 import { v4 as uuidv4 } from 'uuid';
 import { useUser } from '@/context/UserContext';
 import remarkGfm from 'remark-gfm';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
+import { Separator } from '@/components/ui/separator';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { MessageSquare, Plus, Trash2, Edit, RefreshCw, Bot, Send } from 'lucide-react';
 
 // Define the session interface
 interface ChatSession {
@@ -453,37 +463,37 @@ const ChatPage = () => {
     const messageKey = message.id || `${message.role}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
     return (
-      <div key={messageKey} className={`flex items-start mb-4 ${isUser ? 'justify-end' : ''}`}>
+      <div key={messageKey} className={`flex items-start mb-4 ${isUser ? 'justify-end' : 'justify-start'}`}>
         {!isUser && (
-          <div className="flex-shrink-0 h-10 w-10 rounded-full bg-indigo-600 flex items-center justify-center text-white">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-            </svg>
-          </div>
+          <Avatar className="h-10 w-10 mr-3">
+            <AvatarFallback className="bg-primary text-primary-foreground">
+              <Bot size={20} />
+            </AvatarFallback>
+          </Avatar>
         )}
         <div
-          className={`px-4 py-2 rounded-lg max-w-3xl ${
+          className={`px-4 py-3 rounded-lg max-w-3xl ${
             isUser
-              ? 'ml-3 bg-blue-100 dark:bg-blue-900 text-blue-900 dark:text-blue-100'
-              : 'ml-3 bg-gray-100 dark:bg-gray-700'
+              ? 'bg-primary/90 text-primary-foreground'
+              : 'bg-[#1e2130] text-gray-200 border border-white/[0.05]'
           }`}
         >
-          <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">{timestamp}</div>
+          <div className="text-xs text-gray-400 mb-1">{timestamp}</div>
           <div className="prose dark:prose-invert max-w-none">
             <ReactMarkdown
               remarkPlugins={[remarkGfm]}
-              className="prose prose-sm max-w-none prose-invert"
+              className="prose prose-sm max-w-none"
               components={{
                 pre: ({ node, ...props }) => (
-                  <div className="bg-gray-900 p-2 rounded my-2 overflow-auto">
+                  <div className="bg-[#0f1117] p-3 rounded my-2 overflow-auto border border-white/[0.05]">
                     <pre {...props} />
                   </div>
                 ),
                 code: ({ node, className, inline, ...props }: any) => 
                   inline ? (
-                    <code className="bg-gray-900 px-1 py-0.5 rounded" {...props} />
+                    <code className="bg-[#0f1117] px-1 py-0.5 rounded text-gray-300" {...props} />
                   ) : (
-                    <code {...props} />
+                    <code className="text-gray-300" {...props} />
                   )
               }}
             >
@@ -492,53 +502,19 @@ const ChatPage = () => {
           </div>
         </div>
         {isUser && (
-          <div className="flex-shrink-0 h-10 w-10 rounded-full flex items-center justify-center ml-3">
-            {userProfile.avatar ? (
-              <img 
-                src={userProfile.avatar} 
-                alt={userProfile.name} 
-                className="h-10 w-10 rounded-full object-cover"
-              />
+          <Avatar className="h-10 w-10 ml-3">
+            {userProfile?.avatar ? (
+              <AvatarImage src={userProfile.avatar} alt={userProfile.name} />
             ) : (
-              <div className="h-10 w-10 rounded-full bg-blue-500 flex items-center justify-center text-white">
-                {userProfile.name.charAt(0).toUpperCase()}
-              </div>
+              <AvatarFallback className="bg-primary text-primary-foreground">
+                {userProfile?.name?.charAt(0)?.toUpperCase() || 'U'}
+              </AvatarFallback>
             )}
-          </div>
+          </Avatar>
         )}
       </div>
     );
   };
-
-  // If there's a critical error, show a recovery UI
-  if (error && !chatHistory.length && !profiles.length) {
-    return (
-      <div className="max-w-4xl mx-auto px-4 py-8">
-        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-6 text-center">
-          <h2 className="text-xl font-bold text-red-800 dark:text-red-200 mb-4">Something went wrong</h2>
-          <p className="text-red-700 dark:text-red-300 mb-6">{error}</p>
-          <div className="flex justify-center space-x-4">
-            <button 
-              onClick={() => window.location.reload()} 
-              className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
-            >
-              Refresh Page
-            </button>
-            <button 
-              onClick={() => {
-                setError(null);
-                refreshProfiles();
-                refreshChatHistory();
-              }} 
-              className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors"
-            >
-              Try Again
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   // Define the refresh functions at the component level
   const refreshProfiles = async () => {
@@ -573,294 +549,286 @@ const ChatPage = () => {
     }
   };
 
+  // If there's a critical error, show a recovery UI
+  if (error && !chatHistory.length && !profiles.length) {
+    return (
+      <div className="max-w-4xl mx-auto px-4 py-8">
+        <Card className="border-destructive">
+          <CardHeader>
+            <CardTitle className="text-destructive">Something went wrong</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-destructive mb-6">{error}</p>
+            <div className="flex justify-center space-x-4">
+              <Button 
+                onClick={() => window.location.reload()} 
+                variant="destructive"
+              >
+                Refresh Page
+              </Button>
+              <Button 
+                onClick={() => {
+                  setError(null);
+                  refreshProfiles();
+                  refreshChatHistory();
+                }} 
+                variant="outline"
+              >
+                Try Again
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex flex-col h-screen bg-gray-900">
+    <div className="flex flex-col h-full bg-[#0f1117]">
       {/* Header */}
-      <div className="p-4 border-b border-gray-700">
-        <h1 className="text-2xl font-bold text-white mb-4">Chat</h1>
+      <div className="p-4 border-b border-white/[0.05]">
+        <h1 className="text-2xl font-bold mb-4 text-foreground">Chat</h1>
         
         <div className="flex flex-wrap gap-3">
           {/* Session dropdown */}
-          <div className="relative">
-            <button
-              onClick={() => setShowSessionManager(!showSessionManager)}
-              className="bg-gray-800 hover:bg-gray-700 text-white px-4 py-2 rounded flex items-center gap-2"
-            >
-              <span>{sessions.find(s => s.id === sessionId)?.name || 'Session'}</span>
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
-              </svg>
-            </button>
-            
-            {showSessionManager && (
-              <div className="absolute left-0 top-full mt-1 z-10 w-72 bg-gray-800 rounded shadow-lg border border-gray-700">
-                <div className="p-4">
-                  <div className="flex justify-between items-center mb-3">
-                    <h3 className="font-semibold text-white">Manage Sessions</h3>
-                    <button 
-                      onClick={() => setShowSessionManager(false)}
-                      className="text-gray-400 hover:text-white"
-                    >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
-                      </svg>
-                    </button>
-                  </div>
-                  
-                  <div className="mb-3">
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        value={newSessionName}
-                        onChange={(e) => setNewSessionName(e.target.value)}
-                        placeholder="New session name"
-                        className="bg-gray-700 text-white border-gray-600 rounded px-3 py-1 flex-grow focus:outline-none focus:ring-1 focus:ring-blue-500"
-                      />
-                      <button
-                        onClick={() => {
-                          if (newSessionName.trim()) {
-                            createNewSession(newSessionName);
-                            setNewSessionName('');
-                            setShowSessionManager(false);
-                          }
-                        }}
-                        className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded"
-                      >
-                        Create
-                      </button>
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-2 max-h-60 overflow-y-auto">
-                    {sessions.map(session => (
-                      <div 
-                        key={session.id} 
-                        className={`p-2 rounded flex justify-between items-center ${
-                          session.id === sessionId 
-                            ? 'bg-blue-900' 
-                            : 'bg-gray-700 hover:bg-gray-600'
-                        }`}
-                      >
-                        <div className="flex-grow">
-                          {editingSessionId === session.id ? (
-                            <input
-                              type="text"
-                              defaultValue={session.name}
-                              autoFocus
-                              onBlur={(e) => renameSession(session.id, e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                  renameSession(session.id, e.currentTarget.value);
-                                } else if (e.key === 'Escape') {
-                                  setEditingSessionId(null);
-                                }
-                              }}
-                              className="bg-gray-800 text-white border border-gray-600 rounded px-2 py-1 w-full focus:outline-none focus:ring-1 focus:ring-blue-500"
-                            />
-                          ) : (
-                            <div>
-                              <div 
-                                className="font-medium cursor-pointer text-white" 
-                                onClick={() => {
-                                  switchSession(session.id);
-                                  setShowSessionManager(false);
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="flex items-center gap-2 border-white/[0.05] bg-[#171923] hover:bg-white/[0.06] text-gray-300">
+                <MessageSquare className="h-4 w-4" />
+                <span>{sessions.find(s => s.id === sessionId)?.name || 'Session'}</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="w-56 bg-[#171923] border-white/[0.05]">
+              <div className="p-2">
+                <div className="mb-2">
+                  <Input
+                    value={newSessionName}
+                    onChange={(e) => setNewSessionName(e.target.value)}
+                    placeholder="New session name"
+                    className="mb-2 bg-[#0f1117] border-white/[0.05]"
+                  />
+                  <Button
+                    onClick={() => {
+                      if (newSessionName.trim()) {
+                        createNewSession(newSessionName);
+                        setNewSessionName('');
+                      }
+                    }}
+                    className="w-full"
+                    size="sm"
+                  >
+                    <Plus className="h-4 w-4 mr-2" /> Create Session
+                  </Button>
+                </div>
+                
+                <Separator className="my-2 bg-white/[0.05]" />
+                
+                <div className="max-h-[300px] overflow-y-auto">
+                  {sessions.map(session => (
+                    <div key={session.id} className="mb-2 last:mb-0">
+                      <div className={`p-2 rounded-md ${
+                        session.id === sessionId 
+                          ? 'bg-white/[0.08]' 
+                          : 'hover:bg-white/[0.06]'
+                      }`}>
+                        <div className="flex justify-between items-center">
+                          <div className="flex-grow">
+                            {editingSessionId === session.id ? (
+                              <Input
+                                defaultValue={session.name}
+                                autoFocus
+                                onBlur={(e) => renameSession(session.id, e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    renameSession(session.id, e.currentTarget.value);
+                                  } else if (e.key === 'Escape') {
+                                    setEditingSessionId(null);
+                                  }
                                 }}
-                              >
-                                {session.name}
+                                className="text-sm bg-[#0f1117] border-white/[0.05]"
+                              />
+                            ) : (
+                              <div>
+                                <div 
+                                  className="font-medium cursor-pointer text-gray-200" 
+                                  onClick={() => {
+                                    switchSession(session.id);
+                                  }}
+                                >
+                                  {session.name}
+                                </div>
+                                <div className="text-xs text-gray-400">
+                                  {new Date(session.createdAt).toLocaleDateString()}
+                                </div>
                               </div>
-                              <div className="text-xs text-gray-400">
-                                Created: {new Date(session.createdAt).toLocaleDateString()}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                        
-                        <div className="flex gap-2">
-                          {session.id !== sessionId && (
-                            <button
-                              onClick={() => {
-                                switchSession(session.id);
-                                setShowSessionManager(false);
-                              }}
-                              className="text-blue-400 hover:text-blue-300"
-                              title="Use this session"
-                            >
-                              Use
-                            </button>
-                          )}
-                          <button
-                            onClick={() => setEditingSessionId(session.id)}
-                            className="text-gray-400 hover:text-white"
-                            title="Rename session"
-                          >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
-                            </svg>
-                          </button>
-                          <button
-                            onClick={() => deleteSession(session.id)}
-                            className="text-red-400 hover:text-red-300"
-                            title="Delete session"
-                          >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
-                            </svg>
-                          </button>
+                            )}
+                          </div>
+                          
+                          <div className="flex gap-1">
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-7 w-7 hover:bg-white/[0.06]"
+                                    onClick={() => setEditingSessionId(session.id)}
+                                  >
+                                    <Edit className="h-3.5 w-3.5" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent className="bg-[#171923] border-white/[0.05]">
+                                  <p>Rename session</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                            
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-7 w-7 text-destructive hover:bg-white/[0.06]"
+                                    onClick={() => deleteSession(session.id)}
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent className="bg-[#171923] border-white/[0.05]">
+                                  <p>Delete session</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          </div>
                         </div>
                       </div>
-                    ))}
-                  </div>
+                    </div>
+                  ))}
                 </div>
               </div>
-            )}
-          </div>
+            </DropdownMenuContent>
+          </DropdownMenu>
           
           {/* Profile selector */}
           <div>
-            <div className="text-xs text-gray-400 mb-1">Profile</div>
-            <select
+            <Select
               value={selectedProfile}
-              onChange={(e) => handleProfileChange(e.target.value)}
-              className="bg-gray-800 text-white border border-gray-700 rounded px-3 py-2 appearance-none pr-8 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              onValueChange={handleProfileChange}
               disabled={isLoading}
             >
-              {profiles.map((profile) => (
-                <option key={profile.name} value={profile.name}>
-                  {profile.name}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger className="w-[180px] border-white/[0.05] bg-[#171923] text-gray-300">
+                <SelectValue placeholder="Select a profile" />
+              </SelectTrigger>
+              <SelectContent className="bg-[#171923] border-white/[0.05]">
+                {profiles.map((profile) => (
+                  <SelectItem key={profile.name} value={profile.name} className="hover:bg-white/[0.06] focus:bg-white/[0.06]">
+                    {profile.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           
-          <button
+          <Button
+            variant="outline"
             onClick={handleNewChat}
-            className="bg-gray-800 hover:bg-gray-700 text-white px-4 py-2 rounded"
             disabled={isLoading}
+            className="border-white/[0.05] bg-[#171923] hover:bg-white/[0.06] text-gray-300"
           >
-            New Chat
-          </button>
+            <Plus className="h-4 w-4 mr-2" /> New Chat
+          </Button>
           
-          <button
+          <Button
+            variant="outline"
             onClick={handleClearChat}
-            className="bg-gray-800 hover:bg-gray-700 text-white px-4 py-2 rounded"
             disabled={isLoading}
+            className="border-white/[0.05] bg-[#171923] hover:bg-white/[0.06] text-gray-300"
           >
-            Clear Chat
-          </button>
+            <Trash2 className="h-4 w-4 mr-2" /> Clear Chat
+          </Button>
         </div>
       </div>
       
-      {/* Main chat area - fixed layout */}
+      {/* Main chat area */}
       <div className="flex-1 flex flex-col overflow-hidden p-4">
-        {/* Messages container with fixed height */}
-        <div 
-          ref={chatContainerRef}
-          className="flex-1 overflow-y-auto mb-4 bg-gray-800 rounded-lg p-4"
-          style={{ minHeight: "200px" }}
-        >
-          {isLoadingHistory ? (
-            <div className="flex justify-center items-center h-full">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
-            </div>
-          ) : error ? (
-            <div className="flex flex-col items-center justify-center h-full">
-              <div className="text-red-400 mb-4">{error}</div>
-              <div className="flex justify-center space-x-4">
-                <button 
-                  onClick={() => window.location.reload()} 
-                  className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded"
-                >
-                  Refresh Page
-                </button>
-                <button 
-                  onClick={() => {
-                    setError(null);
-                    refreshProfiles();
-                    refreshChatHistory();
-                  }} 
-                  className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded"
-                >
-                  Try Again
-                </button>
+        {/* Messages container */}
+        <Card className="flex-1 overflow-hidden mb-4 border-white/[0.05] bg-[#171923]">
+          <CardContent className="p-4 h-full overflow-y-auto" ref={chatContainerRef}>
+            {isLoadingHistory ? (
+              <div className="flex justify-center items-center h-full">
+                <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
               </div>
-            </div>
-          ) : chatHistory.length === 0 ? (
-            <div className="flex flex-col justify-center items-center h-full text-center">
-              <h2 className="text-xl font-semibold mb-2 text-white">No messages yet</h2>
-              <p className="text-gray-400 mb-4">
-                Start a conversation by sending a message below.
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {chatHistory.map((message) => {
-                if (message.role === 'system') return null;
-                
-                const isUser = message.role === 'user';
-                const timestamp = message.created_at ? formatTimestamp(message.created_at) : 'Just now';
-                const messageKey = message.id || `${message.role}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-                
-                return (
-                  <div key={messageKey} className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`flex max-w-[80%] ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
-                      {/* Avatar */}
-                      <div className={`flex-shrink-0 h-10 w-10 rounded-full flex items-center justify-center ${
-                        isUser ? 'bg-blue-600 ml-3' : 'bg-indigo-600 mr-3'
-                      }`}>
-                        {isUser ? (
-                          <div className="text-white font-semibold">
-                            {userProfile?.name?.charAt(0)?.toUpperCase() || 'U'}
-                          </div>
-                        ) : (
-                          <div className="text-white">A</div>
-                        )}
-                      </div>
-                      
-                      {/* Message content */}
-                      <div>
-                        <div className={`px-4 py-3 rounded-lg ${
-                          isUser ? 'bg-blue-700' : 'bg-gray-700'
-                        }`}>
-                          <p className="text-white whitespace-pre-wrap">{message.content}</p>
-                        </div>
-                        <div className={`text-xs text-gray-400 mt-1 ${isUser ? 'text-right' : 'text-left'}`}>
-                          {timestamp}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-              <div ref={messagesEndRef} />
-            </div>
-          )}
-        </div>
+            ) : error ? (
+              <div className="flex flex-col items-center justify-center h-full">
+                <div className="text-destructive mb-4">{error}</div>
+                <div className="flex justify-center space-x-4">
+                  <Button 
+                    onClick={() => window.location.reload()} 
+                    variant="destructive"
+                  >
+                    Refresh Page
+                  </Button>
+                  <Button 
+                    onClick={() => {
+                      setError(null);
+                      refreshProfiles();
+                      refreshChatHistory();
+                    }} 
+                    variant="outline"
+                    className="border-white/[0.05] bg-[#171923] hover:bg-white/[0.06] text-gray-300"
+                  >
+                    Try Again
+                  </Button>
+                </div>
+              </div>
+            ) : filteredChatHistory.length === 0 ? (
+              <div className="flex flex-col justify-center items-center h-full text-center">
+                <h2 className="text-xl font-semibold mb-2 text-gray-200">No messages yet</h2>
+                <p className="text-gray-400 mb-4">
+                  Start a conversation by sending a message below.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {filteredChatHistory.map(renderMessage)}
+                <div ref={messagesEndRef} />
+              </div>
+            )}
+          </CardContent>
+        </Card>
         
-        {/* Message input - fixed at bottom */}
+        {/* Message input */}
         <div className="flex-none">
           <form onSubmit={handleSendMessage} className="flex space-x-2">
-            <input
-              type="text"
+            <Textarea
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               placeholder="Type your message..."
-              className="flex-grow bg-gray-700 text-white border border-gray-600 rounded-lg px-4 py-3 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="flex-grow min-h-[60px] bg-[#171923] border-white/[0.05] text-gray-200 placeholder:text-gray-500"
               disabled={isLoading}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  if (message.trim()) {
+                    handleSendMessage(e);
+                  }
+                }
+              }}
             />
-            <button
+            <Button
               type="submit"
-              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 rounded-lg"
               disabled={isLoading || !message.trim()}
+              className="self-end"
             >
               {isLoading ? (
-                <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
+                <RefreshCw className="h-5 w-5 animate-spin" />
               ) : (
-                <span>Send</span>
+                <>
+                  <Send className="h-5 w-5 mr-2" /> Send
+                </>
               )}
-            </button>
+            </Button>
           </form>
         </div>
       </div>

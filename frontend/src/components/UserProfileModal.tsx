@@ -1,6 +1,18 @@
 import React, { useState, useRef } from 'react';
 import { useUser } from '@/context/UserContext';
-import { XMarkIcon } from '@heroicons/react/24/outline';
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogHeader, 
+  DialogTitle, 
+  DialogFooter 
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
+import { X, Upload, Trash2 } from 'lucide-react';
 
 interface UserProfileModalProps {
   isOpen: boolean;
@@ -12,8 +24,6 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ isOpen, onClose }) 
   const [name, setName] = useState(userProfile.name);
   const [newPreference, setNewPreference] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  if (!isOpen) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,35 +51,27 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ isOpen, onClose }) 
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full p-6">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-semibold">Edit Profile</h2>
-          <button 
-            onClick={onClose}
-            className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-          >
-            <XMarkIcon className="h-6 w-6" />
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit}>
-          <div className="mb-6 flex flex-col items-center">
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-md bg-[#171923] border-white/[0.05] text-gray-200">
+        <DialogHeader>
+          <DialogTitle className="text-gray-200">Edit Profile</DialogTitle>
+        </DialogHeader>
+        
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="flex flex-col items-center">
             <div 
-              className="w-24 h-24 rounded-full bg-gray-300 dark:bg-gray-700 mb-4 flex items-center justify-center overflow-hidden cursor-pointer"
+              className="cursor-pointer"
               onClick={() => fileInputRef.current?.click()}
             >
-              {userProfile.avatar ? (
-                <img 
-                  src={userProfile.avatar} 
-                  alt={userProfile.name} 
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <span className="text-4xl text-gray-500 dark:text-gray-400">
-                  {userProfile.name.charAt(0).toUpperCase()}
-                </span>
-              )}
+              <Avatar className="h-24 w-24">
+                {userProfile.avatar ? (
+                  <AvatarImage src={userProfile.avatar} alt={userProfile.name} />
+                ) : (
+                  <AvatarFallback className="bg-primary text-primary-foreground text-4xl">
+                    {userProfile.name.charAt(0).toUpperCase()}
+                  </AvatarFallback>
+                )}
+              </Avatar>
             </div>
             <input
               type="file"
@@ -78,99 +80,100 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ isOpen, onClose }) 
               accept="image/*"
               className="hidden"
             />
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="sm"
               onClick={() => fileInputRef.current?.click()}
-              className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
+              className="mt-2 text-gray-300 hover:text-white hover:bg-white/[0.06]"
             >
+              <Upload className="h-4 w-4 mr-2" />
               Change Avatar
-            </button>
+            </Button>
           </div>
 
-          <div className="mb-4">
-            <label htmlFor="name" className="block text-sm font-medium mb-1">
-              Display Name
-            </label>
-            <input
-              type="text"
+          <div className="space-y-2">
+            <Label htmlFor="name" className="text-gray-300">Display Name</Label>
+            <Input
               id="name"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="input w-full"
               placeholder="Your name"
               required
+              className="bg-[#0f1117] border-white/[0.05] text-gray-200 placeholder:text-gray-500"
             />
           </div>
 
-          <div className="mb-6">
-            <label className="block text-sm font-medium mb-1">
-              Preferences
-            </label>
-            <div className="flex gap-2 mb-2">
-              <input
-                type="text"
+          <div className="space-y-2">
+            <Label className="text-gray-300">Preferences</Label>
+            <div className="flex gap-2">
+              <Input
                 value={newPreference}
                 onChange={(e) => setNewPreference(e.target.value)}
-                className="input flex-1"
                 placeholder="Add a preference (e.g., 'I like Docker')"
+                className="flex-1 bg-[#0f1117] border-white/[0.05] text-gray-200 placeholder:text-gray-500"
               />
-              <button
+              <Button
                 type="button"
                 onClick={handleAddPreference}
-                className="btn-secondary px-3 py-1"
                 disabled={!newPreference.trim()}
+                className="bg-primary hover:bg-primary/90"
               >
                 Add
-              </button>
+              </Button>
             </div>
             
-            <div className="flex flex-wrap gap-2 mt-2">
+            <div className="flex flex-wrap gap-2 mt-4">
               {userProfile.preferences.map((pref, index) => (
-                <div 
+                <Badge 
                   key={index}
-                  className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 px-2 py-1 rounded-full text-sm flex items-center"
+                  variant="secondary"
+                  className="flex items-center gap-1 bg-[#1e2130] text-gray-200 border border-white/[0.05]"
                 >
                   {pref}
-                  <button
+                  <Button
                     type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-4 w-4 p-0 hover:bg-transparent text-gray-400 hover:text-white"
                     onClick={() => removePreference(pref)}
-                    className="ml-1 text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300"
                   >
-                    ×
-                  </button>
-                </div>
+                    <X className="h-3 w-3" />
+                  </Button>
+                </Badge>
               ))}
-              
-              {userProfile.preferences.length > 0 && (
-                <button
-                  type="button"
-                  onClick={clearPreferences}
-                  className="text-xs text-red-600 dark:text-red-400 hover:underline mt-2"
-                >
-                  Clear All
-                </button>
-              )}
             </div>
+            
+            {userProfile.preferences.length > 0 && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={clearPreferences}
+                className="text-destructive hover:text-destructive/90 hover:bg-destructive/10 mt-2"
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Clear All
+              </Button>
+            )}
           </div>
 
-          <div className="flex justify-end gap-2">
-            <button
+          <DialogFooter>
+            <Button
               type="button"
+              variant="outline"
               onClick={onClose}
-              className="btn-secondary px-4 py-2"
+              className="border-white/[0.05] bg-[#0f1117] hover:bg-white/[0.06] text-gray-300"
             >
               Cancel
-            </button>
-            <button
-              type="submit"
-              className="btn-primary px-4 py-2"
-            >
+            </Button>
+            <Button type="submit" className="bg-primary hover:bg-primary/90">
               Save
-            </button>
-          </div>
+            </Button>
+          </DialogFooter>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 };
 
