@@ -1,6 +1,9 @@
-# Crawl4AI with Supabase Vector Search and Chat
+![Docker support](https://img.shields.io/badge/docker-supported-blue)
+[![License](https://img.shields.io/github/license/bigsk1/supa-crawl-chat)](https://github.com/bigsk1/supa-crawl-chat/blob/main/LICENSE)
 
-Integrates Crawl4AI with Supabase and AI Chat to create a powerful web crawling and semantic search solution quickly. It crawls websites, stores the content in a Supabase database with vector embeddings, and provides semantic search capabilities with AI Chat.
+# Supa - Crawl - Chat
+
+Integrates Supabase with Crawl4AI and AI Chat to create a powerful web crawling and semantic search solution quickly. It crawls websites, stores the content in a Supabase database with vector embeddings, and provides semantic search capabilities with AI Chat long term memory.
 
 ![crawl](https://imagedelivery.net/WfhVb8dSNAAvdXUdMfBuPQ/cbbb5f3b-d089-49a1-704f-c2ebd6bcef00/public)
 
@@ -16,7 +19,7 @@ Integrates Crawl4AI with Supabase and AI Chat to create a powerful web crawling 
 - Chat interface for interacting with crawled data using an LLM
 - Interactive Streamlit-based Supabase Explorer for database analysis and visualization
 - Configuration via `.env` file for easy switching between URLs/sitemaps
-- Three different Docker Options, just App, App + Crawl4ai, App + Crawl4ai + Supabase all in Docker!
+- Three different Docker Options, App, App + Crawl4ai, App + Crawl4ai + Supabase all in Docker!
 - Supa-Crawl-Chat API provides a RESTful interface to interact with the Supa-Crawl-Chat system
 
 
@@ -860,7 +863,7 @@ CRAWL4AI_API_TOKEN=your_crawl4ai_api_token
 We provide a comprehensive Docker setup that includes everything you need to run the entire application stack:
 
 - Supa Chat API
-- Supabase (Database, Auth, Storage, etc.)
+- Supabase (Database, Kong, Realtime, etc.)
 - Crawl4AI for web crawling
 
 This setup is perfect for development, testing, or even production deployments.
