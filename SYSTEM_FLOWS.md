@@ -349,3 +349,291 @@ This flow demonstrates how the system maintains context, remembers user preferen
 - User interruptions (Ctrl+C): Graceful handling with option to continue
 - Empty queries: Prompt for valid input
 - Invalid commands: Display help message 
+
+## Docker Deployment Options
+
+The system can be deployed using Docker in three different configurations, each offering different levels of integration and complexity. This section provides detailed information about each option, including setup instructions, configuration details, and troubleshooting tips.
+
+### 1. API-Only Docker Deployment
+
+This is the simplest deployment option, containerizing only the API service while relying on external Supabase and Crawl4AI instances.
+
+#### Components
+- **Containerized**: API service
+- **External**: Supabase database, Crawl4AI service
+
+#### Configuration
+The API-only deployment uses the root `.env` file for configuration. Key environment variables:
+
+```env
+# External Supabase configuration
+SUPABASE_URL=your_supabase_host:port
+SUPABASE_DB=postgres
+SUPABASE_KEY=postgres
+SUPABASE_PASSWORD=postgres
+
+# External Crawl4AI configuration
+CRAWL4AI_API_TOKEN=your_crawl4ai_api_token
+CRAWL4AI_BASE_URL=your_crawl4ai_base_url
+```
+
+#### Setup and Deployment
+
+1. Build and start the container:
+   ```bash
+   docker-compose -f docker/docker-compose.yml up -d
+   ```
+
+2. Access the API:
+   - API: http://localhost:8001
+   - API Documentation: http://localhost:8001/docs
+   - Supabase Explorer: http://localhost:8501
+
+3. Interact with the container:
+   ```bash
+   # Execute commands inside the container
+   docker exec -it supachat-api bash
+   
+   # Run a crawl from inside the container
+   python run_crawl.py
+   
+   # Start a chat session from inside the container
+   python chat.py
+   ```
+
+#### Network Architecture
+- The API container exposes ports 8001 (API) and 8501 (Supabase Explorer)
+- The container connects to external Supabase and Crawl4AI services over the internet
+- No internal Docker network is used for service communication
+
+### 2. API + Crawl4AI Docker Deployment
+
+This option containerizes both the API service and the Crawl4AI service, creating a more integrated deployment while still relying on an external Supabase instance.
+
+#### Components
+- **Containerized**: API service, Crawl4AI service
+- **External**: Supabase database
+
+#### Configuration
+This deployment uses the root `.env` file with specific settings for the Crawl4AI service:
+
+```env
+# External Supabase configuration
+SUPABASE_URL=your_supabase_host:port
+SUPABASE_DB=postgres
+SUPABASE_KEY=postgres
+SUPABASE_PASSWORD=postgres
+
+# Crawl4AI configuration (automatically set in the container)
+CRAWL4AI_API_TOKEN=your_crawl4ai_api_token
+# CRAWL4AI_BASE_URL=http://crawl4ai:11235  # Uncomment in container, comment out for local use
+```
+
+#### Setup and Deployment
+
+1. Build and start the containers:
+   ```bash
+   docker-compose -f docker/crawl4ai-docker-compose.yml up -d
+   ```
+
+2. Access the services:
+   - API: http://localhost:8001
+   - API Documentation: http://localhost:8001/docs
+   - Supabase Explorer: http://localhost:8501
+   - Crawl4AI: http://localhost:11235
+
+3. Interact with the containers:
+   ```bash
+   # Execute commands inside the API container
+   docker exec -it supachat-api bash
+   
+   # Run a crawl from inside the container
+   python run_crawl.py
+   
+   # Check Crawl4AI logs
+   docker logs supachat-crawl4ai
+   ```
+
+#### Network Architecture
+- Both containers are connected via an internal Docker network named `supachat-network`
+- The API container communicates with the Crawl4AI container using the service name `crawl4ai`
+- The API container connects to the external Supabase instance over the internet
+- Ports 8001 (API), 8501 (Supabase Explorer), and 11235 (Crawl4AI) are exposed to the host
+
+### 3. Full-Stack Docker Deployment
+
+The most comprehensive deployment option, containerizing the entire stack: API service, Crawl4AI service, and Supabase (including database, Kong API gateway, and other Supabase services).
+
+#### Components
+- **Containerized**: 
+  - API service
+  - Crawl4AI service
+  - Supabase services:
+    - PostgreSQL database
+    - Kong API gateway
+    - Supabase Studio
+    - Meta service
+    - REST API
+
+#### Configuration
+The full-stack deployment uses a separate `.env` file located in the `docker/` directory:
+
+```env
+# API Configuration
+OPENAI_API_KEY=your_openai_api_key
+CRAWL4AI_API_TOKEN=your_crawl4ai_api_token
+CRAWL4AI_BASE_URL=http://crawl4ai:11235
+
+# OpenAI Models
+OPENAI_EMBEDDING_MODEL=text-embedding-3-small
+OPENAI_CONTENT_MODEL=gpt-4o-mini
+CHAT_MODEL=gpt-4o
+
+# Supabase Configuration
+POSTGRES_PASSWORD=your-super-secret-and-long-postgres-password
+JWT_SECRET=your-super-secret-jwt-token-with-at-least-32-characters
+ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+DASHBOARD_PASSWORD=your-dashboard-password
+
+# Connection Information for Application
+SUPABASE_HOST=db
+SUPABASE_PORT=5432
+SUPABASE_DB=postgres
+SUPABASE_PASSWORD=${POSTGRES_PASSWORD}
+```
+
+#### Setup and Deployment
+
+1. Navigate to the docker directory:
+   ```bash
+   cd docker
+   ```
+
+2. Run the setup script to create necessary files:
+   ```bash
+   chmod +x setup.sh
+   ./setup.sh
+   ```
+
+3. Edit the Docker-specific `.env` file:
+   ```bash
+   nano .env
+   ```
+
+4. Start all services:
+   ```bash
+   docker-compose -f full-stack-compose.yml up -d
+   ```
+
+5. Access the services:
+   - API: http://localhost:8001
+   - API Documentation: http://localhost:8001/docs
+   - Supabase Studio: http://localhost:3001
+   - Kong API Gateway: http://localhost:8002
+   - Crawl4AI: http://localhost:11235
+
+6. Check service status:
+   ```bash
+   ./status.sh
+   ```
+
+7. Reset everything (if needed):
+   ```bash
+   ./reset.sh
+   ```
+
+#### Network Architecture
+- All containers are connected via an internal Docker network named `supachat-network`
+- The API container communicates with the database using direct connection parameters:
+  - Host: `db`
+  - Port: `5432`
+- The API container communicates with Crawl4AI using the service name `crawl4ai`
+- Persistent data is stored in Docker volumes:
+  - `pgdata`: PostgreSQL database files
+  - `volumes/db/init`: Database initialization scripts
+  - `volumes/api`: API configuration files
+  - `volumes/shm`: Shared memory for Crawl4AI
+
+#### Troubleshooting
+
+1. **Database Connection Issues**:
+   - Check if the database container is healthy: `docker ps | grep supachat-db`
+   - Verify the database credentials in the `.env` file
+   - Ensure the API container is using the correct connection parameters:
+     ```
+     SUPABASE_HOST=db
+     SUPABASE_PORT=5432
+     ```
+
+2. **Kong API Gateway Issues**:
+   - The API should connect directly to the database, not through Kong
+   - If seeing SSL negotiation errors, ensure `SUPABASE_URL` is unset or empty
+   - Check Kong logs: `docker logs supachat-kong`
+
+3. **Missing Database Tables**:
+   - The setup script should create all necessary tables
+   - If tables are missing, you can manually set up the database:
+     ```bash
+     docker exec -it supachat-api python main.py setup
+     ```
+
+4. **Restarting Services**:
+   - Restart a specific service:
+     ```bash
+     docker-compose -f full-stack-compose.yml restart api
+     ```
+   - Restart all services:
+     ```bash
+     docker-compose -f full-stack-compose.yml down
+     docker-compose -f full-stack-compose.yml up -d
+     ```
+
+### Docker Volumes and Data Persistence
+
+The full-stack Docker setup uses several volumes to persist data:
+
+1. **pgdata**: Stores PostgreSQL database files
+   - Location: Docker managed volume
+   - Content: All database data, including tables, indexes, and stored procedures
+   - Persistence: Survives container restarts and rebuilds
+
+2. **volumes/db/init**: Contains database initialization scripts
+   - Location: `docker/volumes/db/init/`
+   - Content:
+     - `00-initial-schema.sql`: Initial Supabase schema
+     - `03-post-setup.sql`: Post-setup configuration
+     - `04-app-tables.sql`: Application-specific tables
+   - Execution: Scripts run in alphabetical order when the database container is first initialized
+
+3. **volumes/api**: Contains API configuration files
+   - Location: `docker/volumes/api/`
+   - Content: `kong.yml` - Kong API gateway configuration
+
+4. **volumes/shm**: Shared memory for Crawl4AI
+   - Location: `docker/volumes/shm/`
+   - Content: Temporary files used by Crawl4AI for browser automation
+   - Note: This directory should be excluded from version control
+
+### Docker Networking
+
+The full-stack setup creates a custom bridge network named `supachat-network` that allows containers to communicate with each other using service names as hostnames:
+
+- `api` → `db`: Direct PostgreSQL connection (port 5432)
+- `api` → `crawl4ai`: HTTP connection (port 11235)
+- `studio` → `meta`: HTTP connection (port 8080)
+- `studio` → `kong`: HTTP connection (port 8000)
+- `kong` → `rest`: HTTP connection (port 3000)
+- `kong` → `meta`: HTTP connection (port 8080)
+
+This network isolation provides security benefits and simplifies container communication without exposing unnecessary ports to the host system.
+
+### Environment Variable Precedence
+
+When using Docker, environment variables are resolved in the following order (highest precedence first):
+
+1. Variables defined in the `environment` section of the Docker Compose file
+2. Variables defined in the `.env` file in the same directory as the Docker Compose file
+3. Variables defined in the container's environment
+
+This precedence order is important to understand when troubleshooting configuration issues. 
