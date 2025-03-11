@@ -827,77 +827,83 @@ class SupabaseClient:
                 conn.close()
     
     def get_site_by_url(self, url: str) -> Optional[Dict[str, Any]]:
-        """Get a site by its URL.
+        """Get a site by URL.
         
         Args:
-            url: The URL of the site.
+            url: The URL of the site to get.
             
         Returns:
-            Site data or None if not found.
+            The site, or None if not found.
         """
         conn = None
         try:
             conn = self._get_connection()
             cur = conn.cursor()
             
+            # Get the site
             cur.execute(
-                "SELECT id, name, url, description FROM crawl_sites WHERE url = %s",
+                """
+                SELECT id, name, url, description, created_at, updated_at 
+                FROM crawl_sites 
+                WHERE url = %s
+                """,
                 (url,)
             )
             
-            result = cur.fetchone()
-            if not result:
-                return None
+            # Get the result
+            row = cur.fetchone()
+            if row:
+                return {
+                    'id': row[0],
+                    'name': row[1],
+                    'url': row[2],
+                    'description': row[3],
+                    'created_at': row[4],
+                    'updated_at': row[5]
+                }
             
-            return {
-                'id': result[0],
-                'name': result[1],
-                'url': result[2],
-                'description': result[3]
-            }
-            
-        except Exception as e:
-            print_error(f"Error getting site by URL: {e}")
-            raise
+            return None
         finally:
             if conn:
                 conn.close()
     
     def get_site_by_id(self, site_id: int) -> Optional[Dict[str, Any]]:
-        """Get a site by its ID.
+        """Get a site by ID.
         
         Args:
-            site_id: The ID of the site.
+            site_id: The ID of the site to get.
             
         Returns:
-            Site data or None if not found.
+            The site, or None if not found.
         """
         conn = None
         try:
             conn = self._get_connection()
             cur = conn.cursor()
             
+            # Get the site
             cur.execute(
-                "SELECT id, name, url, description, created_at, updated_at FROM crawl_sites WHERE id = %s",
+                """
+                SELECT id, name, url, description, created_at, updated_at 
+                FROM crawl_sites 
+                WHERE id = %s
+                """,
                 (site_id,)
             )
             
-            result = cur.fetchone()
-            if not result:
-                return None
+            # Get the result
+            row = cur.fetchone()
+            if row:
+                return {
+                    'id': row[0],
+                    'name': row[1],
+                    'url': row[2],
+                    'description': row[3],
+                    'created_at': row[4],
+                    'updated_at': row[5]
+                }
             
-            return {
-                'id': result[0],
-                'name': result[1],
-                'url': result[2],
-                'description': result[3],
-                'created_at': result[4],
-                'updated_at': result[5]
-            }
-            
-        except Exception as e:
-            print_error(f"Error getting site by ID: {e}")
-            raise
+            return None
         finally:
             if conn:
                 conn.close()
