@@ -20,6 +20,12 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { ModeToggle } from './ui/mode-toggle';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 
 interface NavbarProps {
   toggleSidebar: () => void;
@@ -36,7 +42,7 @@ const Navbar: React.FC<NavbarProps> = ({ toggleSidebar }) => {
         variant="ghost"
         size="icon"
         onClick={toggleSidebar}
-        className="md:hidden text-gray-300 hover:text-white hover:bg-white/[0.06]"
+        className="lg:hidden text-gray-300 hover:text-white hover:bg-white/[0.06]"
         aria-label="Toggle sidebar"
       >
         <Menu className="h-5 w-5" />
@@ -47,10 +53,19 @@ const Navbar: React.FC<NavbarProps> = ({ toggleSidebar }) => {
       <div className="flex items-center gap-2">
         <ModeToggle />
         
-        <Button variant="ghost" size="icon" className="relative text-gray-300 hover:text-white hover:bg-white/[0.06]">
-          <Bell className="h-5 w-5" />
-          <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-primary" />
-        </Button>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon" className="relative text-gray-300 hover:text-white hover:bg-white/[0.06]">
+                <Bell className="h-5 w-5" />
+                <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-primary" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent className="bg-[#171923] border-white/[0.05]">
+              <p>Notifications (Coming Soon)</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
         
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

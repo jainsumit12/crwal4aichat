@@ -24,6 +24,11 @@
     --input: 214.3 31.8% 91.4%;
     --ring: 221.2 83.2% 53.3%;
     --radius: 0.5rem;
+    
+    /* Custom text colors for light mode */
+    --text-gray-300: #4b5563;
+    --text-gray-400: #374151;
+    --text-gray-500: #1f2937;
   }
  
   .dark {
@@ -46,6 +51,11 @@
     --border: 217.2 32.6% 12%;
     --input: 217.2 32.6% 12%;
     --ring: 224.3 76.3% 48%;
+    
+    /* Custom text colors for dark mode */
+    --text-gray-300: #d1d5db;
+    --text-gray-400: #9ca3af;
+    --text-gray-500: #6b7280;
   }
 
   body {
@@ -120,20 +130,6 @@
 
 ::-webkit-scrollbar-thumb:hover {
   @apply bg-gray-400/50 dark:bg-gray-500/50;
-}
-
-/* Light mode specific styles */
-:root {
-  --text-gray-300: #4b5563;
-  --text-gray-400: #374151;
-  --text-gray-500: #1f2937;
-}
-
-/* Dark mode specific styles */
-.dark {
-  --text-gray-300: #d1d5db;
-  --text-gray-400: #9ca3af;
-  --text-gray-500: #6b7280;
 }
 
 /* Text color overrides */

@@ -14,6 +14,7 @@ import {
   X,
   Menu
 } from 'lucide-react';
+import { useMediaQuery } from '@/hooks/use-media-query';
 
 interface SidebarProps {
   open: boolean;
@@ -30,12 +31,13 @@ const navigation = [
 
 const Sidebar = ({ open, setOpen }: SidebarProps) => {
   const location = useLocation();
+  const isDesktop = useMediaQuery("(min-width: 1024px)");
 
   return (
     <>
       {/* Mobile sidebar */}
-      <Transition.Root show={open} as={Fragment}>
-        <Dialog as="div" className="relative z-50 md:hidden" onClose={setOpen}>
+      <Transition.Root show={open && !isDesktop} as={Fragment}>
+        <Dialog as="div" className="relative z-50 lg:hidden" onClose={setOpen}>
           <Transition.Child
             as={Fragment}
             enter="transition-opacity ease-linear duration-300"
@@ -118,7 +120,7 @@ const Sidebar = ({ open, setOpen }: SidebarProps) => {
       </Transition.Root>
 
       {/* Desktop sidebar */}
-      <div className="hidden border-r border-white/[0.05] bg-[#0f1117] md:fixed md:inset-y-0 md:z-10 md:flex md:w-64 md:flex-col">
+      <div className="hidden border-r border-white/[0.05] bg-[#0f1117] lg:fixed lg:inset-y-0 lg:z-10 lg:flex lg:w-64 lg:flex-col">
         <div className="border-b border-white/[0.05] px-6 py-4">
           <h1 className="text-xl font-semibold tracking-tight">Supa Crawl Chat</h1>
         </div>

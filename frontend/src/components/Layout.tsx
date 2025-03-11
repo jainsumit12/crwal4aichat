@@ -3,32 +3,21 @@ import { Outlet, useLocation } from 'react-router-dom';
 import Navbar from './Navbar';
 import Sidebar from './Sidebar';
 import { useTheme } from '@/context/ThemeContext';
+import { useMediaQuery } from '@/hooks/use-media-query';
 
 const Layout = () => {
   // Always open on desktop, controlled on mobile
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const location = useLocation();
   const { theme } = useTheme();
+  const isDesktop = useMediaQuery("(min-width: 1024px)");
 
-  // Close sidebar on route change on mobile only
+  // Close sidebar on route change on mobile
   useEffect(() => {
-    if (window.innerWidth < 768) {
+    if (!isDesktop) {
       setSidebarOpen(false);
     }
-  }, [location]);
-
-  // Keep sidebar always open on desktop
-  useEffect(() => {
-    const handleResize = () => {
-      if (window.innerWidth >= 768) {
-        setSidebarOpen(false); // We don't need to set it to true since it's always visible on desktop
-      }
-    };
-
-    window.addEventListener('resize', handleResize);
-    handleResize(); // Call on initial load
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
+  }, [location, isDesktop]);
 
   // Toggle sidebar for mobile
   const toggleSidebar = () => {
@@ -37,14 +26,14 @@ const Layout = () => {
 
   return (
     <div className="flex h-screen bg-[#0f1117] text-foreground">
-      {/* Sidebar - always visible on desktop, toggleable on mobile */}
+      {/* Sidebar */}
       <Sidebar open={sidebarOpen} setOpen={setSidebarOpen} />
       
       {/* Main content area */}
-      <div className="flex flex-1 flex-col md:pl-64">
+      <div className="flex flex-1 flex-col lg:pl-64">
         <Navbar toggleSidebar={toggleSidebar} />
         
-        <main className="flex-1 overflow-y-auto p-4 md:p-6">
+        <main className="flex-1 overflow-y-auto p-4 lg:p-6">
           <Outlet />
         </main>
       </div>
