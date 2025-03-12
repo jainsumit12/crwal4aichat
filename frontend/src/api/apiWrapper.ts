@@ -53,6 +53,18 @@ export const api = {
     }
   ),
 
+  getPageChunks: (pageId: number) => trackApiCall(
+    apiService.getPageChunks(pageId),
+    {
+      pendingTitle: 'Loading Chunks',
+      pendingMessage: `Fetching chunks for page ID ${pageId}...`,
+      successTitle: 'Chunks Loaded',
+      successMessage: 'Successfully loaded page chunks',
+      errorTitle: 'Failed to Load Chunks',
+      showToast: false
+    }
+  ),
+
   // Crawl methods
   startCrawl: (crawlRequest: any) => trackApiCall(
     apiService.startCrawl(crawlRequest),

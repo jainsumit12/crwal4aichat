@@ -1357,4 +1357,117 @@ class SupabaseClient:
                     return True
         except Exception as e:
             print(f"Error clearing all conversation history: {e}")
-            return False 
+            return False
+    
+    def get_page_by_id(self, page_id: int) -> Optional[Dict[str, Any]]:
+        """Get a page by ID.
+        
+        Args:
+            page_id: The ID of the page to get.
+            
+        Returns:
+            The page with full content, or None if not found.
+        """
+        conn = None
+        try:
+            conn = self._get_connection()
+            cur = conn.cursor()
+            
+            # Get the page with all fields including content
+            query = """
+            SELECT 
+                id, site_id, url, title, content, summary, 
+                metadata, is_chunk, chunk_index, parent_id,
+                created_at, updated_at
+            FROM 
+                crawl_pages
+            WHERE 
+                id = %s
+            """
+            
+            cur.execute(query, (page_id,))
+            
+            # Get the result
+            row = cur.fetchone()
+            if not row:
+                return None
+                
+            # Convert to dictionary
+            columns = [desc[0] for desc in cur.description]
+            result = dict(zip(columns, row))
+            
+            # Convert any JSON fields from string to dict
+            if result.get('metadata') and isinstance(result['metadata'], str):
+                result['metadata'] = json.loads(result['metadata'])
+            
+            # Convert datetime objects to strings
+            if result.get('created_at') and not isinstance(result['created_at'], str):
+                result['created_at'] = str(result['created_at'])
+            if result.get('updated_at') and not isinstance(result['updated_at'], str):
+                result['updated_at'] = str(result['updated_at'])
+                
+            return result
+            
+        except Exception as e:
+            print_error(f"Error getting page by ID: {e}")
+            raise
+        finally:
+            if conn:
+                conn.close()
+    
+    def get_chunks_by_parent_id(self, parent_id: int) -> List[Dict[str, Any]]:
+        """Get all chunks for a specific parent page.
+        
+        Args:
+            parent_id: The ID of the parent page.
+            
+        Returns:
+            List of chunks for the parent page.
+        """
+        conn = None
+        try:
+            conn = self._get_connection()
+            cur = conn.cursor()
+            
+            # Get all chunks for this parent
+            query = """
+            SELECT 
+                id, site_id, url, title, content, summary, 
+                metadata, is_chunk, chunk_index, parent_id,
+                created_at, updated_at
+            FROM 
+                crawl_pages
+            WHERE 
+                parent_id = %s
+            ORDER BY
+                chunk_index
+            """
+            
+            cur.execute(query, (parent_id,))
+            
+            # Convert results to dictionaries
+            columns = [desc[0] for desc in cur.description]
+            results = []
+            
+            for row in cur.fetchall():
+                result = dict(zip(columns, row))
+                # Convert any JSON fields from string to dict
+                if result.get('metadata') and isinstance(result['metadata'], str):
+                    result['metadata'] = json.loads(result['metadata'])
+                
+                # Convert datetime objects to strings
+                if result.get('created_at') and not isinstance(result['created_at'], str):
+                    result['created_at'] = str(result['created_at'])
+                if result.get('updated_at') and not isinstance(result['updated_at'], str):
+                    result['updated_at'] = str(result['updated_at'])
+                
+                results.append(result)
+            
+            return results
+            
+        except Exception as e:
+            print_error(f"Error getting chunks by parent ID: {e}")
+            raise
+        finally:
+            if conn:
+                conn.close() 

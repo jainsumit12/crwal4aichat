@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { apiService, Site, Page } from '@/api/apiService';
+import { api } from '@/api/apiWrapper';
 import axios from 'axios';
 import ReactMarkdown from 'react-markdown';
 import { Button } from '@/components/ui/button';
@@ -62,14 +63,18 @@ const SiteDetailPage = () => {
         setRelatedChunks([]);
       }
 
-      // Fetch content if needed
-      if (selectedPage.id) {
-        fetchDatabaseContent(selectedPage.id);
+      // Fetch content if needed and not already loading
+      if (selectedPage.id && !isLoadingContent) {
+        // Add a flag to prevent multiple fetches
+        const contentAlreadyLoaded = selectedPage.content !== undefined && selectedPage.content !== null;
+        if (!contentAlreadyLoaded) {
+          fetchDatabaseContent(selectedPage.id);
+        }
       }
     } else {
       setRelatedChunks([]);
     }
-  }, [selectedPage, pages]);
+  }, [selectedPage, pages, isLoadingContent]);
 
   const loadSiteDetails = async (siteId: number) => {
     setIsLoading(true);
@@ -168,32 +173,22 @@ const SiteDetailPage = () => {
     }
   };
 
-  // Function to fetch database content from the sites API
+  // Function to fetch database content from the API
   const fetchDatabaseContent = async (pageId: number) => {
-    if (!pageId || !siteId) return null;
+    if (!pageId) return null;
     
     setIsLoadingContent(true);
     try {
-      // First try to get content from the sites API with include_chunks=true
-      const response = await axios.get(`/api/sites/${siteId}/pages/`, {
-        params: { include_chunks: true }
-      });
-      
-      console.log('Sites API response:', response.data);
-      
-      let pagesData = response.data;
-      if (pagesData && typeof pagesData === 'object' && 'pages' in pagesData) {
-        pagesData = pagesData.pages;
-      }
-      
-      if (Array.isArray(pagesData)) {
-        const pageData = pagesData.find((p: any) => p.id === pageId);
+      // First try to get content directly from the pages API
+      try {
+        const pageData = await api.getPageById(pageId);
+        
         if (pageData && pageData.content) {
           setDatabaseContent(pageData.content);
           setContentSource('database');
           
-          // Update the selected page with additional data if available
-          if (selectedPage) {
+          // Update the selected page with additional data only if needed
+          if (selectedPage && (!selectedPage.content || selectedPage.content.trim() === '')) {
             setSelectedPage({
               ...selectedPage,
               created_at: pageData.created_at || selectedPage.created_at,
@@ -202,38 +197,108 @@ const SiteDetailPage = () => {
             });
           }
           
+          // If this is a parent page, fetch its chunks
+          if (!pageData.is_chunk) {
+            try {
+              const chunks = await api.getPageChunks(pageId);
+              if (chunks && chunks.length > 0) {
+                setRelatedChunks(chunks);
+              }
+            } catch (chunkError) {
+              console.error('Error fetching chunks:', chunkError);
+            }
+          }
+          
           return pageData.content;
+        }
+      } catch (pageError) {
+        console.error('Error fetching from pages API:', pageError);
+      }
+      
+      // If the direct API call didn't work, fall back to the sites API
+      if (siteId) {
+        try {
+          const response = await axios.get(`/api/sites/${siteId}/pages/`, {
+            params: { include_chunks: true }
+          });
+          
+          console.log('Sites API response:', response.data);
+          
+          let pagesData = response.data;
+          if (pagesData && typeof pagesData === 'object' && 'pages' in pagesData) {
+            pagesData = pagesData.pages;
+          }
+          
+          if (Array.isArray(pagesData)) {
+            const pageData = pagesData.find((p: any) => p.id === pageId);
+            if (pageData && pageData.content) {
+              setDatabaseContent(pageData.content);
+              setContentSource('database');
+              
+              // Update the selected page with additional data if available and needed
+              if (selectedPage && (!selectedPage.content || selectedPage.content.trim() === '')) {
+                setSelectedPage({
+                  ...selectedPage,
+                  created_at: pageData.created_at || selectedPage.created_at,
+                  updated_at: pageData.updated_at || selectedPage.updated_at,
+                  content: pageData.content
+                });
+              }
+              
+              return pageData.content;
+            }
+          }
+        } catch (sitesError) {
+          console.error('Error fetching from sites API:', sitesError);
         }
       }
       
-      // If that fails, try the search API which might have more complete data
+      // If we still don't have content, try the search API as a last resort
       try {
-        const searchResponse = await axios.get(`/api/search/`, {
+        const searchResponse = await axios.get('/api/search/', {
           params: {
-            query: `id:${pageId}`,
+            query: selectedPage?.url || '',
+            text_only: true,
             limit: 1
           }
         });
         
-        console.log('Search API response for page:', searchResponse.data);
+        console.log('Search API response:', searchResponse.data);
         
-        if (searchResponse.data && 
-            searchResponse.data.results && 
-            searchResponse.data.results.length > 0 &&
-            searchResponse.data.results[0].content) {
-          setDatabaseContent(searchResponse.data.results[0].content);
-          setContentSource('database');
-          return searchResponse.data.results[0].content;
+        let searchResults = searchResponse.data;
+        if (searchResponse.data && typeof searchResponse.data === 'object' && 'results' in searchResponse.data) {
+          searchResults = searchResponse.data.results;
+        }
+        
+        if (Array.isArray(searchResults) && searchResults.length > 0) {
+          const searchResult = searchResults[0];
+          if (searchResult.content) {
+            setDatabaseContent(searchResult.content);
+            setContentSource('database');
+            
+            // Update the selected page with additional data if available
+            if (selectedPage) {
+              setSelectedPage({
+                ...selectedPage,
+                content: searchResult.content
+              });
+            }
+            
+            return searchResult.content;
+          }
         }
       } catch (searchError) {
         console.error('Error fetching from search API:', searchError);
       }
       
+      // If all methods failed, show a message
+      setDatabaseContent(null);
       setContentSource('unknown');
       toast.error('No content found in database');
       return null;
     } catch (error) {
       console.error('Error fetching database content:', error);
+      setDatabaseContent(null);
       setContentSource('unknown');
       return null;
     } finally {
@@ -612,12 +677,34 @@ const SiteDetailPage = () => {
                 </svg>
                 Debug API Data
               </button>
+              
+              <button
+                onClick={() => siteId && loadSiteDetails(parseInt(siteId))}
+                className="text-xs bg-blue-100 dark:bg-blue-800 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-700 px-3 py-1 rounded-md flex items-center"
+                title="Refresh site and pages data"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                Refresh Data
+              </button>
             </div>
           </div>
           
           <div className="mb-4">
             <div className="flex justify-between items-center mb-2">
-              <h3 className="text-lg font-medium">Pages ({pages.length})</h3>
+              <div className="flex items-center">
+                <h3 className="text-lg font-medium">Pages ({pages.length})</h3>
+                <button
+                  onClick={() => siteId && loadSiteDetails(parseInt(siteId))}
+                  className="ml-2 text-xs bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 p-1 rounded-full flex items-center"
+                  title="Refresh pages data"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                </button>
+              </div>
               <div className="relative">
                 <input
                   type="text"

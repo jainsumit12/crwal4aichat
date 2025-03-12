@@ -306,11 +306,31 @@ export const apiService = {
 
   getPageById: async (pageId: number): Promise<Page> => {
     try {
-      const response = await apiClient.get(`/pages/${pageId}/`);
+      const response = await apiClient.get(`/pages/${pageId}`);
       console.log('Page by ID response:', response.data);
       return response.data;
     } catch (error) {
       console.error(`Error getting page ${pageId}:`, error);
+      throw error;
+    }
+  },
+
+  getPageChunks: async (pageId: number): Promise<Page[]> => {
+    try {
+      const response = await apiClient.get(`/pages/${pageId}/chunks`);
+      console.log('Page chunks response:', response.data);
+      
+      // Handle different response formats
+      if (Array.isArray(response.data)) {
+        return response.data;
+      } else if (response.data && response.data.chunks && Array.isArray(response.data.chunks)) {
+        return response.data.chunks;
+      } else {
+        console.error('Unexpected page chunks response format:', response.data);
+        return [];
+      }
+    } catch (error) {
+      console.error(`Error getting chunks for page ${pageId}:`, error);
       throw error;
     }
   },

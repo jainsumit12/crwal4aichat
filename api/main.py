@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Import routers
-from api.routers import search, crawl, chat, sites
+from api.routers import search, crawl, chat, sites, pages
 
 # Load environment variables
 load_dotenv()
@@ -65,11 +65,13 @@ print(f"Search router: {search.router}")
 print(f"Crawl router: {crawl.router}")
 print(f"Chat router: {chat.router}")
 print(f"Sites router: {sites.router}")
+print(f"Pages router: {pages.router}")
 
 app.include_router(search.router, prefix="/api/search", tags=["search"])
 app.include_router(crawl.router, prefix="/api/crawl", tags=["crawl"])
 app.include_router(chat.router, prefix="/api/chat", tags=["chat"])
 app.include_router(sites.router, prefix="/api/sites", tags=["sites"])
+app.include_router(pages.router, prefix="/api/pages", tags=["pages"])
 
 @app.get("/api")
 async def root():
