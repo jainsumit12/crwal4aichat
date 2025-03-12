@@ -51,3 +51,4 @@ logs/
 Thumbs.db 
 
 docker/volumes/
+docker/full-stack/volumes.bak

@@ -107,12 +107,50 @@ CHAT_VERBOSE=false
 
 </details>
 
-### Start Crawling and chatting right away
 
-![Image](https://github.com/user-attachments/assets/bd49c8df-4f45-4981-bd29-64fadf29a0e0)
-![Image](https://github.com/user-attachments/assets/c3071ef4-c516-43f9-8496-b49ddc59a55e)
+## Running the Frontend and Backend
 
-![Image](https://github.com/user-attachments/assets/7aa1d142-4a70-4d86-a17d-860ab633ae3f)
+
+To run the backend API and the frontend UI, follow these steps:
+
+1. **Start the Backend API**:
+   Open a terminal and navigate to the root directory of the project. Then run:
+   ```bash
+   python run_api.py
+   ```
+
+2. **Start the Frontend UI**:
+   Open a separate terminal, navigate to the `frontend` directory, and run:
+   ```bash
+   npm run dev
+   ```
+
+3. **Access the Web UI**:
+   Open your web browser and go to:
+   ```
+   http://localhost:3000/
+   ```
+
+This will start the backend API on port 8001 and the frontend UI on port 3000.
+
+ If you need a complete solution - crawl4ai with or without a local Supabase all in Docker see [Docker Deployment](#docker-deployment) section of the README
+
+ ---
+
+![Image](https://github.com/user-attachments/assets/d1e8a419-6c25-4ca5-8112-734c47344162)
+
+<details>
+<summary>Click to expand more images of the UI</summary>
+
+![Image](https://github.com/user-attachments/assets/55b4a78a-04c4-4e71-abfa-f8dd6e3ddc98)
+![Image](https://github.com/user-attachments/assets/18b304b2-4058-4405-bbbd-d2ea8fa833ce)
+![Image](https://github.com/user-attachments/assets/1e21e24c-345e-4218-a7e5-1f6fef5b9bd0)
+
+![Image](https://github.com/user-attachments/assets/390296c8-d2da-4cce-aef1-b871f1ce0780)
+
+</details>
+
+
 
 ## Database Connection Options
 
@@ -223,6 +261,19 @@ python main.py setup
 ```
 
 This will create the necessary tables and extensions in your Supabase database.
+
+## Terminal
+
+
+<details>
+<summary>Click to expand images of terminal</summary>
+
+![Image](https://github.com/user-attachments/assets/bd49c8df-4f45-4981-bd29-64fadf29a0e0)
+![Image](https://github.com/user-attachments/assets/c3071ef4-c516-43f9-8496-b49ddc59a55e)
+
+![Image](https://github.com/user-attachments/assets/7aa1d142-4a70-4d86-a17d-860ab633ae3f)
+
+</details>
 
 
 ### Crawling a website with args
@@ -818,9 +869,11 @@ After adding your queries, restart the Streamlit app to load the new queries.
 
 ## Docker Deployment
 
+![Image](https://github.com/user-attachments/assets/d1e8a419-6c25-4ca5-8112-734c47344162)
+
 ![Image](https://github.com/user-attachments/assets/be41b857-47ca-4804-97e2-98764a270748)
 
-You can run the app like normal once you exec into the container or use the API:
+You can run the app like normal once you exec into the container or use the Webui:
 
 ```bash
 # Build and start the container
@@ -830,11 +883,16 @@ docker-compose -f docker/docker-compose.yml up -d
 docker-compose -f docker/docker-compose.yml logs -f
 ```
 
+This setup includes:
+- API backend on port 8001
+- Frontend UI on port 3000
+- Streamlit Explorer on port 8501
+
 ---
 
 ### Integrated Crawl4AI Docker Deployment
 
-If you want to run both the API and Crawl4AI in Docker containers, you can use the provided `crawl4ai-docker-compose.yml` file:
+If you want to run both the API and Crawl4AI in Docker containers, this is when you already have a supabase locally or externally, you can use the provided `crawl4ai-docker-compose.yml` file:
 
 ```bash
 # Build and start both containers
@@ -847,7 +905,9 @@ docker-compose -f docker/crawl4ai-docker-compose.yml logs -f
 This setup will:
 1. Start a Crawl4AI container using the official image from Docker Hub
 2. Start your API container with the correct configuration to connect to Crawl4AI
-3. Create a network for the containers to communicate with each other
+3. Start the frontend UI container for the web interface
+4. Start the Streamlit Explorer for database exploration
+5. Create a network for the containers to communicate with each other
 
 Make sure your `.env` file includes the necessary Crawl4AI configuration:
 
@@ -857,17 +917,25 @@ CRAWL4AI_API_TOKEN=your_crawl4ai_api_token
 # This will be automatically set to the Docker service name in the container
 # CRAWL4AI_BASE_URL=http://crawl4ai:11235
 ```
+
+Access the services:
+- API: http://localhost:8001
+- Frontend UI: http://localhost:3000
+- Streamlit Explorer: http://localhost:8501
+- Crawl4AI: http://localhost:11235
+
 ---
 
-### Full Stack Docker Setup (Supabase + API + Crawl4AI)
+### Full Stack Docker Setup (Supabase + API + Crawl4AI + Frontend)
 
 We provide a comprehensive Docker setup that includes everything you need to run the entire application stack:
 
 - Supa Chat API
+- Frontend UI
 - Supabase (Database, Kong, Realtime, etc.)
 - Crawl4AI for web crawling
 
-This setup is perfect for development, testing, or even production deployments.
+This setup comes with everything!
 
 <details>
 <summary>Click to expand details</summary>
@@ -908,8 +976,18 @@ To use the full stack Docker setup:
 
 5. Access the services:
    - Supa Chat API: http://localhost:8001
-   - Supabase Studio: http://localhost:8002 (username: supabase, password: from your .env file)
+   - Frontend UI: http://localhost:3000
+   - Supabase Studio: http://localhost:3001 (username: supabase, password: from your .env file)
    - Crawl4AI: http://localhost:11235
+
+6. Monitor or manage the stack:
+   ```bash
+   # Check status of all services
+   ./status.sh
+   
+   # Reset the stack (removes all data)
+   ./reset.sh
+   ```
 
 For more detailed instructions, see the [Docker README](docker/full-stack/README.md).
 </details>

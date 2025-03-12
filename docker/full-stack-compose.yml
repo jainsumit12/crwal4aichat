@@ -37,6 +37,29 @@ services:
     networks:
       - supa-network
 
+  # Frontend service
+  frontend:
+    build:
+      context: ..
+      dockerfile: docker/frontend.Dockerfile
+    container_name: supachat-frontend
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+    depends_on:
+      - api
+    environment:
+      - VITE_API_BASE_URL=http://localhost:8001
+      - NODE_ENV=development
+      - DOCKER_ENV=true
+    volumes:
+      - ../frontend:/app
+      - /app/node_modules
+    networks:
+      - supa-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
   # Crawl4AI service
   crawl4ai:
     image: unclecode/crawl4ai:basic-amd64
