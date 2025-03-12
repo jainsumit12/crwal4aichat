@@ -1,23 +1,50 @@
 # Supa Crawl Chat Frontend TODOs
 
+## Recent Improvements (2025-03-14)
+
+### Site Details Page Enhancements
+- ✅ **Fixed Pagination Issues**: Updated pagination to only count parent pages, not chunks
+  - Added page size selector (5, 10, 20, 50 items per page)
+  - Improved pagination controls with first/last page buttons
+  - Added visual indicators for empty pages and better page count display
+  - Fixed issue with empty pages appearing in pagination
+
+- ✅ **Improved Page List Display**:
+  - Added expandable chunks feature with dropdown arrows
+  - Enhanced date display with proper formatting
+  - Added debug mode for troubleshooting date issues
+  - Improved sorting functionality with loading indicators
+
+- ✅ **Enhanced Content Display**:
+  - Added better content source indicators (database vs. live)
+  - Improved content rendering with HTML/Markdown detection
+  - Added debug information panel for developers
+
+- ✅ **UI Improvements**:
+  - Added refresh buttons for site and pages data
+  - Enhanced search functionality with clear button
+  - Improved empty state displays with helpful messages
+  - Added visual feedback for loading states
+
 ## Content Display Issues
 
 ### Current Problems
 
-1. **Missing API Endpoint**: The `/api/pages/{pageId}/` endpoint returns 404, making it impossible to directly fetch a single page's content.
-   - This forces us to use workarounds like fetching from `/api/sites/{siteId}/pages/` with `include_chunks=true` or using the search API.
+1. ~~**Missing API Endpoint**: The `/api/pages/{pageId}/` endpoint returns 404, making it impossible to directly fetch a single page's content.~~
+   -~~This forces us to use workarounds like fetching from `/api/sites/{siteId}/pages/` with `include_chunks=true` or using the search API.~~
 
 2. **Inconsistent Content Storage**: Some pages have content in the database, while others only have metadata (URL, title, summary).
    - This is likely by design for chunking purposes (vector search for AI), but makes UI display challenging.
 
 3. **Content Rendering**: Need better detection and rendering of HTML/Markdown content from the database.
+   - ✅ Basic implementation added, but could be improved with syntax highlighting and better MIME type detection
 
 ### Desired Behavior
 
-- The UI should show exactly what's in the database for each page/chunk to understand what was crawled and chunked.
-- Users should be able to see individual chunks (chunk 0, chunk 1, etc.) for a page.
-- The UI should replace the need to use Supabase Studio to view page content.
-- Live URL viewing is secondary - users can click the URL to visit the actual page if needed.
+- ✅ The UI should show exactly what's in the database for each page/chunk to understand what was crawled and chunked.
+- ✅ Users should be able to see individual chunks (chunk 0, chunk 1, etc.) for a page.
+- ✅ The UI should replace the need to use Supabase Studio to view page content.
+- ✅ Live URL viewing is secondary - users can click the URL to visit the actual page if needed.
 
 ## Docker and API Issues
 
@@ -196,6 +223,7 @@ const response = await apiClient.get(`/sites/${siteId}/pages/`);
    ```
 
 3. **Ensure consistent metadata (created_at, updated_at) is returned for all pages.**
+   - ✅ Partially implemented in the database query, but needs to be consistent across all endpoints
    - All page-related endpoints should return consistent metadata.
    - Use the `from_dict` method to ensure consistent conversion of datetime objects to strings.
    - Example implementation:
@@ -222,13 +250,15 @@ const response = await apiClient.get(`/sites/${siteId}/pages/`);
 ### Frontend Enhancements
 
 1. **Content View Improvements**:
-   - Better toggle between raw and rendered content
-   - Fix MIME type issues with rendered content
+   - ✅ Added toggle between raw and rendered content
+   - Better MIME type detection for rendered content
    - Add syntax highlighting for code blocks
+   - Add options to download content as file
 
 2. **Chunk Navigation**:
-   - Add a chunk selector to easily navigate between chunks of the same page
-   - Show chunk relationships and context
+   - ✅ Added expandable chunks feature to easily navigate between chunks of the same page
+   - ✅ Show chunk relationships and context
+   - Add ability to compare chunks side by side
 
 3. **Database Explorer**:
    - Create a more comprehensive database explorer view
@@ -236,27 +266,34 @@ const response = await apiClient.get(`/sites/${siteId}/pages/`);
    - Allow editing of page metadata
 
 4. **User Experience**:
-   - Add loading states for all async operations
-   - Improve error handling and user feedback
-   - Add pagination for large result sets
-
+   - ✅ Added loading states for async operations
+   - ✅ Improved error handling and user feedback
+   - ✅ Added pagination for large result sets
+   - ✅ Added search functionality with clear button
+   - ✅ Added refresh buttons for site and pages data
 
 5. **User Profile**:
    - Complete user profile functionality
    - Add preferences for default view modes
 
+6. **Performance Optimizations**:
+   - Implement virtualized lists for better performance with large datasets
+   - Add caching for frequently accessed data
+   - Optimize API calls to reduce data transfer
+
 ## Implementation Priority
 
-1. Fix content display issues by improving the existing workarounds
+1. ✅ Fix content display issues by improving the existing workarounds
 2. Implement backend API enhancements
    - Add `/api/pages/{pageId}` endpoint for full page data
    - Add `/api/pages/{pageId}/chunks` endpoint for page chunks
    - Ensure consistent metadata across all endpoints
-3. Add chunk navigation
-4. Improve content rendering
+3. ✅ Add chunk navigation
+4. ✅ Improve content rendering
 5. Develop database explorer features
 6. Complete user profile functionality
 7. ~~**Resolve Docker API issues** for consistent behavior across environments~~ **COMPLETED (2025-03-12)**
+8. Implement performance optimizations for large datasets
 
 ## Notes for Development
 
@@ -269,12 +306,49 @@ const response = await apiClient.get(`/sites/${siteId}/pages/`);
 - Keep the UI simple and focused on the data exploration use case.
 - **Docker Environment**: Be cautious when making changes that might affect the Docker environment differently than the native environment. Test both scenarios when possible.
 
+## Completed Features (2025-03-14)
 
-- API endpoint issues:
-  - ~~The `/api/chat/profiles/` endpoint returns a "307 Temporary Redirect" response when accessed with a trailing slash. This causes issues with the frontend when trying to fetch profiles. The current workaround is to ensure all API requests are made without trailing slashes, either by modifying the frontend code or by configuring the proxy in vite.config.ts to remove trailing slashes before forwarding requests.~~ **FIXED (2025-03-12)**: 
-    - Modified the API router to use an empty string instead of a trailing slash in the route definition
-    - Made the Vite proxy configuration environment-aware to work in both Docker and native environments
-    - Added environment variable `DOCKER_ENV=true` to the Docker Compose configuration
-    - See the "Trailing Slash Handling" section above for guidelines on adding new endpoints
+### Site Details Page
+- ✅ Implemented expandable chunks feature
+- ✅ Fixed pagination to only count parent pages
+- ✅ Added page size selector
+- ✅ Improved pagination controls
+- ✅ Enhanced date display
+- ✅ Added debug mode for troubleshooting
+- ✅ Improved sorting functionality
+- ✅ Added refresh buttons
+- ✅ Enhanced search functionality
+- ✅ Improved empty state displays
+- ✅ Added visual feedback for loading states
+
+### API and Backend
+- ✅ Fixed Docker API redirect issues
+- ✅ Implemented trailing slash handling
+- ✅ Updated database query to include date fields
+- ✅ Added debug information for developers
+
+### Content Display
+- ✅ Added content source indicators
+- ✅ Improved content rendering
+- ✅ Added debug information panel
+- ✅ Enhanced content view toggle
+
+## Known Issues
+
+1. **TypeScript Linter Error**: There's a persistent TypeScript linter error about "Property 'id' does not exist on type 'never'" in the `SiteDetailPage.tsx` file. This is a type inference issue that doesn't affect functionality.
+
+2. **Date Display Inconsistency**: Some pages may still show "No date information available" if the database doesn't have date information for those pages. This is a data issue, not a UI issue.
+
+3. **Content Rendering**: The content rendering could be improved with better MIME type detection and syntax highlighting for code blocks.
+
+4. **Performance with Large Datasets**: The current implementation may have performance issues with very large datasets (hundreds of pages). Future optimizations should include virtualized lists and pagination improvements.
+
+## Next Steps
+
+1. Implement the missing API endpoints for direct page and chunk access
+2. Enhance the content rendering with syntax highlighting and better MIME type detection
+3. Develop the database explorer features
+4. Implement performance optimizations for large datasets
+5. Complete the user profile functionality
 
 

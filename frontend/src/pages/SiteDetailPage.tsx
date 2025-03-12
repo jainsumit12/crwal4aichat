@@ -38,7 +38,7 @@ const SiteDetailPage = () => {
   const [debugInfo, setDebugInfo] = useState<any | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const pageSize = 10; // Number of items per page
+  const [pageSize, setPageSize] = useState(10); // Number of items per page
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedPage, setSelectedPage] = useState<Page | null>(null);
   const [contentViewMode, setContentViewMode] = useState<'raw' | 'rendered'>('raw');
@@ -72,7 +72,7 @@ const SiteDetailPage = () => {
     if (pages.length > 0) {
       applyFilters();
     }
-  }, [pages, searchTerm, currentPage]);
+  }, [pages, searchTerm, currentPage, pageSize, sortOption]);
 
   // When a page is selected, find related chunks and fetch content
   useEffect(() => {
@@ -170,8 +170,9 @@ const SiteDetailPage = () => {
           
           setPages(processedPages);
           
-          // Calculate total pages for pagination
-          const totalPagesCount = Math.ceil(processedPages.length / pageSize);
+          // Count only parent pages for pagination
+          const parentPages = processedPages.filter((p: any) => !p.is_chunk);
+          const totalPagesCount = Math.ceil(parentPages.length / pageSize);
           setTotalPages(totalPagesCount > 0 ? totalPagesCount : 1);
           
           // Reset current page to 1 when refreshing
@@ -215,8 +216,9 @@ const SiteDetailPage = () => {
           
           setPages(processedPages);
           
-          // Calculate total pages for pagination
-          const totalPagesCount = Math.ceil(processedPages.length / pageSize);
+          // Count only parent pages for pagination
+          const parentPages = processedPages.filter((p: any) => !p.is_chunk);
+          const totalPagesCount = Math.ceil(parentPages.length / pageSize);
           setTotalPages(totalPagesCount > 0 ? totalPagesCount : 1);
           
           // Reset current page to 1 when refreshing
@@ -355,7 +357,17 @@ const SiteDetailPage = () => {
       }
     });
     
+    // Update filtered pages
     setFilteredPages(filtered);
+    
+    // Recalculate total pages based on filtered results
+    const newTotalPages = Math.ceil(filtered.length / pageSize);
+    setTotalPages(newTotalPages > 0 ? newTotalPages : 1);
+    
+    // Adjust current page if needed
+    if (currentPage > newTotalPages) {
+      setCurrentPage(1);
+    }
   };
 
   const formatDate = (dateString: string | null | undefined) => {
@@ -1050,7 +1062,19 @@ const SiteDetailPage = () => {
           
           {filteredPages.length === 0 ? (
             <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-              No pages found
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 mx-auto mb-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              <p className="text-lg font-medium">No pages found</p>
+              <p className="mt-1">Try adjusting your search or filters</p>
+              {searchTerm && (
+                <button 
+                  onClick={() => setSearchTerm('')}
+                  className="mt-4 px-4 py-2 bg-blue-100 dark:bg-blue-800 text-blue-700 dark:text-blue-300 rounded-md hover:bg-blue-200 dark:hover:bg-blue-700"
+                >
+                  Clear search
+                </button>
+              )}
             </div>
           ) : (
             <div className="space-y-3">
@@ -1079,25 +1103,83 @@ const SiteDetailPage = () => {
             </div>
           )}
           
+          {filteredPages.length > 0 && (
+            <div className="mt-4 text-sm text-gray-600 dark:text-gray-400 text-center">
+              Showing {Math.min(filteredPages.length, (currentPage - 1) * pageSize + 1)} - {Math.min(filteredPages.length, currentPage * pageSize)} of {filteredPages.length} pages
+            </div>
+          )}
+          
           {totalPages > 1 && (
-            <div className="flex justify-center mt-4">
+            <div className="flex flex-col sm:flex-row justify-between items-center mt-6 gap-4">
+              <div className="flex items-center space-x-2">
+                <span className="text-sm text-gray-600 dark:text-gray-400">Show:</span>
+                <select
+                  value={pageSize}
+                  onChange={(e) => {
+                    const newSize = parseInt(e.target.value);
+                    setPageSize(newSize);
+                    // Recalculate total pages
+                    const newTotalPages = Math.ceil(filteredPages.length / newSize);
+                    setTotalPages(newTotalPages);
+                    // Adjust current page if needed
+                    if (currentPage > newTotalPages) {
+                      setCurrentPage(1);
+                    }
+                  }}
+                  className="px-2 py-1 border border-gray-300 dark:border-gray-700 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm"
+                >
+                  <option value="5">5 per page</option>
+                  <option value="10">10 per page</option>
+                  <option value="20">20 per page</option>
+                  <option value="50">50 per page</option>
+                </select>
+              </div>
+              
               <nav className="flex items-center space-x-2">
+                <button
+                  onClick={() => handlePageChange(1)}
+                  disabled={currentPage === 1}
+                  className="px-2 py-1 rounded border border-gray-300 dark:border-gray-700 disabled:opacity-50 text-sm"
+                  title="First page"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+                  </svg>
+                </button>
                 <button
                   onClick={() => handlePageChange(Math.max(1, currentPage - 1))}
                   disabled={currentPage === 1}
-                  className="px-3 py-1 rounded border border-gray-300 dark:border-gray-700 disabled:opacity-50"
+                  className="px-2 py-1 rounded border border-gray-300 dark:border-gray-700 disabled:opacity-50 text-sm"
+                  title="Previous page"
                 >
-                  Previous
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
                 </button>
+                
                 <span className="text-sm text-gray-600 dark:text-gray-400">
                   Page {currentPage} of {totalPages}
                 </span>
+                
                 <button
                   onClick={() => handlePageChange(Math.min(totalPages, currentPage + 1))}
                   disabled={currentPage === totalPages}
-                  className="px-3 py-1 rounded border border-gray-300 dark:border-gray-700 disabled:opacity-50"
+                  className="px-2 py-1 rounded border border-gray-300 dark:border-gray-700 disabled:opacity-50 text-sm"
+                  title="Next page"
                 >
-                  Next
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+                <button
+                  onClick={() => handlePageChange(totalPages)}
+                  disabled={currentPage === totalPages}
+                  className="px-2 py-1 rounded border border-gray-300 dark:border-gray-700 disabled:opacity-50 text-sm"
+                  title="Last page"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
+                  </svg>
                 </button>
               </nav>
             </div>
