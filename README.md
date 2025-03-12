@@ -461,14 +461,14 @@ This makes it easier to understand the context of each search result, even when 
 </details>
 
 ---
-### Using the chat interface
+### Using the chat interface in terminal
 
 ![Image](https://github.com/user-attachments/assets/34d79a96-2d60-4221-a1f7-3a8582129855)
 
 
-The project includes a chat interface that uses an LLM to answer questions based on the crawled data. The chat interface now supports persistent conversation history, allowing the LLM to remember previous interactions even after restarting the application.
+The project includes a chat interface in the terminal that uses an LLM to answer questions based on the crawled data. The chat interface now supports persistent conversation history, allowing the LLM to remember previous interactions even after restarting the application.
 
-You can start the chat interface using either the dedicated script or the main CLI:
+You can start the terminal chat interface using either the dedicated script or the main CLI:
 
 ```bash
 # Using the dedicated script
@@ -738,7 +738,9 @@ You can also use the crawler programmatically in your own Python code. See `test
 ## Project Structure
 
 <details>
-<summary>Click to expand Project Structures</summary>
+<summary>Click to expand Project Structure</summary>
+
+### Backend
 
 - `main.py`: Main script with command-line interface
 - `crawler.py`: Main crawler class that ties everything together
@@ -760,9 +762,21 @@ You can also use the crawler programmatically in your own Python code. See `test
     - `chat.py`: Endpoints for interacting with the chat interface
   - `README.md`: Comprehensive API documentation
 - `docker/`: Directory containing Docker-related files
-  - `Dockerfile`: Docker image definition for the application
-  - `docker-compose.yml`: Docker Compose configuration for the API service
+  - `Dockerfile`: Docker image definition for the backend application
+  - `frontend.Dockerfile`: Docker image definition for the frontend application
+  - `docker-compose.yml`: Docker Compose configuration for the API service only
   - `crawl4ai-docker-compose.yml`: Docker Compose configuration for integrated API and Crawl4AI services
+  - `full-stack-compose.yml`: Docker Compose configuration for the complete stack (API, Crawl4AI, Supabase, Frontend)
+  - `setup.sh`: Script to set up the full stack environment
+  - `reset.sh`: Script to reset the full stack environment
+  - `status.sh`: Script to check the status of the full stack environment
+  - `.env`: Environment variables for Docker deployment
+  - `.env.example`: Example environment file for Docker deployment
+  - `full-stack/`: Documentation and utilities for the full stack setup
+    - `README.md`: Documentation for the full stack setup
+    - `ENV_GUIDE.md`: Guide for configuring environment variables
+    - `check_db_connections.sh`: Script to verify database connections
+  - `volumes/`: Directory for Docker volumes
   - `.dockerignore`: Specifies files to exclude from Docker builds
 - `supabase_explorer/`: Directory containing the Supabase Explorer Streamlit app
   - `supabase_explorer.py`: Interactive Streamlit app for database exploration
@@ -775,6 +789,44 @@ You can also use the crawler programmatically in your own Python code. See `test
   - `test_db_connection.py`: Script to test the database connection
   - `test_crawl_api.py`: Script to test the Crawl4AI API
   - `reset_database.py`: Script to delete tables or reset the database
+
+### Frontend
+
+- `frontend/`: Directory containing the React-based web UI
+  - `src/`: Source code for the frontend application
+    - `api/`: API client for communicating with the backend
+      - `apiService.ts`: Service for making API requests
+      - `apiWrapper.ts`: Wrapper for API endpoints with type definitions
+    - `components/`: Reusable UI components
+      - `Layout.tsx`: Main layout component with Sidebar and Navbar
+      - `Navbar.tsx`: Top navigation bar
+      - `Sidebar.tsx`: Side navigation menu
+      - `NotificationCenter.tsx`: Notification system for user alerts
+      - `PageListItem.tsx`: Component for displaying page items in lists
+      - `UserProfileModal.tsx`: Modal for user profile management
+      - `ui/`: Shadcn UI component library
+        - Various UI components like buttons, inputs, dialogs, etc.
+    - `context/`: React context providers for state management
+    - `hooks/`: Custom React hooks
+    - `lib/`: Utility libraries and configurations
+    - `pages/`: Main application views
+      - `HomePage.tsx`: Landing page
+      - `ChatPage.tsx`: AI chat interface
+      - `CrawlPage.tsx`: Web crawling interface
+      - `SearchPage.tsx`: Search interface
+      - `SitesPage.tsx`: Site management
+      - `SiteDetailPage.tsx`: Detailed view of a crawled site
+      - `NotificationInfo.tsx`: Notification settings and information
+    - `styles/`: CSS and styling files
+    - `utils/`: Utility functions
+    - `App.tsx`: Main application component
+    - `main.tsx`: Entry point for the React application
+  - `public/`: Static assets
+  - `index.html`: HTML entry point
+  - `vite.config.ts`: Vite configuration
+  - `tailwind.config.js`: Tailwind CSS configuration
+  - `tsconfig.json`: TypeScript configuration
+  - `package.json`: NPM dependencies and scripts
 
 ---
 </details>
