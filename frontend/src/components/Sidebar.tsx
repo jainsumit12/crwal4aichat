@@ -103,22 +103,31 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                 </Transition.Child>
                 
                 <div className="border-b border-white/[0.05] px-6 py-4">
-                  <h1 className="text-xl font-semibold tracking-tight">Supa Crawl Chat</h1>
+                  <div className="flex items-center gap-3">
+                    <div className="h-8 w-8 overflow-hidden rounded-full">
+                      <img 
+                        src="https://imagedelivery.net/WfhVb8dSNAAvdXUdMfBuPQ/92227574-9331-49d0-535f-1f21c9b14f00/public" 
+                        alt="SupaChat Logo" 
+                        className="h-full w-full object-cover"
+                      />
+                    </div>
+                    <h1 className="text-xl font-semibold tracking-tight">Supa Crawl Chat</h1>
+                  </div>
                 </div>
                 
                 <ScrollArea className="flex-1 py-2">
-                  <nav className="grid gap-1 px-4">
+                  <nav className="grid gap-1 px-4 pt-8">
                     {navItems.map((item) => (
                       <Link
                         key={item.name}
                         to={item.href}
                         className={cn(
-                          "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium hover:bg-white/[0.06] transition-colors",
+                          "flex items-center gap-3 rounded-md px-3 py-2.5 text-base font-medium hover:bg-white/[0.06] transition-colors",
                           pathname === item.href ? "bg-white/[0.08] text-primary" : "text-gray-300"
                         )}
                         onClick={onClose}
                       >
-                        <item.icon className="h-4 w-4" />
+                        <item.icon className="h-5 w-5" />
                         <span>{item.name}</span>
                       </Link>
                     ))}
@@ -156,21 +165,30 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
       {/* Desktop sidebar */}
       <div className="hidden border-r border-white/[0.05] bg-[#0f1117] lg:fixed lg:inset-y-0 lg:z-10 lg:flex lg:w-64 lg:flex-col">
         <div className="border-b border-white/[0.05] px-6 py-4">
-          <h1 className="text-xl font-semibold tracking-tight">Supa Crawl Chat</h1>
+          <div className="flex items-center gap-3">
+            <div className="h-8 w-8 overflow-hidden rounded-full">
+              <img 
+                src="https://imagedelivery.net/WfhVb8dSNAAvdXUdMfBuPQ/92227574-9331-49d0-535f-1f21c9b14f00/public" 
+                alt="SupaChat Logo" 
+                className="h-full w-full object-cover"
+              />
+            </div>
+            <h1 className="text-xl font-semibold tracking-tight">Supa Crawl Chat</h1>
+          </div>
         </div>
         
         <ScrollArea className="flex-1 py-2">
-          <nav className="grid gap-1 px-4">
+          <nav className="grid gap-1 px-4 pt-8">
             {navItems.map((item) => (
               <Link
                 key={item.name}
                 to={item.href}
                 className={cn(
-                  "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium hover:bg-white/[0.06] transition-colors",
+                  "flex items-center gap-3 rounded-md px-3 py-2.5 text-base font-medium hover:bg-white/[0.06] transition-colors",
                   pathname === item.href ? "bg-white/[0.08] text-primary" : "text-gray-300"
                 )}
               >
-                <item.icon className="h-4 w-4" />
+                <item.icon className="h-5 w-5" />
                 <span>{item.name}</span>
               </Link>
             ))}

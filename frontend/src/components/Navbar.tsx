@@ -48,15 +48,6 @@ const Navbar: React.FC<NavbarProps> = ({ toggleSidebar }) => {
     { name: 'Sites', href: '/sites', icon: Database }
   ];
 
-  const handleTestNotification = () => {
-    createNotification(
-      'Test Notification',
-      'This is a test notification to verify the notification system is working.',
-      'info',
-      true
-    );
-  };
-
   return (
     <header className="sticky top-0 z-40 flex h-16 items-center gap-4 border-b border-white/[0.05] bg-[#0f1117] px-6">
       <Button
@@ -69,14 +60,19 @@ const Navbar: React.FC<NavbarProps> = ({ toggleSidebar }) => {
         <Menu className="h-5 w-5" />
       </Button>
       
-      {!isDesktop && (
-        <div className="flex items-center">
-          <Link to="/" className="flex items-center gap-2 text-xl font-semibold">
-            <MessageSquare className="h-6 w-6" />
-            <span>SupaChat</span>
-          </Link>
-        </div>
-      )}
+      {/* Logo and title for all screen sizes */}
+      <div className="flex items-center">
+        <Link to="/" className="flex items-center gap-3 text-xl font-semibold">
+          <div className="h-8 w-8 overflow-hidden rounded-full">
+            <img 
+              src="https://imagedelivery.net/WfhVb8dSNAAvdXUdMfBuPQ/92227574-9331-49d0-535f-1f21c9b14f00/public" 
+              alt="SupaChat Logo" 
+              className="h-full w-full object-cover"
+            />
+          </div>
+          <span>SupaChat</span>
+        </Link>
+      </div>
       
       {/* Only show navigation items on mobile/tablet screens */}
       {!isDesktop && (

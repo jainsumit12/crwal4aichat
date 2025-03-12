@@ -572,12 +572,8 @@ const ChatPage = () => {
         {message.role !== 'user' && (
           <div className="chat-avatar chat-avatar-ai">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 8V4H8"></path>
-              <rect width="16" height="12" x="4" y="8" rx="2"></rect>
-              <path d="M2 14h2"></path>
-              <path d="M20 14h2"></path>
-              <path d="M15 13v2"></path>
-              <path d="M9 13v2"></path>
+              {/* Lightning bolt - represents intelligence and quick thinking */}
+              <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"></path>
             </svg>
           </div>
         )}
