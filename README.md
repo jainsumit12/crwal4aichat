@@ -159,16 +159,21 @@ This will start the backend API on port 8001 and the frontend UI on port 3000.
 
  ---
 
-![Image](https://github.com/user-attachments/assets/d1e8a419-6c25-4ca5-8112-734c47344162)
+![Image](https://github.com/user-attachments/assets/a56cf708-dfe5-4aa7-a854-0685867cee18)
 
 <details>
 <summary>Click to expand more images of the UI</summary>
 
-![Image](https://github.com/user-attachments/assets/55b4a78a-04c4-4e71-abfa-f8dd6e3ddc98)
-![Image](https://github.com/user-attachments/assets/18b304b2-4058-4405-bbbd-d2ea8fa833ce)
-![Image](https://github.com/user-attachments/assets/1e21e24c-345e-4218-a7e5-1f6fef5b9bd0)
+![Image](https://github.com/user-attachments/assets/86b26bf1-15e9-4cc9-9cba-6a666c2d0646)
+---
+![Image](https://github.com/user-attachments/assets/4c1a0b52-953e-4dc8-b7a9-4a62ecb56c93)
+---
+![Image](https://github.com/user-attachments/assets/9155d59e-303e-484f-96de-1a7a917eeefe)
+---
+![Image](https://github.com/user-attachments/assets/4042e241-23ca-4009-b629-a362dac74f7a)
+---
+![Image](https://github.com/user-attachments/assets/6b0defc7-d0c9-405b-bbf4-1c8045e6f206)
 
-![Image](https://github.com/user-attachments/assets/390296c8-d2da-4cce-aef1-b871f1ce0780)
 
 </details>
 
@@ -891,7 +896,24 @@ After adding your queries, restart the Streamlit app to load the new queries.
 
 ## Docker Deployment
 
-![Image](https://github.com/user-attachments/assets/d1e8a419-6c25-4ca5-8112-734c47344162)
+
+![Image](https://github.com/user-attachments/assets/a56cf708-dfe5-4aa7-a854-0685867cee18)
+
+<details>
+<summary>Click to expand more images of the UI</summary>
+
+![Image](https://github.com/user-attachments/assets/86b26bf1-15e9-4cc9-9cba-6a666c2d0646)
+---
+![Image](https://github.com/user-attachments/assets/4c1a0b52-953e-4dc8-b7a9-4a62ecb56c93)
+---
+![Image](https://github.com/user-attachments/assets/9155d59e-303e-484f-96de-1a7a917eeefe)
+---
+![Image](https://github.com/user-attachments/assets/4042e241-23ca-4009-b629-a362dac74f7a)
+---
+![Image](https://github.com/user-attachments/assets/6b0defc7-d0c9-405b-bbf4-1c8045e6f206)
+
+
+</details>
 
 ![Image](https://github.com/user-attachments/assets/be41b857-47ca-4804-97e2-98764a270748)
 
