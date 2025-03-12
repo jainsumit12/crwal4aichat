@@ -129,15 +129,19 @@ export interface Site {
 // Page interfaces
 export interface Page {
   id: number;
+  site_id: number;
   url: string;
-  title: string;
+  title?: string;
   content?: string;
-  summary: string;
-  is_chunk: boolean;
-  chunk_index: number | null;
-  parent_id: number | null;
+  summary?: string;
+  metadata?: any;
+  is_chunk?: boolean;
+  chunk_index?: number | null;
+  parent_id?: number | null;
   created_at?: string | null;
   updated_at?: string | null;
+  is_parent?: boolean;
+  parent_title?: string;
 }
 
 // Search interfaces

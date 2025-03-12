@@ -968,6 +968,7 @@ class SupabaseClient:
                 SELECT 
                     p.id, p.site_id, p.url, p.title, p.content, p.summary, 
                     p.metadata, p.is_chunk, p.chunk_index, p.parent_id,
+                    p.created_at, p.updated_at,
                     parent.title as parent_title
                 FROM 
                     crawl_pages p
@@ -981,7 +982,9 @@ class SupabaseClient:
             else:
                 query = """
                 SELECT 
-                    id, site_id, url, title, content, summary, metadata
+                    id, site_id, url, title, content, summary, metadata,
+                    created_at, updated_at,
+                    is_chunk, chunk_index, parent_id
                 FROM 
                     crawl_pages
                 WHERE 
@@ -999,17 +1002,23 @@ class SupabaseClient:
             results = []
             
             for row in cur.fetchall():
-                result = dict(zip(columns, row))
-                # Convert any JSON fields from string to dict
-                if result.get('metadata') and isinstance(result['metadata'], str):
-                    result['metadata'] = json.loads(result['metadata'])
-                results.append(result)
+                page_dict = dict(zip(columns, row))
+                
+                # Convert datetime objects to strings
+                if 'created_at' in page_dict and page_dict['created_at'] is not None:
+                    if not isinstance(page_dict['created_at'], str):
+                        page_dict['created_at'] = page_dict['created_at'].isoformat()
+                
+                if 'updated_at' in page_dict and page_dict['updated_at'] is not None:
+                    if not isinstance(page_dict['updated_at'], str):
+                        page_dict['updated_at'] = page_dict['updated_at'].isoformat()
+                
+                results.append(page_dict)
             
             return results
-            
         except Exception as e:
-            print_error(f"Error getting pages by site ID: {e}")
-            raise
+            print(f"Error getting pages for site {site_id}: {e}")
+            return []
         finally:
             if conn:
                 conn.close()

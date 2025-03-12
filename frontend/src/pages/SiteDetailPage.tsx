@@ -7,13 +7,32 @@ import axios from 'axios';
 import ReactMarkdown from 'react-markdown';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
+import PageListItem from '@/components/PageListItem';
+
+// Add this type definition at the top of the file, after imports
+type FilteredPage = {
+  id: number;
+  site_id: number;
+  url: string;
+  title?: string;
+  content?: string;
+  summary?: string;
+  metadata?: any;
+  is_chunk?: boolean;
+  chunk_index?: number | null;
+  parent_id?: number | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+  is_parent?: boolean;
+  parent_title?: string;
+};
 
 const SiteDetailPage = () => {
   const { siteId } = useParams<{ siteId: string }>();
   
   const [site, setSite] = useState<Site | null>(null);
   const [pages, setPages] = useState<Page[]>([]);
-  const [filteredPages, setFilteredPages] = useState<Page[]>([]);
+  const [filteredPages, setFilteredPages] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [debugInfo, setDebugInfo] = useState<any | null>(null);
@@ -30,12 +49,24 @@ const SiteDetailPage = () => {
   const [viewMode, setViewMode] = useState<'database' | 'live'>('database');
   const [relatedChunks, setRelatedChunks] = useState<Page[]>([]);
   const [showDebugPanel, setShowDebugPanel] = useState(false);
+  const [sortOption, setSortOption] = useState<'title' | 'created' | 'updated'>('title');
+  const [expandedPageIds, setExpandedPageIds] = useState<number[]>([]);
+  const [isSorting, setIsSorting] = useState(false);
+  const [showDebug, setShowDebug] = useState(false);
 
   useEffect(() => {
     if (siteId) {
       loadSiteDetails(parseInt(siteId));
     }
   }, [siteId]);
+
+  useEffect(() => {
+    console.log("Sort option changed to:", sortOption);
+    if (pages.length > 0) {
+      // Call applyFilters directly when sortOption changes
+      applyFilters();
+    }
+  }, [sortOption]);
 
   useEffect(() => {
     if (pages.length > 0) {
@@ -64,12 +95,9 @@ const SiteDetailPage = () => {
       }
 
       // Fetch content if needed and not already loading
-      if (selectedPage.id && !isLoadingContent) {
-        // Add a flag to prevent multiple fetches
-        const contentAlreadyLoaded = selectedPage.content !== undefined && selectedPage.content !== null;
-        if (!contentAlreadyLoaded) {
-          fetchDatabaseContent(selectedPage.id);
-        }
+      if (selectedPage.id && !isLoadingContent && !selectedPage.content) {
+        console.log("Fetching content for selected page:", selectedPage.id);
+        fetchDatabaseContent(selectedPage.id);
       }
     } else {
       setRelatedChunks([]);
@@ -85,39 +113,118 @@ const SiteDetailPage = () => {
       setSite(siteData);
       
       try {
-        const pagesData = await apiService.getSitePages(siteId);
-        console.log('Pages data:', pagesData);
-        
-        // Store debug info
-        setDebugInfo({
-          site: siteData,
-          pages: pagesData
-        });
-        
-        // Handle both array response and object with pages property
-        let pagesArray = Array.isArray(pagesData) ? pagesData : pagesData.pages;
-        
-        // Sort pages: non-chunks first, then by title
-        pagesArray.sort((a, b) => {
-          // First sort by is_chunk (non-chunks first)
-          if (a.is_chunk !== b.is_chunk) {
-            return a.is_chunk ? 1 : -1;
+        // First try the direct API call to get pages with date information
+        try {
+          const response = await axios.get(`/api/sites/${siteId}/pages/`, {
+            params: { 
+              include_chunks: true,
+              include_dates: true,
+              limit: 1000 // Get more pages to ensure we have all of them
+            }
+          });
+          
+          console.log('Direct API response for pages:', response.data);
+          
+          let pagesData = response.data;
+          if (pagesData && typeof pagesData === 'object' && 'pages' in pagesData) {
+            pagesData = pagesData.pages;
           }
           
-          // Then sort chunks by chunk_index
-          if (a.is_chunk && b.is_chunk && a.chunk_index !== null && b.chunk_index !== null) {
-            return a.chunk_index - b.chunk_index;
-          }
+          // Store debug info
+          setDebugInfo({
+            site: siteData,
+            pages: pagesData
+          });
           
-          // Finally sort by title
-          return (a.title || '').localeCompare(b.title || '');
-        });
-        
-        setPages(pagesArray);
-        
-        // Calculate total pages for pagination
-        const totalPagesCount = Math.ceil(pagesArray.length / pageSize);
-        setTotalPages(totalPagesCount > 0 ? totalPagesCount : 1);
+          // Handle both array response and object with pages property
+          let pagesArray = Array.isArray(pagesData) ? pagesData : pagesData.pages;
+          
+          // Process pages to ensure they have all required properties
+          const processedPages = pagesArray.map((page: any) => {
+            // Log raw date values for debugging
+            console.log(`Page ${page.id} raw dates:`, {
+              created_at: page.created_at,
+              updated_at: page.updated_at,
+              type_created: typeof page.created_at,
+              type_updated: typeof page.updated_at
+            });
+            
+            return {
+              ...page,
+              // Set is_parent flag for pages that are not chunks
+              is_parent: !page.is_chunk,
+              // Ensure dates are properly formatted
+              created_at: page.created_at || null,
+              updated_at: page.updated_at || null
+            };
+          });
+          
+          // Log a sample of pages with their date information
+          console.log('Processed pages with dates:', processedPages.slice(0, 3).map((p: any) => ({
+            id: p.id,
+            title: p.title,
+            created_at: p.created_at,
+            updated_at: p.updated_at,
+            is_chunk: p.is_chunk
+          })));
+          
+          setPages(processedPages);
+          
+          // Calculate total pages for pagination
+          const totalPagesCount = Math.ceil(processedPages.length / pageSize);
+          setTotalPages(totalPagesCount > 0 ? totalPagesCount : 1);
+          
+          // Reset current page to 1 when refreshing
+          setCurrentPage(1);
+          
+          // Show success message
+          toast.success('Data refreshed successfully');
+        } catch (directError) {
+          console.error('Error with direct API call:', directError);
+          
+          // Fall back to the regular API service
+          const pagesData = await apiService.getSitePages(siteId, true);
+          console.log('Pages data from API service:', pagesData);
+          
+          // Store debug info
+          setDebugInfo({
+            site: siteData,
+            pages: pagesData
+          });
+          
+          // Handle both array response and object with pages property
+          let pagesArray = Array.isArray(pagesData) ? pagesData : pagesData.pages;
+          
+          // Process pages to ensure they have all required properties
+          const processedPages = pagesArray.map((page: any) => ({
+            ...page,
+            // Set is_parent flag for pages that are not chunks
+            is_parent: !page.is_chunk,
+            // Ensure dates are properly formatted
+            created_at: page.created_at || null,
+            updated_at: page.updated_at || null
+          }));
+          
+          console.log('Processed pages with dates:', processedPages.slice(0, 3).map((p: any) => ({
+            id: p.id,
+            title: p.title,
+            created_at: p.created_at,
+            updated_at: p.updated_at,
+            is_chunk: p.is_chunk
+          })));
+          
+          setPages(processedPages);
+          
+          // Calculate total pages for pagination
+          const totalPagesCount = Math.ceil(processedPages.length / pageSize);
+          setTotalPages(totalPagesCount > 0 ? totalPagesCount : 1);
+          
+          // Reset current page to 1 when refreshing
+          setCurrentPage(1);
+          
+          // Show success message
+          toast.success('Data refreshed successfully');
+        }
       } catch (pagesError) {
         console.error('Error fetching site pages:', pagesError);
         toast.error('Failed to load site pages');
@@ -136,8 +243,50 @@ const SiteDetailPage = () => {
     if (!siteId) return;
     
     try {
-      const response = await axios.get(`/api/sites/${siteId}/pages/`);
-      console.log('Direct API response:', response.data);
+      // First check the site details
+      const siteResponse = await axios.get(`/api/sites/${siteId}`);
+      console.log('Direct site API response:', siteResponse.data);
+      
+      // Then check the pages
+      const pagesResponse = await axios.get(`/api/sites/${siteId}/pages/`, {
+        params: { 
+          include_chunks: true,
+          limit: 1000
+        }
+      });
+      console.log('Direct pages API response:', pagesResponse.data);
+      
+      // Check the first few pages for date fields
+      const pagesData = pagesResponse.data.pages || pagesResponse.data;
+      if (Array.isArray(pagesData) && pagesData.length > 0) {
+        console.log('First page date fields:', {
+          page_id: pagesData[0].id,
+          created_at: pagesData[0].created_at,
+          updated_at: pagesData[0].updated_at,
+          created_at_type: typeof pagesData[0].created_at,
+          updated_at_type: typeof pagesData[0].updated_at
+        });
+        
+        // Try to parse the dates
+        if (pagesData[0].created_at) {
+          try {
+            const date = new Date(pagesData[0].created_at);
+            console.log('Parsed created_at:', date.toISOString());
+          } catch (error) {
+            console.error('Error parsing created_at:', error);
+          }
+        }
+        
+        if (pagesData[0].updated_at) {
+          try {
+            const date = new Date(pagesData[0].updated_at);
+            console.log('Parsed updated_at:', date.toISOString());
+          } catch (error) {
+            console.error('Error parsing updated_at:', error);
+          }
+        }
+      }
+      
       toast.success('Check console for API response');
     } catch (error) {
       console.error('Error checking API directly:', error);
@@ -146,7 +295,20 @@ const SiteDetailPage = () => {
   };
 
   const applyFilters = () => {
-    let filtered = [...pages];
+    console.log("Running applyFilters with sort option:", sortOption);
+    
+    // Create a copy of the pages array to work with
+    let filtered = [...pages].map((page: any) => ({
+      ...page,
+      // Ensure these properties exist for sorting
+      created_at: page.created_at || null,
+      updated_at: page.updated_at || null,
+      title: page.title || '',
+      is_parent: !page.is_chunk && !page.parent_id
+    }));
+    
+    // Filter out chunk pages - only show parent pages in the main list
+    filtered = filtered.filter(page => !page.is_chunk);
     
     // Apply search filter
     if (searchTerm.trim()) {
@@ -158,6 +320,40 @@ const SiteDetailPage = () => {
         (page.content && page.content.toLowerCase().includes(searchLower))
       );
     }
+    
+    // Apply sorting
+    filtered.sort((a, b) => {
+      switch (sortOption) {
+        case 'title':
+          // Case-insensitive alphabetical sort
+          return (a.title || '').toLowerCase().localeCompare((b.title || '').toLowerCase());
+        
+        case 'created':
+          // Handle null or undefined dates
+          if (!a.created_at && !b.created_at) return 0;
+          if (!a.created_at) return 1; // b comes first
+          if (!b.created_at) return -1; // a comes first
+          
+          // Convert to timestamps and compare (newest first)
+          const aCreated = new Date(a.created_at).getTime();
+          const bCreated = new Date(b.created_at).getTime();
+          return bCreated - aCreated;
+        
+        case 'updated':
+          // Handle null or undefined dates
+          if (!a.updated_at && !b.updated_at) return 0;
+          if (!a.updated_at) return 1; // b comes first
+          if (!b.updated_at) return -1; // a comes first
+          
+          // Convert to timestamps and compare (newest first)
+          const aUpdated = new Date(a.updated_at).getTime();
+          const bUpdated = new Date(b.updated_at).getTime();
+          return bUpdated - aUpdated;
+        
+        default:
+          return 0;
+      }
+    });
     
     setFilteredPages(filtered);
   };
@@ -368,7 +564,13 @@ const SiteDetailPage = () => {
     setCurrentPage(pageNumber);
   };
 
-  const handleViewPage = (page: Page) => {
+  const handlePageClick = (page: Page) => {
+    // Check if we're already viewing this page
+    if (selectedPage?.id === page.id) {
+      console.log("Already viewing this page, skipping");
+      return;
+    }
+    
     setSelectedPage(page);
   };
 
@@ -382,6 +584,97 @@ const SiteDetailPage = () => {
   const handleViewChunk = (chunk: Page) => {
     setSelectedPage(chunk);
   };
+
+  // Update the handleSortChange function
+  const handleSortChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const newSortOption = e.target.value as 'title' | 'created' | 'updated';
+    console.log("Changing sort option to:", newSortOption);
+    
+    // Show loading indicator
+    setIsSorting(true);
+    
+    // Update sort option
+    setSortOption(newSortOption);
+    
+    // Force immediate re-sorting with a longer timeout to ensure state updates
+    setTimeout(() => {
+      console.log("Applying filters after sort change with option:", newSortOption);
+      
+      // Create a copy of the pages array to work with
+      let filtered = [...pages].map((page: any) => ({
+        ...page,
+        // Ensure these properties exist for sorting
+        created_at: page.created_at || null,
+        updated_at: page.updated_at || null,
+        title: page.title || '',
+        is_parent: !page.is_chunk && !page.parent_id
+      }));
+      
+      // Filter out chunk pages - only show parent pages in the main list
+      filtered = filtered.filter(page => !page.is_chunk);
+      
+      // Apply search filter
+      if (searchTerm.trim()) {
+        const searchLower = searchTerm.toLowerCase();
+        filtered = filtered.filter(page => 
+          (page.title && page.title.toLowerCase().includes(searchLower)) ||
+          (page.url && page.url.toLowerCase().includes(searchLower)) ||
+          (page.summary && page.summary.toLowerCase().includes(searchLower)) ||
+          (page.content && page.content.toLowerCase().includes(searchLower))
+        );
+      }
+      
+      // Apply sorting
+      filtered.sort((a, b) => {
+        switch (newSortOption) {
+          case 'title':
+            // Case-insensitive alphabetical sort
+            return (a.title || '').toLowerCase().localeCompare((b.title || '').toLowerCase());
+          
+          case 'created':
+            // Handle null or undefined dates
+            if (!a.created_at && !b.created_at) return 0;
+            if (!a.created_at) return 1; // b comes first
+            if (!b.created_at) return -1; // a comes first
+            
+            // Convert to timestamps and compare (newest first)
+            const aCreated = new Date(a.created_at).getTime();
+            const bCreated = new Date(b.created_at).getTime();
+            return bCreated - aCreated;
+          
+          case 'updated':
+            // Handle null or undefined dates
+            if (!a.updated_at && !b.updated_at) return 0;
+            if (!a.updated_at) return 1; // b comes first
+            if (!b.updated_at) return -1; // a comes first
+            
+            // Convert to timestamps and compare (newest first)
+            const aUpdated = new Date(a.updated_at).getTime();
+            const bUpdated = new Date(b.updated_at).getTime();
+            return bUpdated - aUpdated;
+          
+          default:
+            return 0;
+        }
+      });
+      
+      // Update filtered pages
+      setFilteredPages(filtered);
+      setIsSorting(false);
+    }, 200);
+  };
+
+  // Add a function to toggle expanded state
+  const togglePageExpanded = (pageId: number) => {
+    setExpandedPageIds(prev => 
+      prev.includes(pageId) 
+        ? prev.filter(id => id !== pageId) 
+        : [...prev, pageId]
+    );
+  };
+
+  // Check if a page is expanded
+  const isPageExpanded = (pageId: number) => expandedPageIds.includes(pageId);
 
   return (
     <div className="max-w-4xl mx-auto px-4">
@@ -688,100 +981,127 @@ const SiteDetailPage = () => {
                 </svg>
                 Refresh Data
               </button>
+              
+              <button
+                onClick={() => setShowDebug(!showDebug)}
+                className="text-xs bg-purple-100 dark:bg-purple-800 text-purple-700 dark:text-purple-300 hover:bg-purple-200 dark:hover:bg-purple-700 px-3 py-1 rounded-md flex items-center"
+                title="Toggle debug information"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                {showDebug ? 'Hide Debug Info' : 'Show Debug Info'}
+              </button>
             </div>
           </div>
           
-          <div className="mb-4">
-            <div className="flex justify-between items-center mb-2">
-              <div className="flex items-center">
-                <h3 className="text-lg font-medium">Pages ({pages.length})</h3>
-                <button
-                  onClick={() => siteId && loadSiteDetails(parseInt(siteId))}
-                  className="ml-2 text-xs bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 p-1 rounded-full flex items-center"
-                  title="Refresh pages data"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                  </svg>
-                </button>
-              </div>
-              <div className="relative">
-                <input
-                  type="text"
-                  placeholder="Search pages..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 w-full"
-                />
-              </div>
+          <div className="flex justify-between items-center mb-4">
+            <div className="flex items-center">
+              <h2 className="text-xl font-semibold">
+                Pages ({filteredPages.length} of {pages.filter(p => !p.is_chunk).length})
+              </h2>
+              <button
+                onClick={() => siteId && loadSiteDetails(parseInt(siteId))}
+                className="ml-2 text-xs bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 p-1 rounded-full flex items-center"
+                title="Refresh pages data"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+              </button>
             </div>
-            
-            {filteredPages.length === 0 ? (
-              <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-                No pages found
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {filteredPages
-                  .slice((currentPage - 1) * pageSize, currentPage * pageSize)
-                  .map((page) => (
-                    <div
-                      key={page.id}
-                      className="p-3 border border-gray-200 dark:border-gray-700 rounded hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer"
-                      onClick={() => handleViewPage(page)}
-                    >
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <h4 className="font-medium">
-                            {page.title || 'Untitled'}
-                            {page.is_chunk && (
-                              <span className="ml-2 text-xs bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 px-2 py-1 rounded">
-                                Chunk {page.chunk_index}
-                              </span>
-                            )}
-                          </h4>
-                          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 truncate">
-                            {page.url}
-                          </p>
-                        </div>
-                        <div className="text-xs text-gray-500 dark:text-gray-400">
-                          {formatDate(page.created_at)}
-                        </div>
-                      </div>
-                      {page.summary && (
-                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-2 line-clamp-2">
-                          {page.summary}
-                        </p>
-                      )}
-                    </div>
-                  ))}
-              </div>
-            )}
-            
-            {totalPages > 1 && (
-              <div className="flex justify-center mt-4">
-                <nav className="flex items-center space-x-2">
-                  <button
-                    onClick={() => handlePageChange(Math.max(1, currentPage - 1))}
-                    disabled={currentPage === 1}
-                    className="px-3 py-1 rounded border border-gray-300 dark:border-gray-700 disabled:opacity-50"
-                  >
-                    Previous
-                  </button>
-                  <span className="text-sm text-gray-600 dark:text-gray-400">
-                    Page {currentPage} of {totalPages}
-                  </span>
-                  <button
-                    onClick={() => handlePageChange(Math.min(totalPages, currentPage + 1))}
-                    disabled={currentPage === totalPages}
-                    className="px-3 py-1 rounded border border-gray-300 dark:border-gray-700 disabled:opacity-50"
-                  >
-                    Next
-                  </button>
-                </nav>
-              </div>
-            )}
           </div>
+          
+          <div className="flex items-center gap-2 mb-4">
+            <div className="flex items-center">
+              <span className="text-sm text-gray-600 dark:text-gray-400 mr-2">Sort by:</span>
+              <div className="relative">
+                <select
+                  value={sortOption}
+                  onChange={handleSortChange}
+                  className="px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 appearance-none pr-8"
+                >
+                  <option value="title">Title (A-Z)</option>
+                  <option value="created">Created Date (newest)</option>
+                  <option value="updated">Updated Date (newest)</option>
+                </select>
+                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700 dark:text-gray-300">
+                  <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+                    <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" />
+                  </svg>
+                </div>
+              </div>
+              {isSorting && (
+                <div className="ml-2">
+                  <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-blue-500"></div>
+                </div>
+              )}
+            </div>
+            <div className="flex-1">
+              <input
+                type="text"
+                placeholder="Search pages..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 w-full"
+              />
+            </div>
+          </div>
+          
+          {filteredPages.length === 0 ? (
+            <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+              No pages found
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {filteredPages
+                .slice((currentPage - 1) * pageSize, currentPage * pageSize)
+                .map((page: any, index: number) => {
+                  if (!page || !page.id) return null;
+                  
+                  // Get chunks for this page
+                  const pageChunks = pages.filter(p => p.parent_id === page.id);
+                  const isExpanded = isPageExpanded(page.id);
+                  
+                  return (
+                    <PageListItem
+                      key={page.id}
+                      page={page}
+                      selectedPageId={selectedPage?.id || null}
+                      pageChunks={pageChunks}
+                      onPageClick={handlePageClick}
+                      isExpanded={isExpanded}
+                      onToggleExpand={togglePageExpanded}
+                      showDebug={showDebug && index < 3}
+                    />
+                  );
+                })}
+            </div>
+          )}
+          
+          {totalPages > 1 && (
+            <div className="flex justify-center mt-4">
+              <nav className="flex items-center space-x-2">
+                <button
+                  onClick={() => handlePageChange(Math.max(1, currentPage - 1))}
+                  disabled={currentPage === 1}
+                  className="px-3 py-1 rounded border border-gray-300 dark:border-gray-700 disabled:opacity-50"
+                >
+                  Previous
+                </button>
+                <span className="text-sm text-gray-600 dark:text-gray-400">
+                  Page {currentPage} of {totalPages}
+                </span>
+                <button
+                  onClick={() => handlePageChange(Math.min(totalPages, currentPage + 1))}
+                  disabled={currentPage === totalPages}
+                  className="px-3 py-1 rounded border border-gray-300 dark:border-gray-700 disabled:opacity-50"
+                >
+                  Next
+                </button>
+              </nav>
+            </div>
+          )}
         </div>
       ) : (
         <div className="text-center py-8 text-gray-500 dark:text-gray-400">
