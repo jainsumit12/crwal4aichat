@@ -159,10 +159,10 @@ const CrawlPage = () => {
     setRefreshing(true);
     try {
       await loadActiveCrawls(true); // Pass true to bypass cache
-      toast.success('Crawl list refreshed');
+      createNotification('Success', 'Crawl list refreshed', 'success', true);
     } catch (error) {
       console.error('Error refreshing crawls:', error);
-      toast.error('Failed to refresh crawls');
+      createNotification('Error', 'Failed to refresh crawls', 'error', true);
     } finally {
       setRefreshing(false);
     }
@@ -172,7 +172,7 @@ const CrawlPage = () => {
     e.preventDefault();
     
     if (!url) {
-      toast.error('Please enter a URL');
+      createNotification('Error', 'Please enter a URL', 'error', true);
       return;
     }
     
@@ -206,7 +206,7 @@ const CrawlPage = () => {
       
     } catch (error) {
       console.error('Error starting crawl:', error);
-      toast.error('Failed to start crawl. Please try again.');
+      createNotification('Error', 'Failed to start crawl. Please try again.', 'error', true);
     } finally {
       setIsSubmitting(false);
     }

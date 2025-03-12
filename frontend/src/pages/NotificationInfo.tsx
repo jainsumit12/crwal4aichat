@@ -1,9 +1,18 @@
 import React from 'react';
-import { createNotification } from '@/utils/notifications';
+import { createNotification, isNotificationsMuted, toggleNotificationsMuted } from '@/utils/notifications';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { Switch } from '@/components/ui/switch';
+import { Volume2, VolumeX } from 'lucide-react';
 
 const NotificationInfo = () => {
+  const [isMuted, setIsMuted] = React.useState(isNotificationsMuted());
+
+  const handleToggleMute = () => {
+    const newState = toggleNotificationsMuted();
+    setIsMuted(newState);
+  };
+
   const triggerSuccessNotification = () => {
     createNotification(
       'Success Notification',
@@ -88,6 +97,49 @@ const NotificationInfo = () => {
       </Card>
       
       <Card className="p-6 mb-8">
+        <h2 className="text-xl font-semibold mb-4">Notification Preferences</h2>
+        <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-lg mb-6">
+          <div className="flex items-center gap-3">
+            {isMuted ? (
+              <VolumeX className="h-5 w-5 text-gray-500" />
+            ) : (
+              <Volume2 className="h-5 w-5 text-blue-500" />
+            )}
+            <div>
+              <p className="font-medium">Mute Popup Notifications</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                {isMuted 
+                  ? "Popup notifications are muted. You'll still see them in the notification center." 
+                  : "Popup notifications are enabled. You'll see them appear in the corner of the screen."}
+              </p>
+            </div>
+          </div>
+          <Switch 
+            checked={isMuted} 
+            onCheckedChange={handleToggleMute} 
+            aria-label="Toggle notification sounds"
+          />
+        </div>
+        <p className="mb-4">
+          You can control how notifications appear in the application:
+        </p>
+        <ul className="list-disc pl-6 mb-4 space-y-2">
+          <li>
+            <strong>Popup Notifications</strong> - These appear in the corner of the screen and automatically disappear after a few seconds.
+          </li>
+          <li>
+            <strong>Notification Center</strong> - All notifications are stored in the notification center, accessible from the bell icon in the top navigation bar.
+          </li>
+          <li>
+            <strong>Mute Option</strong> - You can mute popup notifications while still keeping them in the notification center. This setting is saved in your browser and will persist between sessions.
+          </li>
+        </ul>
+        <p className="text-sm text-gray-500 dark:text-gray-400 italic">
+          Note: Error notifications will always appear in the notification center, even when muted, to ensure you don't miss important issues.
+        </p>
+      </Card>
+      
+      <Card className="p-6 mb-8">
         <h2 className="text-xl font-semibold mb-4">Test Notifications</h2>
         <p className="mb-4">
           You can test different types of notifications using these buttons:
@@ -107,6 +159,10 @@ const NotificationInfo = () => {
             Pending Notification
           </Button>
         </div>
+        <p className="mt-4 text-sm text-gray-500 dark:text-gray-400">
+          Note: If notifications are muted, success and info notifications won't show popups, but they'll still appear in the notification center.
+          Error notifications will always show popups, even when muted.
+        </p>
       </Card>
       
       <Card className="p-6">
@@ -138,7 +194,7 @@ const NotificationInfo = () => {
         
         <p>
           You can also manually create notifications using the <code>createNotification</code> function,
-          as demonstrated by the "Test Notification" button in the navbar.
+          as demonstrated by the test buttons on this page.
         </p>
       </Card>
     </div>

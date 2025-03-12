@@ -275,6 +275,8 @@ const response = await apiClient.get(`/sites/${siteId}/pages/`);
 5. **User Profile**:
    - Complete user profile functionality
    - Add preferences for default view modes
+   - ✅ Added mute notifications preference that persists in local storage
+   - ✅ Added Switch component to UI library (@radix-ui/react-switch)
 
 6. **Performance Optimizations**:
    - Implement virtualized lists for better performance with large datasets
@@ -333,6 +335,12 @@ const response = await apiClient.get(`/sites/${siteId}/pages/`);
 - ✅ Added debug information panel
 - ✅ Enhanced content view toggle
 
+### User Preferences
+- ✅ Added mute notifications toggle in notification center
+- ✅ Implemented persistent notification preferences using local storage
+- ✅ Updated notification info page with mute option and documentation
+- ✅ Added Switch component to UI library (@radix-ui/react-switch)
+
 ## Known Issues
 
 1. **TypeScript Linter Error**: There's a persistent TypeScript linter error about "Property 'id' does not exist on type 'never'" in the `SiteDetailPage.tsx` file. This is a type inference issue that doesn't affect functionality.
@@ -350,5 +358,16 @@ const response = await apiClient.get(`/sites/${siteId}/pages/`);
 3. Develop the database explorer features
 4. Implement performance optimizations for large datasets
 5. Complete the user profile functionality
+
+## Implementation Notes (2025-03-14)
+
+### Notification System Enhancements
+- Added mute notifications feature that allows users to disable popup notifications while still keeping them in the notification center
+- The mute preference is stored in local storage and persists between sessions
+- Added a Switch component to the UI library for toggling preferences
+- Updated the NotificationCenter component to include a mute toggle
+- Enhanced the NotificationInfo page with documentation about the mute feature
+- Even when muted, error notifications will still show popups to ensure critical issues are not missed
+- Fixed direct toast calls throughout the application to use the notification system that respects the mute setting
 
 

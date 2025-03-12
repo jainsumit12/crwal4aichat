@@ -15,6 +15,26 @@ const listenerLastCalls = new Map<
   }
 >();
 
+// Mute notifications state
+const MUTE_STORAGE_KEY = 'supa-crawl-chat-notifications-muted';
+let notificationsMuted = localStorage.getItem(MUTE_STORAGE_KEY) === 'true';
+
+// Functions to get and set mute state
+export function isNotificationsMuted(): boolean {
+  return notificationsMuted;
+}
+
+export function setNotificationsMuted(muted: boolean): void {
+  notificationsMuted = muted;
+  localStorage.setItem(MUTE_STORAGE_KEY, muted ? 'true' : 'false');
+}
+
+export function toggleNotificationsMuted(): boolean {
+  const newState = !notificationsMuted;
+  setNotificationsMuted(newState);
+  return newState;
+}
+
 export interface Notification {
   id: string;
   title: string;
@@ -91,17 +111,19 @@ export function dispatchNotification(notification: Notification) {
     notificationCenterAddFn(notification);
   }
   
-  // Show toast if needed
-  if (notification.type === 'error') {
-    toast.error(`${notification.title}: ${notification.message}`, {
-      id: notification.id,
-      duration: notification.duration || 4000
-    });
-  } else if (notification.type === 'success') {
-    toast.success(`${notification.title}: ${notification.message}`, {
-      id: notification.id,
-      duration: notification.duration || 3000
-    });
+  // Show toast if needed and notifications are not muted
+  if (!notificationsMuted) {
+    if (notification.type === 'error') {
+      toast.error(`${notification.title}: ${notification.message}`, {
+        id: notification.id,
+        duration: notification.duration || 4000
+      });
+    } else if (notification.type === 'success') {
+      toast.success(`${notification.title}: ${notification.message}`, {
+        id: notification.id,
+        duration: notification.duration || 3000
+      });
+    }
   }
 }
 
@@ -143,8 +165,8 @@ export async function trackApiCall<T>(
       dispatchNotification(successNotification);
     }
     
-    // Show toast if requested
-    if (options.showToast) {
+    // Show toast if requested and not muted
+    if (options.showToast && !notificationsMuted) {
       toast.success(`${options.successTitle}: ${options.successMessage}`, {
         id,
         duration: 3000
@@ -169,11 +191,13 @@ export async function trackApiCall<T>(
     
     dispatchNotification(errorNotification);
     
-    // Always show toast for errors
-    toast.error(`${options.errorTitle}: ${errorMessage}`, {
-      id,
-      duration: 5000
-    });
+    // Always show toast for errors unless muted
+    if (!notificationsMuted) {
+      toast.error(`${options.errorTitle}: ${errorMessage}`, {
+        id,
+        duration: 5000
+      });
+    }
     
     throw error;
   }
@@ -197,7 +221,7 @@ export function createNotification(
   
   dispatchNotification(notification);
   
-  if (showToast) {
+  if (showToast && !notificationsMuted) {
     if (type === 'error') {
       toast.error(`${title}: ${message}`, {
         id: notification.id,

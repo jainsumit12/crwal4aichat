@@ -6,6 +6,7 @@ import { api } from '@/api/apiWrapper';
 import axios from 'axios';
 import { Button } from '@/components/ui/button';
 import { RefreshCw } from 'lucide-react';
+import { createNotification } from '@/utils/notifications';
 
 const SitesPage = () => {
   const [sites, setSites] = useState<Site[]>([]);
@@ -96,7 +97,7 @@ const SitesPage = () => {
       // If the API call is successful, try to update the sites with the direct data
       if (Array.isArray(response.data)) {
         setSites(response.data);
-        toast.success(`Found ${response.data.length} sites directly from API`);
+        createNotification('Success', `Found ${response.data.length} sites directly from API`, 'success', true);
       }
       
       setDebugInfo(JSON.stringify(response.data, null, 2));
@@ -146,7 +147,7 @@ const SitesPage = () => {
     setRefreshing(true);
     try {
       await loadSites(true); // Pass true to bypass cache
-      toast.success('Sites list refreshed');
+      createNotification('Success', 'Sites list refreshed', 'success', true);
     } catch (error) {
       console.error('Error refreshing sites:', error);
       toast.error('Failed to refresh sites');

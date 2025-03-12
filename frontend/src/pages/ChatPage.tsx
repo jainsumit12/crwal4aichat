@@ -16,6 +16,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '@/compon
 import { Separator } from '@/components/ui/separator';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { MessageSquare, Plus, Trash2, Edit, RefreshCw, Bot, Send } from 'lucide-react';
+import { createNotification } from '@/utils/notifications';
 
 // Define the session interface
 interface ChatSession {
@@ -181,7 +182,7 @@ const ChatPage = () => {
           }
         }
         
-        toast.success('Session deleted');
+        createNotification('Success', 'Session deleted', 'success', true);
       } catch (error) {
         console.error('Error deleting session:', error);
         toast.error('Failed to delete session');
@@ -285,9 +286,9 @@ const ChatPage = () => {
           
           // Notify the user if preferences were found
           if (extractedPreferences.length === 1) {
-            toast.success(`Added "${extractedPreferences[0]}" to your preferences`);
+            createNotification('Success', `Added "${extractedPreferences[0]}" to your preferences`, 'success', true);
           } else if (extractedPreferences.length > 1) {
-            toast.success(`Added ${extractedPreferences.length} new preferences`);
+            createNotification('Success', `Added ${extractedPreferences.length} new preferences`, 'success', true);
           }
         }
       }
@@ -359,7 +360,7 @@ const ChatPage = () => {
       setIsLoading(true);
       await api.clearChatHistory(sessionId);
       setChatHistory([]);
-      toast.success('Chat history cleared');
+      createNotification('Success', 'Chat history cleared', 'success', true);
     } catch (error) {
       console.error('Error clearing chat history:', error);
       setError('Failed to clear chat history');
@@ -380,7 +381,7 @@ const ChatPage = () => {
         updateSessionActivity(sessionId);
       }
       
-      toast.success('Started new chat');
+      createNotification('Success', 'Started new chat', 'success', true);
     }
   };
 
@@ -400,7 +401,7 @@ const ChatPage = () => {
         sessionId,
         userProfile?.name // Pass the user's name as the user_id
       );
-      toast.success('Profile updated');
+      createNotification('Success', 'Profile updated', 'success', true);
     } catch (error) {
       console.error('Error setting profile:', error);
       setError('Failed to update profile. Please try again.');

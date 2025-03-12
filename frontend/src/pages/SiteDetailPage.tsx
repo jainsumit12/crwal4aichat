@@ -8,6 +8,7 @@ import ReactMarkdown from 'react-markdown';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import PageListItem from '@/components/PageListItem';
+import { createNotification } from '@/utils/notifications';
 
 // Add this type definition at the top of the file, after imports
 type FilteredPage = {
@@ -179,7 +180,7 @@ const SiteDetailPage = () => {
           setCurrentPage(1);
           
           // Show success message
-          toast.success('Data refreshed successfully');
+          createNotification('Success', 'Data refreshed successfully', 'success', true);
         } catch (directError) {
           console.error('Error with direct API call:', directError);
           
@@ -225,16 +226,16 @@ const SiteDetailPage = () => {
           setCurrentPage(1);
           
           // Show success message
-          toast.success('Data refreshed successfully');
+          createNotification('Success', 'Data refreshed successfully', 'success', true);
         }
       } catch (pagesError) {
         console.error('Error fetching site pages:', pagesError);
-        toast.error('Failed to load site pages');
+        createNotification('Error', 'Failed to load site pages', 'error', true);
         setPages([]);
       }
     } catch (siteError) {
       console.error('Error fetching site details:', siteError);
-      toast.error('Failed to load site details');
+      createNotification('Error', 'Failed to load site details', 'error', true);
       setError('Failed to load site details. Please try again later.');
     } finally {
       setIsLoading(false);
@@ -289,10 +290,10 @@ const SiteDetailPage = () => {
         }
       }
       
-      toast.success('Check console for API response');
+      createNotification('Success', 'Check console for API response', 'success', true);
     } catch (error) {
       console.error('Error checking API directly:', error);
-      toast.error('Failed to check API directly');
+      createNotification('Error', 'Failed to check API directly', 'error', true);
     }
   };
 
@@ -502,7 +503,7 @@ const SiteDetailPage = () => {
       // If all methods failed, show a message
       setDatabaseContent(null);
       setContentSource('unknown');
-      toast.error('No content found in database');
+      createNotification('Error', 'No content found in database', 'error', true);
       return null;
     } catch (error) {
       console.error('Error fetching database content:', error);

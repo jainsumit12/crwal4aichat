@@ -6,7 +6,10 @@ import {
   AlertCircle, 
   Info, 
   CheckCircle,
-  Clock
+  Clock,
+  BellOff,
+  Volume2,
+  VolumeX
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -15,8 +18,14 @@ import {
   DropdownMenuTrigger,
   DropdownMenuContent
 } from '@/components/ui/dropdown-menu';
-import { Notification as ApiNotification, setNotificationCenter } from '@/utils/notifications';
+import { 
+  Notification as ApiNotification, 
+  setNotificationCenter,
+  isNotificationsMuted,
+  toggleNotificationsMuted
+} from '@/utils/notifications';
 import { cn } from '@/lib/utils';
+import { Switch } from '@/components/ui/switch';
 
 export interface Notification extends ApiNotification {
   read?: boolean;
@@ -165,6 +174,7 @@ const NotificationItem = ({ notification }: { notification: Notification }) => {
 export const NotificationBell = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [isMuted, setIsMuted] = useState(isNotificationsMuted);
   const notificationList = useNotifications();
   const dropdownRef = useRef<HTMLDivElement>(null);
   
@@ -198,6 +208,12 @@ export const NotificationBell = () => {
   const clearNotifications = () => {
     notifications.length = 0;
     notificationListeners.forEach(listener => listener(notifications));
+  };
+  
+  // Toggle mute state
+  const handleToggleMute = () => {
+    const newMuteState = toggleNotificationsMuted();
+    setIsMuted(newMuteState);
   };
   
   return (
@@ -242,7 +258,23 @@ export const NotificationBell = () => {
             </div>
           </div>
           
-          <div className="overflow-y-auto max-h-[calc(70vh-60px)] p-3">
+          <div className="p-3 border-b border-border/40 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              {isMuted ? (
+                <VolumeX className="h-4 w-4 text-muted-foreground" />
+              ) : (
+                <Volume2 className="h-4 w-4 text-primary" />
+              )}
+              <span className="text-sm">Mute popup notifications</span>
+            </div>
+            <Switch 
+              checked={isMuted} 
+              onCheckedChange={handleToggleMute}
+              aria-label="Toggle notification sounds"
+            />
+          </div>
+          
+          <div className="overflow-y-auto max-h-[calc(70vh-120px)] p-3">
             {notificationList.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground text-sm">
                 No notifications
@@ -266,6 +298,7 @@ const NotificationCenter: React.FC<NotificationCenterProps> = () => {
   const [localNotifications, setLocalNotifications] = useState<Notification[]>(notifications);
   const [unreadCount, setUnreadCount] = useState<number>(0);
   const [open, setOpen] = useState(false);
+  const [isMuted, setIsMuted] = useState(isNotificationsMuted);
   
   // Update local state when notifications change
   useEffect(() => {
@@ -311,6 +344,12 @@ const NotificationCenter: React.FC<NotificationCenterProps> = () => {
     setLocalNotifications([]);
     setUnreadCount(0);
     notificationListeners.forEach(listener => listener(notifications));
+  };
+  
+  // Toggle mute state
+  const handleToggleMute = () => {
+    const newMuteState = toggleNotificationsMuted();
+    setIsMuted(newMuteState);
   };
   
   const getNotificationIcon = (type: Notification['type']) => {
@@ -385,6 +424,22 @@ const NotificationCenter: React.FC<NotificationCenterProps> = () => {
               </Button>
             )}
           </div>
+        </div>
+        
+        <div className="p-3 border-t border-b border-border/40 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            {isMuted ? (
+              <VolumeX className="h-4 w-4 text-muted-foreground" />
+            ) : (
+              <Volume2 className="h-4 w-4 text-primary" />
+            )}
+            <span className="text-sm">Mute popup notifications</span>
+          </div>
+          <Switch 
+            checked={isMuted} 
+            onCheckedChange={handleToggleMute}
+            aria-label="Toggle notification sounds"
+          />
         </div>
         
         <div className="notification-list">
