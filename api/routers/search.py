@@ -29,7 +29,7 @@ class SearchResponse(BaseModel):
     threshold: float
     use_embedding: bool
 
-@router.get("/", response_model=SearchResponse)
+@router.get("", response_model=SearchResponse)
 async def search(
     query: str = Query(..., description="The search query"),
     threshold: float = Query(0.3, description="Similarity threshold (0-1)"),

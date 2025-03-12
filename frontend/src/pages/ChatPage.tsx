@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import toast from 'react-hot-toast';
-import { apiService, ChatMessage, Profile } from '@/api/apiService';
+import { ChatMessage, Profile } from '@/api/apiService';
+import { api } from '@/api/apiWrapper';
 import ReactMarkdown from 'react-markdown';
 import { v4 as uuidv4 } from 'uuid';
 import { useUser } from '@/context/UserContext';
@@ -23,6 +24,9 @@ interface ChatSession {
   createdAt: string;
   lastActivity: string;
 }
+
+// Define Message type to match ChatMessage
+type Message = ChatMessage;
 
 const ChatPage = () => {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -121,7 +125,7 @@ const ChatPage = () => {
       localStorage.setItem('current_session_id', id);
       
       // Load chat history for this session
-      apiService.getChatHistory(id)
+      api.getChatHistory(id)
         .then(history => {
           setChatHistory(history);
           setChatInitialized(history.length > 0);
@@ -162,7 +166,7 @@ const ChatPage = () => {
     if (window.confirm('Are you sure you want to delete this session? This will clear all chat history for this session.')) {
       try {
         // Clear chat history on the server
-        await apiService.clearChatHistory(id);
+        await api.clearChatHistory(id);
         
         // Remove from local state
         setSessions(prev => prev.filter(session => session.id !== id));
@@ -193,7 +197,7 @@ const ChatPage = () => {
       const fetchProfiles = async () => {
         setIsLoadingProfiles(true);
         try {
-          const profilesData = await apiService.getProfiles();
+          const profilesData = await api.getProfiles();
           if (Array.isArray(profilesData)) {
             setProfiles(profilesData);
             if (profilesData.length > 0 && !activeProfile) {
@@ -213,7 +217,7 @@ const ChatPage = () => {
         if (chatInitialized && !isLoadingHistory) {
           setIsLoadingHistory(true);
           try {
-            const history = await apiService.getChatHistory(sessionId);
+            const history = await api.getChatHistory(sessionId);
             setChatHistory(history);
             // Update session activity
             updateSessionActivity(sessionId);
@@ -231,7 +235,7 @@ const ChatPage = () => {
         fetchChatHistory();
       }
     }
-  }, [sessionId, chatInitialized, isLoadingProfiles, isLoadingHistory, activeProfile]); // Added dependencies
+  }, [sessionId, chatInitialized, activeProfile]); // Remove isLoadingProfiles and isLoadingHistory from dependencies
 
   // Scroll to bottom when chat history changes
   useEffect(() => {
@@ -309,7 +313,7 @@ const ChatPage = () => {
       scrollToBottom();
       
       // Send message to API with sessionId and user's name
-      const response = await apiService.sendMessage(
+      const response = await api.sendMessage(
         message, 
         activeProfile.name, 
         sessionId,
@@ -353,7 +357,7 @@ const ChatPage = () => {
     
     try {
       setIsLoading(true);
-      await apiService.clearChatHistory(sessionId);
+      await api.clearChatHistory(sessionId);
       setChatHistory([]);
       toast.success('Chat history cleared');
     } catch (error) {
@@ -372,7 +376,9 @@ const ChatPage = () => {
       localStorage.setItem('chat_initialized', 'false');
       
       // Update session activity
-      updateSessionActivity(sessionId);
+      if (sessionId) {
+        updateSessionActivity(sessionId);
+      }
       
       toast.success('Started new chat');
     }
@@ -389,7 +395,7 @@ const ChatPage = () => {
     
     // Optionally set the profile in the backend
     try {
-      await apiService.setProfile(
+      await api.setProfile(
         profileId, 
         sessionId,
         userProfile?.name // Pass the user's name as the user_id
@@ -402,7 +408,7 @@ const ChatPage = () => {
     }
   };
 
-  const formatTimestamp = (timestamp: string): string => {
+  const formatTimestamp = (timestamp: string | undefined): string => {
     try {
       // Check if timestamp is valid
       if (!timestamp || timestamp === 'undefined' || timestamp === 'null') {
@@ -599,7 +605,7 @@ const ChatPage = () => {
   const refreshProfiles = async () => {
     setIsLoadingProfiles(true);
     try {
-      const profilesData = await apiService.getProfiles();
+      const profilesData = await api.getProfiles();
       if (Array.isArray(profilesData)) {
         setProfiles(profilesData);
         if (profilesData.length > 0 && !activeProfile) {
@@ -615,10 +621,10 @@ const ChatPage = () => {
   };
 
   const refreshChatHistory = async () => {
-    if (chatInitialized && !isLoadingHistory) {
+    if (chatInitialized && !isLoadingHistory && sessionId) {
       setIsLoadingHistory(true);
       try {
-        const history = await apiService.getChatHistory(sessionId);
+        const history = await api.getChatHistory(sessionId);
         setChatHistory(history);
       } catch (error) {
         console.error('Error loading chat history:', error);

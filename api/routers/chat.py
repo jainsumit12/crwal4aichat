@@ -80,7 +80,7 @@ def get_chat_bot(
             detail=f"Error initializing ChatBot: {str(e)}"
         )
 
-@router.post("/", response_model=ChatResponse)
+@router.post("", response_model=ChatResponse)
 async def chat(
     chat_request: ChatRequest = Body(...),
     model: Optional[str] = Query(None, description="The model to use for chat"),
@@ -98,9 +98,6 @@ async def chat(
     - **profile**: Optional profile to use
     - **model**: Optional model to use
     - **result_limit**: Optional maximum number of search results
-    - **similarity_threshold**: Optional similarity threshold (0-1)
-    - **include_context**: Whether to include search context in the response
-    - **include_history**: Whether to include conversation history in the response
     """
     try:
         # Generate a session ID if not provided
@@ -211,20 +208,19 @@ async def set_profile(
     - **user_id**: Optional user ID
     """
     try:
-        # Initialize ChatBot
+        # Initialize ChatBot with the specified profile
         chat_bot = get_chat_bot(
             session_id=session_id,
-            user_id=user_id
+            user_id=user_id,
+            profile=profile_name
         )
         
-        # Set profile
-        chat_bot.set_profile(profile_name)
-        
+        # Return success response
         return {
+            "success": True,
             "message": f"Profile set to {profile_name}",
-            "session_id": session_id,
-            "user_id": user_id,
-            "profile": profile_name
+            "profile": profile_name,
+            "session_id": session_id
         }
     except Exception as e:
         raise HTTPException(
@@ -235,25 +231,22 @@ async def set_profile(
 @router.get("/history", response_model=ConversationHistoryResponse)
 async def get_conversation_history(
     session_id: str = Query(..., description="Session ID"),
-    user_id: Optional[str] = Query(None, description="User ID")
+    user_id: Optional[str] = Query(None, description="User ID"),
 ):
     """
     Get conversation history for a session.
     
-    - **session_id**: Session ID
+    - **session_id**: The session ID
     - **user_id**: Optional user ID
     """
     try:
         # Initialize ChatBot
-        chat_bot = get_chat_bot(
-            session_id=session_id,
-            user_id=user_id
-        )
+        chat_bot = get_chat_bot(session_id=session_id, user_id=user_id)
         
         # Load conversation history
         chat_bot.load_conversation_history()
         
-        # Convert to Message model
+        # Convert to Message objects
         messages = []
         for msg in chat_bot.conversation_history:
             messages.append(Message.from_dict(msg))
@@ -273,20 +266,17 @@ async def get_conversation_history(
 @router.delete("/history", response_model=Dict[str, Any])
 async def clear_conversation_history(
     session_id: str = Query(..., description="Session ID"),
-    user_id: Optional[str] = Query(None, description="User ID")
+    user_id: Optional[str] = Query(None, description="User ID"),
 ):
     """
     Clear conversation history for a session.
     
-    - **session_id**: Session ID
+    - **session_id**: The session ID
     - **user_id**: Optional user ID
     """
     try:
         # Initialize ChatBot
-        chat_bot = get_chat_bot(
-            session_id=session_id,
-            user_id=user_id
-        )
+        chat_bot = get_chat_bot(session_id=session_id, user_id=user_id)
         
         # Clear conversation history
         chat_bot.clear_conversation_history()

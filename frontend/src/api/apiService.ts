@@ -250,7 +250,7 @@ export const apiService = {
   // Site methods
   getSites: async (): Promise<Site[]> => {
     try {
-      const response = await apiClient.get('/sites/');
+      const response = await apiClient.get('/sites');
       console.log('Raw sites response:', response.data);
       
       // Handle different response formats
@@ -280,7 +280,7 @@ export const apiService = {
 
   getSite: async (siteId: number): Promise<Site> => {
     try {
-      const response = await apiClient.get(`/sites/${siteId}/`);
+      const response = await apiClient.get(`/sites/${siteId}`);
       return response.data;
     } catch (error) {
       console.error(`Error getting site ${siteId}:`, error);
@@ -290,7 +290,7 @@ export const apiService = {
 
   getSitePages: async (siteId: number, includeChunks: boolean = false): Promise<Page[] | { pages: Page[] }> => {
     try {
-      const response = await apiClient.get(`/sites/${siteId}/pages/`, {
+      const response = await apiClient.get(`/sites/${siteId}/pages`, {
         params: { include_chunks: includeChunks }
       });
       
@@ -457,7 +457,8 @@ export const apiService = {
         params.session_id = sessionId;
       }
       
-      const response = await apiClient.get('/chat/profiles/', { params });
+      // Use URL without trailing slash
+      const response = await apiClient.get('/chat/profiles', { params });
       
       // Handle both array response and ProfilesResponse object
       if (Array.isArray(response.data)) {
@@ -470,7 +471,8 @@ export const apiService = {
       }
     } catch (error) {
       console.error('Error getting profiles:', error);
-      throw error;
+      // Return empty array instead of throwing to prevent UI errors
+      return [];
     }
   },
 
@@ -488,7 +490,8 @@ export const apiService = {
         params.session_id = sessionId;
       }
       
-      await apiClient.post(`/chat/profiles/${profileId}/`, null, { params });
+      // Use URL without trailing slash
+      await apiClient.post(`/chat/profiles/${profileId}`, null, { params });
       
       // Clear any cached chat history to ensure fresh data with the new profile
       if (sessionId) {
@@ -500,14 +503,14 @@ export const apiService = {
       }
     } catch (error) {
       console.error('Error setting profile:', error);
-      throw error;
+      // Don't throw to prevent UI errors
     }
   },
 
   getChatHistory: async (sessionId: string): Promise<ChatMessage[]> => {
     try {
       // Use the correct endpoint format with query parameters
-      const response = await apiClient.get('/chat/history/', {
+      const response = await apiClient.get('/chat/history', {
         params: { session_id: sessionId }
       });
       
@@ -541,7 +544,7 @@ export const apiService = {
 
   clearChatHistory: async (sessionId: string): Promise<void> => {
     try {
-      await apiClient.delete('/chat/history/', {
+      await apiClient.delete('/chat/history', {
         params: { session_id: sessionId }
       });
       

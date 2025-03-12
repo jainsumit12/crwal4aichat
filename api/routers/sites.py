@@ -68,7 +68,7 @@ class PageList(BaseModel):
     site_id: int
     site_name: str
 
-@router.get("/", response_model=SiteList)
+@router.get("", response_model=SiteList)
 async def list_sites(
     include_chunks: bool = Query(False, description="Include chunks in page count")
 ):

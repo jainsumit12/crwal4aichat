@@ -59,7 +59,7 @@ def crawl_in_background(url: str, site_name: Optional[str], site_description: Op
     except Exception as e:
         print(f"Error in background crawl task: {str(e)}")
 
-@router.post("/", response_model=CrawlResponse)
+@router.post("", response_model=CrawlResponse)
 async def crawl(
     background_tasks: BackgroundTasks,
     crawl_data: CrawlRequest = Body(...),

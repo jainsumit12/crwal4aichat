@@ -75,7 +75,7 @@ const CrawlPage = () => {
       
       if (bypassCache) {
         // Bypass cache by making a direct API call
-        const response = await axios.get('/api/sites/');
+        const response = await axios.get('/api/sites');
         console.log('Direct API response for crawls (bypass cache):', response.data);
         
         // Handle the response format with a sites array

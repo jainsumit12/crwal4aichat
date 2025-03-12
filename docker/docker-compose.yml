@@ -47,10 +47,19 @@ services:
     restart: unless-stopped
     depends_on:
       - api
+    environment:
+      - VITE_API_BASE_URL=http://host.docker.internal:8001
+      - NODE_ENV=development
+      - DOCKER_ENV=true
+    volumes:
+      - ../frontend:/app
+      - /app/node_modules
     networks:
       - crawl-network
     security_opt:
       - no-new-privileges
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
 networks:
   crawl-network:

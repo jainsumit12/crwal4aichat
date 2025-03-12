@@ -39,7 +39,7 @@ const SitesPage = () => {
       
       if (bypassCache) {
         // Bypass cache by making a direct API call
-        const response = await axios.get('/api/sites/');
+        const response = await axios.get('/api/sites');
         console.log('Direct API response for sites (bypass cache):', response.data);
         
         // Handle the response format with a sites array
@@ -90,7 +90,7 @@ const SitesPage = () => {
     
     try {
       // Try to fetch sites directly from the API
-      const response = await axios.get('/api/sites/');
+      const response = await axios.get('/api/sites');
       console.log('Direct API response:', response.data);
       
       // If the API call is successful, try to update the sites with the direct data
