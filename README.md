@@ -1014,7 +1014,7 @@ This setup will:
 4. Start the Streamlit Explorer for database exploration
 5. Create a network for the containers to communicate with each other
 
-Make sure your `.env` file includes the necessary Crawl4AI configuration:
+Make sure your `.env` file in root includes the necessary Crawl4AI configuration:
 
 ```env
 # Crawl4AI Configuration
@@ -1035,10 +1035,10 @@ Access the services:
 
 We provide a comprehensive Docker setup that includes everything you need to run the entire application stack:
 
-- Supa Chat API
+- Supa Chat API Backend
 - Frontend UI
-- Supabase (Database, Kong, Realtime, etc.)
-- Crawl4AI for web crawling
+- Supabase Docker images (Database, Kong, Realtime, etc.)
+- Crawl4AI Docker image for web crawling
 
 This setup comes with everything!
 
@@ -1116,7 +1116,7 @@ cd api
 uvicorn api.main:app --host 0.0.0.0 --port 8001 --reload
 ```
 
-The API will be available at `http://localhost:8001`. You can access the interactive
+The API will be available at `http://localhost:8001`
 
 ### API Endpoints
 
