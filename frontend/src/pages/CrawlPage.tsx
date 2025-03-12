@@ -293,8 +293,8 @@ const CrawlPage = () => {
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        <div className="lg:col-span-5">
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-8">
+        <div className="xl:col-span-5">
           <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-semibold">Start a Crawl</h2>
@@ -455,7 +455,7 @@ const CrawlPage = () => {
           </div>
         </div>
         
-        <div className="lg:col-span-7">
+        <div className="xl:col-span-7">
           <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-semibold">Recent Crawls</h2>

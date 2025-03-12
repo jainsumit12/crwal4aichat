@@ -100,14 +100,6 @@ const Navbar: React.FC<NavbarProps> = ({ toggleSidebar }) => {
       <div className="flex-1" />
       
       <div className="flex items-center gap-2">
-        <Button 
-          variant="ghost" 
-          size="sm" 
-          onClick={handleTestNotification}
-          className="text-gray-300 hover:text-white hover:bg-white/[0.06]"
-        >
-          Test Notification
-        </Button>
         <NotificationBell />
         <ModeToggle />
         

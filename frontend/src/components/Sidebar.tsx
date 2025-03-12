@@ -12,7 +12,8 @@ import {
   Search, 
   Database, 
   X,
-  Menu
+  Menu,
+  Github
 } from 'lucide-react';
 import { useMediaQuery } from '@/hooks/use-media-query';
 
@@ -22,7 +23,8 @@ interface SidebarProps {
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
-  const pathname = useLocation().pathname;
+  const location = useLocation();
+  const pathname = location.pathname;
   const isDesktop = useMediaQuery("(min-width: 1024px)");
   
   const navItems = [
@@ -32,11 +34,29 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     { name: 'Search', href: '/search', icon: Search },
     { name: 'Sites', href: '/sites', icon: Database }
   ];
+  
+  // Custom X (Twitter) icon component
+  const TwitterX = () => (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M18 4L3 20" />
+      <path d="M6 4L21 20" />
+    </svg>
+  );
 
   return (
     <>
       {/* Mobile sidebar */}
-      <Transition.Root show={isOpen && !isDesktop} as={Fragment}>
+      <Transition.Root show={isOpen} as={Fragment}>
         <Dialog as="div" className="relative z-50 lg:hidden" onClose={onClose}>
           <Transition.Child
             as={Fragment}
@@ -47,10 +67,10 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
             leaveFrom="opacity-100"
             leaveTo="opacity-0"
           >
-            <div className="fixed inset-0 bg-background/80 backdrop-blur-sm" />
+            <div className="fixed inset-0 bg-black/30 backdrop-blur-sm" />
           </Transition.Child>
 
-          <div className="fixed inset-0 z-40 flex">
+          <div className="fixed inset-0 flex">
             <Transition.Child
               as={Fragment}
               enter="transition ease-in-out duration-300 transform"
@@ -60,7 +80,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
               leaveFrom="translate-x-0"
               leaveTo="-translate-x-full"
             >
-              <Dialog.Panel className="relative flex w-full max-w-xs flex-1 flex-col bg-[#0f1117]">
+              <Dialog.Panel className="relative mr-16 flex w-full max-w-xs flex-1 flex-col bg-[#0f1117] pb-4">
                 <Transition.Child
                   as={Fragment}
                   enter="ease-in-out duration-300"
@@ -70,15 +90,14 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                   leaveFrom="opacity-100"
                   leaveTo="opacity-0"
                 >
-                  <div className="absolute right-0 top-0 flex pt-4 pr-2">
+                  <div className="absolute right-0 top-0 -mr-12 pt-2">
                     <Button
                       variant="ghost"
                       size="icon"
                       onClick={onClose}
-                      className="ml-1 flex h-10 w-10 items-center justify-center rounded-full"
+                      className="ml-1 flex h-10 w-10 items-center justify-center text-white"
                     >
-                      <span className="sr-only">Close sidebar</span>
-                      <X className="h-5 w-5" aria-hidden="true" />
+                      <X className="h-6 w-6" />
                     </Button>
                   </div>
                 </Transition.Child>
@@ -88,7 +107,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                 </div>
                 
                 <ScrollArea className="flex-1 py-2">
-                  <nav className="grid gap-1 px-2">
+                  <nav className="grid gap-1 px-4">
                     {navItems.map((item) => (
                       <Link
                         key={item.name}
@@ -107,9 +126,26 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                 </ScrollArea>
                 
                 <div className="border-t border-white/[0.05] p-4">
-                  <p className="text-xs text-muted-foreground">
-                    Powered by Supabase
-                  </p>
+                  <div className="flex items-center gap-4">
+                    <a 
+                      href="https://github.com/bigsk1/supa-crawl-chat" 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-muted-foreground hover:text-primary transition-colors"
+                      title="GitHub Repository"
+                    >
+                      <Github className="h-5 w-5" />
+                    </a>
+                    <a 
+                      href="https://x.com/bigsk1_com" 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-muted-foreground hover:text-primary transition-colors"
+                      title="X (Twitter) Profile"
+                    >
+                      <TwitterX />
+                    </a>
+                  </div>
                 </div>
               </Dialog.Panel>
             </Transition.Child>
@@ -142,9 +178,26 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
         </ScrollArea>
         
         <div className="border-t border-white/[0.05] p-4">
-          <p className="text-xs text-muted-foreground">
-            Powered by Supabase
-          </p>
+          <div className="flex items-center gap-4">
+            <a 
+              href="https://github.com/bigsk1/supa-crawl-chat" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-muted-foreground hover:text-primary transition-colors"
+              title="GitHub Repository"
+            >
+              <Github className="h-5 w-5" />
+            </a>
+            <a 
+              href="https://x.com/bigsk1_com" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-muted-foreground hover:text-primary transition-colors"
+              title="X (Twitter) Profile"
+            >
+              <TwitterX />
+            </a>
+          </div>
         </div>
       </div>
     </>

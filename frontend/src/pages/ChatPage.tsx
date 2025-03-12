@@ -637,7 +637,7 @@ const ChatPage = () => {
   // If there's a critical error, show a recovery UI
   if (error && !chatHistory.length && !profiles.length) {
     return (
-      <div className="max-w-4xl mx-auto px-4 py-8">
+      <div className="container mx-auto px-4 py-8">
         <Card className="border-destructive">
           <CardHeader>
             <CardTitle className="text-destructive">Something went wrong</CardTitle>
@@ -669,242 +669,243 @@ const ChatPage = () => {
   }
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="flex items-center justify-between mb-4">
-        <h1 className="text-2xl font-bold">Chat</h1>
-        <div className="flex space-x-2">
-          {/* Session dropdown */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="flex items-center gap-2 border-white/[0.05] bg-[#171923] hover:bg-white/[0.06] text-gray-300">
-                <MessageSquare className="h-4 w-4" />
-                <span>{sessions.find(s => s.id === sessionId)?.name || 'Session'}</span>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent className="w-56 bg-[#171923] border-white/[0.05]">
-              <div className="p-2">
-                <div className="mb-2">
-                  <Input
-                    value={newSessionName}
-                    onChange={(e) => setNewSessionName(e.target.value)}
-                    placeholder="New session name"
-                    className="mb-2 bg-[#0f1117] border-white/[0.05]"
-                  />
-                  <Button
-                    onClick={() => {
-                      if (newSessionName.trim()) {
-                        createNewSession(newSessionName);
-                        setNewSessionName('');
-                      }
-                    }}
-                    className="w-full"
-                    size="sm"
-                  >
-                    <Plus className="h-4 w-4 mr-2" /> Create Session
-                  </Button>
-                </div>
-                
-                <Separator className="my-2 bg-white/[0.05]" />
-                
-                <div className="max-h-[300px] overflow-y-auto">
-                  {sessions.map(session => (
-                    <div key={session.id} className="mb-2 last:mb-0">
-                      <div className={`p-2 rounded-md ${
-                        session.id === sessionId 
-                          ? 'bg-white/[0.08]' 
-                          : 'hover:bg-white/[0.06]'
-                      }`}>
-                        <div className="flex justify-between items-center">
-                          <div className="flex-grow">
-                            {editingSessionId === session.id ? (
-                              <Input
-                                defaultValue={session.name}
-                                autoFocus
-                                onBlur={(e) => renameSession(session.id, e.target.value)}
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter') {
-                                    renameSession(session.id, e.currentTarget.value);
-                                  } else if (e.key === 'Escape') {
-                                    setEditingSessionId(null);
-                                  }
-                                }}
-                                className="text-sm bg-[#0f1117] border-white/[0.05]"
-                              />
-                            ) : (
-                              <div>
-                                <div 
-                                  className="font-medium cursor-pointer text-gray-200" 
-                                  onClick={() => {
-                                    switchSession(session.id);
+    <div className="container mx-auto px-4 py-8">
+      <div className="flex flex-col h-[calc(100vh-10rem)]">
+        <div className="flex items-center justify-between mb-4">
+          <h1 className="text-2xl font-bold">Chat</h1>
+          <div className="flex space-x-2">
+            {/* Session dropdown */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="flex items-center gap-2 border-white/[0.05] bg-[#171923] hover:bg-white/[0.06] text-gray-300">
+                  <MessageSquare className="h-4 w-4" />
+                  <span>{sessions.find(s => s.id === sessionId)?.name || 'Default Session'}</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-56 bg-[#171923] border-white/[0.05]">
+                <div className="p-2">
+                  <div className="mb-2">
+                    <Input
+                      value={newSessionName}
+                      onChange={(e) => setNewSessionName(e.target.value)}
+                      placeholder="New session name"
+                      className="mb-2 bg-[#0f1117] border-white/[0.05]"
+                    />
+                    <Button
+                      onClick={() => {
+                        if (newSessionName.trim()) {
+                          createNewSession(newSessionName);
+                          setNewSessionName('');
+                        }
+                      }}
+                      className="w-full"
+                      size="sm"
+                    >
+                      <Plus className="h-4 w-4 mr-2" /> Create Session
+                    </Button>
+                  </div>
+                  
+                  <Separator className="my-2 bg-white/[0.05]" />
+                  
+                  <div className="max-h-[300px] overflow-y-auto">
+                    {sessions.map(session => (
+                      <div key={session.id} className="mb-2 last:mb-0">
+                        <div className={`p-2 rounded-md ${
+                          session.id === sessionId 
+                            ? 'bg-white/[0.08]' 
+                            : 'hover:bg-white/[0.06]'
+                        }`}>
+                          <div className="flex justify-between items-center">
+                            <div className="flex-grow">
+                              {editingSessionId === session.id ? (
+                                <Input
+                                  defaultValue={session.name}
+                                  autoFocus
+                                  onBlur={(e) => renameSession(session.id, e.target.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                      renameSession(session.id, e.currentTarget.value);
+                                    } else if (e.key === 'Escape') {
+                                      setEditingSessionId(null);
+                                    }
                                   }}
-                                >
-                                  {session.name}
-                                </div>
-                                <div className="text-xs text-gray-400">
-                                  {new Date(session.createdAt).toLocaleDateString()}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                          
-                          <div className="flex gap-1">
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-7 w-7 hover:bg-white/[0.06]"
-                                    onClick={() => setEditingSessionId(session.id)}
+                                  className="text-sm bg-[#0f1117] border-white/[0.05]"
+                                />
+                              ) : (
+                                <div>
+                                  <div 
+                                    className="font-medium cursor-pointer text-gray-200" 
+                                    onClick={() => {
+                                      switchSession(session.id);
+                                    }}
                                   >
-                                    <Edit className="h-3.5 w-3.5" />
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent className="bg-[#171923] border-white/[0.05]">
-                                  <p>Rename session</p>
-                                </TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
+                                    {session.name}
+                                  </div>
+                                  <div className="text-xs text-gray-400">
+                                    {new Date(session.createdAt).toLocaleDateString()}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
                             
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-7 w-7 text-destructive hover:bg-white/[0.06]"
-                                    onClick={() => deleteSession(session.id)}
-                                  >
-                                    <Trash2 className="h-3.5 w-3.5" />
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent className="bg-[#171923] border-white/[0.05]">
-                                  <p>Delete session</p>
-                                </TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
+                            <div className="flex gap-1">
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-7 w-7 hover:bg-white/[0.06]"
+                                      onClick={() => setEditingSessionId(session.id)}
+                                    >
+                                      <Edit className="h-3.5 w-3.5" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent className="bg-[#171923] border-white/[0.05]">
+                                    <p>Rename session</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                              
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-7 w-7 text-destructive hover:bg-white/[0.06]"
+                                      onClick={() => deleteSession(session.id)}
+                                    >
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent className="bg-[#171923] border-white/[0.05]">
+                                    <p>Delete session</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
+                    ))}
+                  </div>
+                </div>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            
+            <div>
+              <Select
+                value={activeProfile?.name}
+                onValueChange={handleProfileChange}
+                disabled={isLoading}
+              >
+                <SelectTrigger className="w-[180px] border-white/[0.05] bg-[#171923] text-gray-300">
+                  <SelectValue placeholder="Select a profile" />
+                </SelectTrigger>
+                <SelectContent className="bg-[#171923] border-white/[0.05]">
+                  {profiles.map((profile) => (
+                    <SelectItem key={profile.name} value={profile.name} className="hover:bg-white/[0.06] focus:bg-white/[0.06]">
+                      {profile.name}
+                    </SelectItem>
                   ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <Button
+              variant="outline"
+              onClick={handleNewChat}
+              disabled={isLoading}
+              className="border-white/[0.05] bg-[#171923] hover:bg-white/[0.06] text-gray-300"
+            >
+              <Plus className="h-4 w-4 mr-2" /> New Chat
+            </Button>
+            
+            <Button
+              variant="outline"
+              onClick={handleClearChat}
+              disabled={isLoading}
+              className="border-white/[0.05] bg-[#171923] hover:bg-white/[0.06] text-gray-300"
+            >
+              <Trash2 className="h-4 w-4 mr-2" /> Clear Chat
+            </Button>
+          </div>
+        </div>
+        
+        <div className="flex-1 flex flex-col bg-[#0f1117] rounded-lg border border-white/[0.05] overflow-hidden">
+          <div className="flex-1 overflow-y-auto p-4" ref={chatContainerRef}>
+            {isLoadingHistory ? (
+              <div className="flex justify-center items-center h-full">
+                <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
+              </div>
+            ) : error ? (
+              <div className="flex flex-col items-center justify-center h-full">
+                <div className="text-destructive mb-4">{error}</div>
+                <div className="flex justify-center space-x-4">
+                  <Button 
+                    onClick={() => window.location.reload()} 
+                    variant="destructive"
+                  >
+                    Refresh Page
+                  </Button>
+                  <Button 
+                    onClick={() => {
+                      setError(null);
+                      refreshProfiles();
+                      refreshChatHistory();
+                    }} 
+                    variant="outline"
+                    className="border-white/[0.05] bg-[#171923] hover:bg-white/[0.06] text-gray-300"
+                  >
+                    Try Again
+                  </Button>
                 </div>
               </div>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          
-          {/* Profile selector */}
-          <div>
-            <Select
-              value={activeProfile?.name}
-              onValueChange={handleProfileChange}
-              disabled={isLoading}
-            >
-              <SelectTrigger className="w-[180px] border-white/[0.05] bg-[#171923] text-gray-300">
-                <SelectValue placeholder="Select a profile" />
-              </SelectTrigger>
-              <SelectContent className="bg-[#171923] border-white/[0.05]">
-                {profiles.map((profile) => (
-                  <SelectItem key={profile.name} value={profile.name} className="hover:bg-white/[0.06] focus:bg-white/[0.06]">
-                    {profile.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          
-          <Button
-            variant="outline"
-            onClick={handleNewChat}
-            disabled={isLoading}
-            className="border-white/[0.05] bg-[#171923] hover:bg-white/[0.06] text-gray-300"
-          >
-            <Plus className="h-4 w-4 mr-2" /> New Chat
-          </Button>
-          
-          <Button
-            variant="outline"
-            onClick={handleClearChat}
-            disabled={isLoading}
-            className="border-white/[0.05] bg-[#171923] hover:bg-white/[0.06] text-gray-300"
-          >
-            <Trash2 className="h-4 w-4 mr-2" /> Clear Chat
-          </Button>
-        </div>
-      </div>
-      
-      <div className="flex-1 flex flex-col bg-[#0f1117] rounded-lg border border-white/[0.05] overflow-hidden">
-        <div className="flex-1 overflow-y-auto p-4" ref={chatContainerRef}>
-          {isLoadingHistory ? (
-            <div className="flex justify-center items-center h-full">
-              <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
-            </div>
-          ) : error ? (
-            <div className="flex flex-col items-center justify-center h-full">
-              <div className="text-destructive mb-4">{error}</div>
-              <div className="flex justify-center space-x-4">
-                <Button 
-                  onClick={() => window.location.reload()} 
-                  variant="destructive"
-                >
-                  Refresh Page
-                </Button>
-                <Button 
-                  onClick={() => {
-                    setError(null);
-                    refreshProfiles();
-                    refreshChatHistory();
-                  }} 
-                  variant="outline"
-                  className="border-white/[0.05] bg-[#171923] hover:bg-white/[0.06] text-gray-300"
-                >
-                  Try Again
-                </Button>
+            ) : filteredChatHistory.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full text-center text-gray-400">
+                <MessageSquare className="h-12 w-12 mb-4 opacity-20" />
+                <h3 className="text-lg font-medium mb-2">No messages yet</h3>
+                <p className="text-sm max-w-md">
+                  Start a conversation by typing a message below.
+                </p>
               </div>
-            </div>
-          ) : filteredChatHistory.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-center text-gray-400">
-              <MessageSquare className="h-12 w-12 mb-4 opacity-20" />
-              <h3 className="text-lg font-medium mb-2">No messages yet</h3>
-              <p className="text-sm max-w-md">
-                Start a conversation by typing a message below.
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-6">
-              {filteredChatHistory.map(renderMessage)}
-              <div ref={messagesEndRef} />
-            </div>
-          )}
-        </div>
+            ) : (
+              <div className="space-y-6">
+                {filteredChatHistory.map(renderMessage)}
+                <div ref={messagesEndRef} />
+              </div>
+            )}
+          </div>
 
-        <div className="border-t border-white/[0.05] p-4">
-          <form onSubmit={handleSendMessage} className="flex space-x-2">
-            <Textarea
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              placeholder="Type your message..."
-              className="flex-1 min-h-[60px] max-h-[200px] bg-[#171923] border-white/[0.05] focus-visible:ring-primary"
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  handleSendMessage(e);
-                }
-              }}
-            />
-            <Button 
-              type="submit" 
-              disabled={isLoading || message.trim() === ''}
-              className="self-end"
-            >
-              {isLoading ? (
-                <RefreshCw className="h-4 w-4 animate-spin" />
-              ) : (
-                <Send className="h-4 w-4" />
-              )}
-              <span className="sr-only">Send</span>
-            </Button>
-          </form>
+          <div className="border-t border-white/[0.05] p-4">
+            <form onSubmit={handleSendMessage} className="flex space-x-2">
+              <Textarea
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                placeholder="Type your message..."
+                className="flex-1 min-h-[60px] max-h-[200px] bg-[#171923] border-white/[0.05] focus-visible:ring-primary"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSendMessage(e);
+                  }
+                }}
+              />
+              <Button 
+                type="submit" 
+                disabled={isLoading || message.trim() === ''}
+                className="self-end"
+              >
+                {isLoading ? (
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Send className="h-4 w-4" />
+                )}
+                <span className="sr-only">Send</span>
+              </Button>
+            </form>
+          </div>
         </div>
       </div>
     </div>
