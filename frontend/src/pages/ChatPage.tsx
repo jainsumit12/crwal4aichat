@@ -15,7 +15,7 @@ import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Separator } from '@/components/ui/separator';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { MessageSquare, Plus, Trash2, Edit, RefreshCw, Bot, Send } from 'lucide-react';
+import { MessageSquare, Plus, Trash2, Edit, RefreshCw, Bot, Send, Copy, Check } from 'lucide-react';
 import { createNotification } from '@/utils/notifications';
 
 // Define the session interface
@@ -631,6 +631,18 @@ const ChatPage = () => {
     }
   };
 
+  // Add a function to copy text to clipboard
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text)
+      .then(() => {
+        createNotification('Success', 'Session ID copied to clipboard', 'success', true);
+      })
+      .catch(err => {
+        console.error('Failed to copy text: ', err);
+        createNotification('Error', 'Failed to copy to clipboard', 'error', true);
+      });
+  };
+
   // If there's a critical error, show a recovery UI
   if (error && !chatHistory.length && !profiles.length) {
     return (
@@ -673,12 +685,34 @@ const ChatPage = () => {
           <div className="flex space-x-2">
             {/* Session dropdown */}
             <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="flex items-center gap-2 border-white/[0.05] bg-[#171923] hover:bg-white/[0.06] text-gray-300">
-                  <MessageSquare className="h-4 w-4" />
-                  <span>{sessions.find(s => s.id === sessionId)?.name || 'Default Session'}</span>
-                </Button>
-              </DropdownMenuTrigger>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" className="flex items-center gap-2 border-white/[0.05] bg-[#171923] hover:bg-white/[0.06] text-gray-300">
+                        <MessageSquare className="h-4 w-4" />
+                        <span>{sessions.find(s => s.id === sessionId)?.name || 'Default Session'}</span>
+                      </Button>
+                    </DropdownMenuTrigger>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="bg-[#171923] border-white/[0.05] max-w-xs">
+                    <div className="flex flex-col">
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs mb-1">Session ID:</p>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-5 w-5 p-0 hover:bg-white/[0.06] ml-2"
+                          onClick={() => sessionId && copyToClipboard(sessionId)}
+                        >
+                          <Copy className="h-3 w-3" />
+                        </Button>
+                      </div>
+                      <code className="text-xs bg-black/30 p-1 rounded font-mono truncate">{sessionId}</code>
+                    </div>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
               <DropdownMenuContent className="w-56 bg-[#171923] border-white/[0.05]">
                 <div className="p-2">
                   <div className="mb-2">
@@ -738,8 +772,31 @@ const ChatPage = () => {
                                   >
                                     {session.name}
                                   </div>
-                                  <div className="text-xs text-gray-400">
-                                    {new Date(session.createdAt).toLocaleDateString()}
+                                  <div className="text-xs text-gray-400 flex items-center gap-1">
+                                    <span>{new Date(session.createdAt).toLocaleDateString()}</span>
+                                    <TooltipProvider>
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-5 w-5 p-0 hover:bg-white/[0.06]"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              copyToClipboard(session.id);
+                                            }}
+                                          >
+                                            <Copy className="h-3 w-3" />
+                                          </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent side="bottom" className="bg-[#171923] border-white/[0.05] max-w-xs">
+                                          <div className="flex flex-col">
+                                            <p className="text-xs mb-1">Session ID (click to copy):</p>
+                                            <code className="text-xs bg-black/30 p-1 rounded font-mono truncate">{session.id}</code>
+                                          </div>
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    </TooltipProvider>
                                   </div>
                                 </div>
                               )}

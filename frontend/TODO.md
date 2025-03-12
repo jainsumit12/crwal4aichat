@@ -370,4 +370,10 @@ const response = await apiClient.get(`/sites/${siteId}/pages/`);
 - Even when muted, error notifications will still show popups to ensure critical issues are not missed
 - Fixed direct toast calls throughout the application to use the notification system that respects the mute setting
 
+### Chat Session Enhancements
+- Added session ID display and copy functionality to help with database debugging
+- Session IDs are now visible on hover and can be copied to clipboard with a single click
+- Maintained user-friendly session names in the UI while providing access to the underlying database IDs
+- Added tooltips to explain the purpose of session IDs
+
 
