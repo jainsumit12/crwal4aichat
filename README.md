@@ -23,7 +23,7 @@ Seamlessly crawl websites, transform content into vector embeddings, and enable 
   - Achieve up to 95% more relevant search results compared to traditional keyword-based approaches
   - Fine-tuned ranking algorithms that understand semantic relationships between concepts
 
-- 💾 **Production-Ready Supabase Integration**
+- 💾 **Robust Supabase Integration**
   - Enterprise-level data persistence with Supabase's PostgreSQL-based infrastructure
   - Optimized vector storage for lightning-fast similarity searches
   - Automatic data synchronization and backup capabilities
@@ -44,7 +44,7 @@ Seamlessly crawl websites, transform content into vector embeddings, and enable 
   - Customizable dashboards for monitoring crawl performance and content metrics
 
 - 🐳 **Scalable Deployment Architecture**
-  - Deploy with confidence using our production-ready Docker configurations:
+  - Deploy with confidence using our Docker configurations:
     - **Lightweight**: App-only deployment for integration with existing infrastructure
     - **Standard**: App + Crawl4AI for complete content processing capabilities
     - **Full-Stack**: End-to-end solution with App + Crawl4AI + Supabase for maximum autonomy
