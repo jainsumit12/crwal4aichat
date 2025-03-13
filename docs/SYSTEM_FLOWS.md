@@ -29,6 +29,241 @@ This document provides a detailed explanation of all the components, flows, and 
 - Handles user commands
 - Displays formatted responses
 
+### 5. Frontend UI
+- Provides a modern web-based user interface
+- Visualizes crawled data and search results
+- Offers an interactive chat experience
+- Manages site and page administration
+
+## Frontend Architecture and Components
+
+The frontend is built using React with TypeScript, providing a modern, responsive user interface for interacting with the Crawl4AI system. This section details the architecture, components, and data flows within the frontend.
+
+### Technology Stack
+
+- **React**: Core UI library
+- **TypeScript**: Type-safe JavaScript
+- **Vite**: Build tool and development server
+- **Tailwind CSS**: Utility-first CSS framework
+- **Shadcn UI**: Component library based on Radix UI
+- **React Router**: Client-side routing
+- **React Query**: Data fetching and state management
+- **Lucide React**: Icon library
+
+### Application Structure
+
+The frontend follows a modular architecture with clear separation of concerns:
+
+1. **Pages**: Container components representing different views
+2. **Components**: Reusable UI elements
+3. **API Layer**: Services for backend communication
+4. **Context Providers**: Global state management
+5. **Hooks**: Custom React hooks for shared logic
+6. **Utilities**: Helper functions and constants
+
+### Key Components
+
+#### Layout Components
+- **Layout**: Main application shell with consistent navigation
+- **Navbar**: Top navigation bar with user controls and notifications
+- **Sidebar**: Side navigation menu for accessing different sections
+- **NotificationCenter**: System for displaying and managing notifications
+
+#### Page Components
+- **HomePage**: Landing page with system overview and quick actions
+- **SitesPage**: List of crawled sites with management options
+- **SiteDetailPage**: Detailed view of a site with its pages and content
+- **ChatPage**: Interactive AI chat interface
+- **CrawlPage**: Interface for initiating and monitoring crawls
+- **SearchPage**: Advanced search interface with filters and visualization
+- **NotificationInfo**: Settings and information about the notification system
+
+#### UI Components
+- **Shadcn UI Library**: Collection of accessible, customizable components
+  - Buttons, inputs, dialogs, dropdowns, etc.
+  - Consistent styling and behavior across the application
+- **Custom Components**:
+  - **PageListItem**: Component for displaying page items in lists
+  - **UserProfileModal**: Modal for user profile management
+  - **DateDebugger**: Developer tool for debugging date-related issues
+
+### State Management
+
+The frontend uses a combination of state management approaches:
+
+1. **Local Component State**: For UI-specific state
+2. **React Context**: For shared state across components
+   - **ThemeContext**: Manages light/dark mode
+   - **NotificationContext**: Manages notification state
+   - **UserContext**: Manages user preferences and session information
+3. **URL State**: For shareable and bookmarkable state
+4. **React Query**: For server state management
+   - Caching
+   - Background refetching
+   - Optimistic updates
+
+### API Integration
+
+The frontend communicates with the backend through a structured API layer:
+
+1. **apiService.ts**: Core service for making HTTP requests
+   - Handles authentication
+   - Manages request/response formatting
+   - Implements error handling
+   - Provides logging and debugging
+
+2. **apiWrapper.ts**: Type-safe wrapper around API endpoints
+   - Provides strongly-typed function calls for each endpoint
+   - Handles request validation
+   - Transforms responses into application-specific formats
+
+### Data Flow Patterns
+
+#### Fetching Data
+1. Component mounts or user triggers an action
+2. API request is initiated through the API layer
+3. Loading state is displayed to the user
+4. Data is received and transformed if necessary
+5. Component renders with the received data
+6. Error handling if the request fails
+
+#### Submitting Data
+1. User completes a form or triggers an action
+2. Client-side validation is performed
+3. API request is initiated with the form data
+4. Optimistic UI update is applied if appropriate
+5. Success/error notification is displayed
+6. UI is updated based on the response
+
+### Frontend-Specific Flows
+
+#### Site Management Flow
+1. User navigates to the Sites page
+2. Frontend fetches the list of sites from `/api/sites`
+3. Sites are displayed in a sortable, filterable table
+4. User can:
+   - Click on a site to view details
+   - Refresh the site list
+   - Delete a site (with confirmation)
+5. When viewing a site, the frontend fetches:
+   - Site details from `/api/sites/{site_id}`
+   - Pages for the site from `/api/sites/{site_id}/pages`
+6. Pages are displayed with pagination, search, and filtering options
+
+#### Chat Interface Flow
+1. User navigates to the Chat page
+2. Frontend initializes a chat session:
+   - Generates a new session ID or uses an existing one from local storage
+   - Fetches available profiles from `/api/chat/profiles`
+   - Loads conversation history for the session from `/api/chat/history`
+3. User sends a message:
+   - Message is displayed in the chat interface
+   - Request is sent to `/api/chat` with the message and session information
+   - "Thinking" indicator is displayed
+   - Response is received and displayed in the chat
+   - Chat history is updated
+4. User can:
+   - Change the active profile
+   - Clear the conversation history
+   - Copy the session ID for reference
+   - View and manage preferences extracted from the conversation
+
+#### Crawl Initiation Flow
+1. User navigates to the Crawl page
+2. Frontend displays the crawl form
+3. User enters:
+   - URL to crawl
+   - Site name (optional)
+   - Site description (optional)
+   - Crawl type (URL or sitemap)
+   - Maximum URLs (for sitemaps)
+4. User submits the form
+5. Frontend sends a request to `/api/crawl`
+6. Progress indicator is displayed
+7. Frontend polls `/api/crawl/status/{site_id}` for updates
+8. Upon completion, success notification is displayed
+9. User is redirected to the site detail page
+
+#### Search Flow
+1. User navigates to the Search page
+2. User enters a search query and optional parameters:
+   - Similarity threshold
+   - Result limit
+   - Site filter
+   - Search type (semantic or text-only)
+3. Frontend sends a request to `/api/search`
+4. Results are displayed grouped by site
+5. User can:
+   - Click on a result to view the full content
+   - Adjust search parameters and search again
+   - Sort and filter results
+
+### Notification System
+
+The frontend implements a comprehensive notification system:
+
+1. **Types of Notifications**:
+   - Success: Positive action confirmations
+   - Error: Failed operations or system errors
+   - Info: Neutral information
+   - Warning: Potential issues requiring attention
+
+2. **Notification Components**:
+   - Toast notifications: Temporary pop-up messages
+   - Notification center: Persistent list of all notifications
+   - Notification settings: User preferences for notification behavior
+
+3. **Notification Flow**:
+   - Notification is created via `createNotification` function
+   - Notification is added to the notification store
+   - Toast is displayed (if not muted)
+   - Notification is added to the notification center
+   - Notification can be dismissed or marked as read
+
+4. **Mute Functionality**:
+   - Users can mute non-critical notifications
+   - Mute preference is stored in local storage
+   - Error notifications are always shown regardless of mute setting
+   - Muted notifications still appear in the notification center
+
+### Responsive Design
+
+The frontend is fully responsive, adapting to different screen sizes:
+
+1. **Mobile View** (< 640px):
+   - Collapsed sidebar with hamburger menu
+   - Simplified layouts with stacked elements
+   - Touch-optimized controls
+
+2. **Tablet View** (640px - 1024px):
+   - Compact sidebar
+   - Adjusted grid layouts
+   - Optimized table views
+
+3. **Desktop View** (> 1024px):
+   - Full sidebar with labels
+   - Multi-column layouts
+   - Expanded data tables
+
+### Accessibility Features
+
+The frontend implements several accessibility features:
+
+1. **Keyboard Navigation**:
+   - All interactive elements are focusable
+   - Logical tab order
+   - Keyboard shortcuts for common actions
+
+2. **Screen Reader Support**:
+   - ARIA attributes for dynamic content
+   - Semantic HTML structure
+   - Descriptive alt text for images
+
+3. **Visual Accessibility**:
+   - High contrast mode
+   - Resizable text
+   - Color schemes that meet WCAG guidelines
+
 ## User Identification and Session Management
 
 ### User ID
@@ -359,7 +594,7 @@ The system can be deployed using Docker in three different configurations, each 
 This is the simplest deployment option, containerizing only the API service while relying on external Supabase and Crawl4AI instances.
 
 #### Components
-- **Containerized**: API service
+- **Containerized**: API service, Frontend UI
 - **External**: Supabase database, Crawl4AI service
 
 #### Configuration
@@ -384,14 +619,15 @@ CRAWL4AI_BASE_URL=your_crawl4ai_base_url
    docker-compose -f docker/docker-compose.yml up -d
    ```
 
-2. Access the API:
+2. Access the services:
    - API: http://localhost:8001
    - API Documentation: http://localhost:8001/docs
+   - Frontend UI: http://localhost:3000
    - Supabase Explorer: http://localhost:8501
 
 3. Interact with the container:
    ```bash
-   # Execute commands inside the container
+   # Execute commands inside the API container
    docker exec -it supachat-api bash
    
    # Run a crawl from inside the container
@@ -403,15 +639,17 @@ CRAWL4AI_BASE_URL=your_crawl4ai_base_url
 
 #### Network Architecture
 - The API container exposes ports 8001 (API) and 8501 (Supabase Explorer)
-- The container connects to external Supabase and Crawl4AI services over the internet
-- No internal Docker network is used for service communication
+- The Frontend container exposes port 3000
+- The containers connect to external Supabase and Crawl4AI services over the internet
+- The Frontend container communicates with the API container via http://api:8001
+- Both containers are connected via an internal Docker network
 
 ### 2. API + Crawl4AI Docker Deployment
 
-This option containerizes both the API service and the Crawl4AI service, creating a more integrated deployment while still relying on an external Supabase instance.
+This option containerizes the API service, Frontend UI, and the Crawl4AI service, creating a more integrated deployment while still relying on an external Supabase instance.
 
 #### Components
-- **Containerized**: API service, Crawl4AI service
+- **Containerized**: API service, Frontend UI, Crawl4AI service
 - **External**: Supabase database
 
 #### Configuration
@@ -439,6 +677,7 @@ CRAWL4AI_API_TOKEN=your_crawl4ai_api_token
 2. Access the services:
    - API: http://localhost:8001
    - API Documentation: http://localhost:8001/docs
+   - Frontend UI: http://localhost:3000
    - Supabase Explorer: http://localhost:8501
    - Crawl4AI: http://localhost:11235
 
@@ -455,18 +694,20 @@ CRAWL4AI_API_TOKEN=your_crawl4ai_api_token
    ```
 
 #### Network Architecture
-- Both containers are connected via an internal Docker network named `supachat-network`
+- All containers are connected via an internal Docker network named `supachat-network`
 - The API container communicates with the Crawl4AI container using the service name `crawl4ai`
+- The Frontend container communicates with the API container using the service name `api`
 - The API container connects to the external Supabase instance over the internet
-- Ports 8001 (API), 8501 (Supabase Explorer), and 11235 (Crawl4AI) are exposed to the host
+- Ports 8001 (API), 3000 (Frontend), 8501 (Supabase Explorer), and 11235 (Crawl4AI) are exposed to the host
 
 ### 3. Full-Stack Docker Deployment
 
-The most comprehensive deployment option, containerizing the entire stack: API service, Crawl4AI service, and Supabase (including database, Kong API gateway, and other Supabase services).
+The most comprehensive deployment option, containerizing the entire stack: API service, Frontend UI, Crawl4AI service, and Supabase (including database, Kong API gateway, and other Supabase services).
 
 #### Components
 - **Containerized**: 
   - API service
+  - Frontend UI
   - Crawl4AI service
   - Supabase services:
     - PostgreSQL database
@@ -529,6 +770,7 @@ SUPABASE_PASSWORD=${POSTGRES_PASSWORD}
 5. Access the services:
    - API: http://localhost:8001
    - API Documentation: http://localhost:8001/docs
+   - Frontend UI: http://localhost:3000
    - Supabase Studio: http://localhost:3001
    - Kong API Gateway: http://localhost:8002
    - Crawl4AI: http://localhost:11235
@@ -549,6 +791,7 @@ SUPABASE_PASSWORD=${POSTGRES_PASSWORD}
   - Host: `db`
   - Port: `5432`
 - The API container communicates with Crawl4AI using the service name `crawl4ai`
+- The Frontend container communicates with the API container using the service name `api`
 - Persistent data is stored in Docker volumes:
   - `pgdata`: PostgreSQL database files
   - `volumes/db/init`: Database initialization scripts
