@@ -2,7 +2,6 @@ from fastapi import APIRouter, Body, Query, HTTPException, status, Path, Depends
 from typing import List, Dict, Any, Optional
 from pydantic import BaseModel
 import uuid
-import os
 
 # Import from main project
 from chat import ChatBot
@@ -103,10 +102,6 @@ def get_chat_bot(
     profile: str = "default",
 ):
     try:
-        # Get the absolute path to the profiles directory
-        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        profiles_dir = os.path.join(base_dir, "profiles")
-        
         return ChatBot(
             model=model,
             result_limit=result_limit,
@@ -114,7 +109,6 @@ def get_chat_bot(
             session_id=session_id,
             user_id=user_id,
             profile=profile,
-            profiles_dir=profiles_dir,
             verbose=False  # Always use quiet mode for API
         )
     except Exception as e:

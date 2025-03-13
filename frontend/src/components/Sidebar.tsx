@@ -13,7 +13,8 @@ import {
   Database, 
   X,
   Menu,
-  Github
+  Github,
+  UserCog
 } from 'lucide-react';
 import { useMediaQuery } from '@/hooks/use-media-query';
 
@@ -32,7 +33,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     { name: 'Chat', href: '/chat', icon: MessageSquare },
     { name: 'Crawl', href: '/crawl', icon: Globe },
     { name: 'Search', href: '/search', icon: Search },
-    { name: 'Sites', href: '/sites', icon: Database }
+    { name: 'Sites', href: '/sites', icon: Database },
+    { name: 'Preferences', href: '/preferences', icon: UserCog }
   ];
   
   // Custom X (Twitter) icon component

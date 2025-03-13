@@ -249,6 +249,27 @@ export interface ProfilesResponse {
   active_profile: string;
 }
 
+export interface UserPreference {
+  id?: number;
+  user_id: string;
+  preference_type: string;
+  preference_value: string;
+  context?: string;
+  confidence: number;
+  created_at?: string;
+  updated_at?: string;
+  last_used?: string;
+  source_session?: string;
+  is_active: boolean;
+  metadata?: any;
+}
+
+export interface UserPreferenceResponse {
+  preferences: UserPreference[];
+  count: number;
+  user_id: string;
+}
+
 // API service
 export const apiService = {
   // Site methods
@@ -582,6 +603,94 @@ export const apiService = {
     } catch (error) {
       console.error('Error clearing chat history:', error);
       throw error;
+    }
+  },
+
+  // User Preferences methods
+  getUserPreferences: async (userId: string, minConfidence: number = 0.7, activeOnly: boolean = true): Promise<UserPreference[]> => {
+    try {
+      const response = await apiClient.get('/chat/preferences', {
+        params: {
+          user_id: userId,
+          min_confidence: minConfidence,
+          active_only: activeOnly
+        }
+      });
+      
+      // Handle different response formats
+      if (Array.isArray(response.data)) {
+        return response.data;
+      } else if (response.data && Array.isArray(response.data.preferences)) {
+        return response.data.preferences;
+      } else {
+        console.error('Unexpected preferences response format:', response.data);
+        return [];
+      }
+    } catch (error) {
+      console.error('Error getting user preferences:', error);
+      return [];
+    }
+  },
+
+  addUserPreference: async (
+    userId: string, 
+    preferenceType: string, 
+    preferenceValue: string, 
+    context?: string, 
+    confidence: number = 0.9,
+    sessionId?: string
+  ): Promise<UserPreference | null> => {
+    try {
+      const response = await apiClient.post('/chat/preferences', {
+        preference_type: preferenceType,
+        preference_value: preferenceValue,
+        context: context || 'Manually added via UI',
+        confidence: confidence,
+        source_session: sessionId
+      }, {
+        params: { user_id: userId }
+      });
+      
+      return response.data;
+    } catch (error) {
+      console.error('Error adding user preference:', error);
+      return null;
+    }
+  },
+
+  deleteUserPreference: async (userId: string, preferenceId: number): Promise<boolean> => {
+    try {
+      await apiClient.delete(`/chat/preferences/${preferenceId}`, {
+        params: { user_id: userId }
+      });
+      return true;
+    } catch (error) {
+      console.error(`Error deleting preference ${preferenceId}:`, error);
+      return false;
+    }
+  },
+
+  deactivateUserPreference: async (userId: string, preferenceId: number): Promise<boolean> => {
+    try {
+      await apiClient.put(`/chat/preferences/${preferenceId}/deactivate`, null, {
+        params: { user_id: userId }
+      });
+      return true;
+    } catch (error) {
+      console.error(`Error deactivating preference ${preferenceId}:`, error);
+      return false;
+    }
+  },
+
+  clearUserPreferences: async (userId: string): Promise<boolean> => {
+    try {
+      await apiClient.delete('/chat/preferences', {
+        params: { user_id: userId }
+      });
+      return true;
+    } catch (error) {
+      console.error(`Error clearing preferences for user ${userId}:`, error);
+      return false;
     }
   }
 }; 

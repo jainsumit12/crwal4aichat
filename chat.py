@@ -24,7 +24,7 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 import time
 import re
 
-from utils import print_header, print_success, print_error, print_warning, print_info
+from utils import print_success, print_error, print_warning, print_info
 
 # Create a rich console
 console = Console()
@@ -55,6 +55,7 @@ def chat_print_success(text: str):
     if VERBOSE_OUTPUT:
         print_success(text)
 
+
 # Replace the original print functions in the modules that need quieter output
 import crawler
 import db_client
@@ -68,15 +69,6 @@ original_print_success = crawler.print_success
 
 def set_quiet_mode():
     """Set quiet mode for the crawler."""
-    # Only set quiet mode if verbose output is not enabled
-    if not VERBOSE_OUTPUT:
-        # Override print functions in utils.py
-        utils.print_info = lambda text: None
-        utils.print_warning = lambda text: None
-        utils.print_success = lambda text: None
-        # Keep error messages visible
-        # utils.print_error = lambda text: None
-    
     crawler.print_info = chat_print_info
     crawler.print_warning = chat_print_warning
     crawler.print_error = chat_print_error

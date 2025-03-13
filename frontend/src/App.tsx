@@ -10,6 +10,7 @@ import SitesPage from './pages/SitesPage';
 import SiteDetailPage from './pages/SiteDetailPage';
 import NotFoundPage from './pages/NotFoundPage';
 import NotificationInfo from './pages/NotificationInfo';
+import UserPreferencesPage from './pages/UserPreferencesPage';
 import { useTheme } from './context/ThemeContext';
 
 // Custom toast container that respects the current theme
@@ -71,6 +72,8 @@ function App() {
           <Route path="sites" element={<SitesPage />} />
           <Route path="sites/:siteId" element={<SiteDetailPage />} />
           <Route path="notifications" element={<NotificationInfo />} />
+          <Route path="preferences" element={<UserPreferencesPage />} />
+          <Route path="preferences/:userId" element={<UserPreferencesPage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Route>
       </Routes>
