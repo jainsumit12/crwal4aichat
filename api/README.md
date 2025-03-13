@@ -12,6 +12,7 @@ This document provides detailed information about the Supa-Crawl-Chat API endpoi
   - [Sites](#sites)
   - [Search](#search)
   - [Chat](#chat)
+  - [Preferences](#preferences)
 - [Workflow Examples](#workflow-examples)
 - [Docker Deployment](#docker-deployment)
 - [Troubleshooting](#troubleshooting)
@@ -503,6 +504,208 @@ Clears conversation history for a session.
 - `200 OK`: History cleared successfully
 - `500 Internal Server Error`: Error clearing history
 
+### Preferences
+
+#### List User Preferences
+
+```
+GET /api/chat/preferences
+```
+
+Lists all preferences for a user.
+
+**Query Parameters:**
+
+- `user_id` (string, required): User ID
+- `active_only` (boolean, optional): Only return active preferences. Default: true
+- `min_confidence` (float, optional): Minimum confidence score (0-1). Default: 0.7
+- `preference_type` (string, optional): Filter by preference type (e.g., "like", "dislike", "expertise")
+
+**Response:**
+
+```json
+[
+  {
+    "id": 1,
+    "user_id": "TestUser",
+    "preference_type": "like",
+    "preference_value": "Python programming",
+    "context": "User mentioned enjoying Python in conversation about programming languages",
+    "confidence": 0.95,
+    "created_at": "2025-03-15T14:22:31.828635",
+    "updated_at": "2025-03-15T14:22:31.828635",
+    "last_used": "2025-03-15T15:10:45.123456",
+    "source_session": "a24b6b72-e526-4a09-b662-0f85e82f78a7",
+    "is_active": true
+  },
+  {
+    "id": 2,
+    "user_id": "TestUser",
+    "preference_type": "expertise",
+    "preference_value": "software engineering",
+    "context": "User mentioned being a software engineer for 10 years",
+    "confidence": 0.85,
+    "created_at": "2025-03-15T14:25:12.828635",
+    "updated_at": "2025-03-15T14:25:12.828635",
+    "last_used": "2025-03-15T15:10:45.123456",
+    "source_session": "a24b6b72-e526-4a09-b662-0f85e82f78a7",
+    "is_active": true
+  }
+]
+```
+
+**Status Codes:**
+
+- `200 OK`: Preferences retrieved successfully
+- `400 Bad Request`: Missing user_id parameter
+- `500 Internal Server Error`: Error retrieving preferences
+
+#### Add User Preference
+
+```
+POST /api/chat/preferences
+```
+
+Adds a new preference for a user.
+
+**Query Parameters:**
+
+- `user_id` (string, required): User ID
+
+**Request Body:**
+
+```json
+{
+  "preference_type": "like",
+  "preference_value": "Docker",
+  "context": "Manually added preference",
+  "confidence": 0.9,
+  "source_session": "a24b6b72-e526-4a09-b662-0f85e82f78a7"
+}
+```
+
+**Parameters:**
+
+- `preference_type` (string, required): Type of preference (e.g., "like", "dislike", "expertise")
+- `preference_value` (string, required): The preference value
+- `context` (string, optional): Context or reason for the preference
+- `confidence` (float, optional): Confidence score (0-1). Default: 1.0
+- `source_session` (string, optional): Session ID where the preference originated
+
+**Response:**
+
+```json
+{
+  "id": 3,
+  "user_id": "TestUser",
+  "preference_type": "like",
+  "preference_value": "Docker",
+  "context": "Manually added preference",
+  "confidence": 0.9,
+  "created_at": "2025-03-15T16:30:22.828635",
+  "updated_at": "2025-03-15T16:30:22.828635",
+  "last_used": null,
+  "source_session": "a24b6b72-e526-4a09-b662-0f85e82f78a7",
+  "is_active": true,
+  "message": "Preference added successfully"
+}
+```
+
+**Status Codes:**
+
+- `200 OK`: Preference added successfully
+- `400 Bad Request`: Missing required parameters
+- `500 Internal Server Error`: Error adding preference
+
+#### Delete User Preference
+
+```
+DELETE /api/chat/preferences/{preference_id}
+```
+
+Deletes a specific preference.
+
+**Path Parameters:**
+
+- `preference_id` (integer, required): The ID of the preference to delete
+
+**Query Parameters:**
+
+- `user_id` (string, required): User ID
+
+**Response:**
+
+```json
+{
+  "message": "Preference deleted successfully",
+  "preference_id": 3
+}
+```
+
+**Status Codes:**
+
+- `200 OK`: Preference deleted successfully
+- `404 Not Found`: Preference not found
+- `500 Internal Server Error`: Error deleting preference
+
+#### Deactivate User Preference
+
+```
+PUT /api/chat/preferences/{preference_id}/deactivate
+```
+
+Deactivates a preference without deleting it.
+
+**Path Parameters:**
+
+- `preference_id` (integer, required): The ID of the preference to deactivate
+
+**Query Parameters:**
+
+- `user_id` (string, required): User ID
+
+**Response:**
+
+```json
+{
+  "message": "Preference deactivated successfully",
+  "preference_id": 2
+}
+```
+
+**Status Codes:**
+
+- `200 OK`: Preference deactivated successfully
+- `404 Not Found`: Preference not found
+- `500 Internal Server Error`: Error deactivating preference
+
+#### Clear User Preferences
+
+```
+DELETE /api/chat/preferences
+```
+
+Clears all preferences for a user.
+
+**Query Parameters:**
+
+- `user_id` (string, required): User ID
+
+**Response:**
+
+```json
+{
+  "message": "All preferences cleared for user TestUser",
+  "count": 3
+}
+```
+
+**Status Codes:**
+
+- `200 OK`: Preferences cleared successfully
+- `400 Bad Request`: Missing user_id parameter
+- `500 Internal Server Error`: Error clearing preferences
+
 ## Workflow Examples
 
 ### Basic Crawl and Search Workflow
@@ -581,6 +784,55 @@ curl -X 'POST' \
 ```bash
 curl -X 'GET' \
   'http://localhost:8001/api/chat/history?session_id=a24b6b72-e526-4a09-b662-0f85e82f78a7&user_id=John' \
+  -H 'accept: application/json'
+```
+
+### Preference Management Workflow
+
+1. **List user preferences:**
+
+```bash
+curl -X 'GET' \
+  'http://localhost:8001/api/chat/preferences?user_id=TestUser' \
+  -H 'accept: application/json'
+```
+
+2. **Add a new preference:**
+
+```bash
+curl -X 'POST' \
+  'http://localhost:8001/api/chat/preferences?user_id=TestUser' \
+  -H 'accept: application/json' \
+  -H 'Content-Type: application/json' \
+  -d '{
+  "preference_type": "like",
+  "preference_value": "REST APIs",
+  "context": "Manually added preference",
+  "confidence": 0.9
+}'
+```
+
+3. **Deactivate a preference:**
+
+```bash
+curl -X 'PUT' \
+  'http://localhost:8001/api/chat/preferences/2/deactivate?user_id=TestUser' \
+  -H 'accept: application/json'
+```
+
+4. **Delete a specific preference:**
+
+```bash
+curl -X 'DELETE' \
+  'http://localhost:8001/api/chat/preferences/3?user_id=TestUser' \
+  -H 'accept: application/json'
+```
+
+5. **Clear all preferences:**
+
+```bash
+curl -X 'DELETE' \
+  'http://localhost:8001/api/chat/preferences?user_id=TestUser' \
   -H 'accept: application/json'
 ```
 
