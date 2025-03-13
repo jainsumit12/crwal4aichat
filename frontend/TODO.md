@@ -376,4 +376,201 @@ const response = await apiClient.get(`/sites/${siteId}/pages/`);
 - Maintained user-friendly session names in the UI while providing access to the underlying database IDs
 - Added tooltips to explain the purpose of session IDs
 
+## Enhanced Memory and Preference System (Planned)
+
+### Overview
+The current preference system relies too heavily on explicit keyword triggers and doesn't provide meaningful context to conversations. The plan is to implement a more natural and intelligent memory system similar to ChatGPT's personalization features.
+
+### Core Components
+
+1. **Smart Preference Extraction**
+   - Replace keyword-based preference detection with intelligent LLM analysis
+   - Implement continuous context understanding during conversations
+   - Use smaller LLM model for efficient real-time analysis
+   - Extract meaningful preferences and context that actually enhance future conversations
+
+2. **Dual Memory Architecture**
+   - **Session Memory** (session_id based):
+     - Maintains conversation flow and immediate context
+     - Tracks discussion topics and temporary preferences
+     - Handles follow-up questions and conversation continuity
+   
+   - **User Memory** (user_id based):
+     - Stores long-term user preferences and characteristics
+     - Maintains consistent user understanding across sessions
+     - Handles persistent user traits and preferences
+
+3. **Database Schema Updates**
+   - Add new `user_preferences` table:
+     ```sql
+     CREATE TABLE user_preferences (
+       id SERIAL PRIMARY KEY,
+       user_id TEXT NOT NULL,
+       preference_type TEXT NOT NULL,
+       preference_value TEXT NOT NULL,
+       context TEXT,
+       confidence FLOAT,
+       created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+       updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+       last_used TIMESTAMP WITH TIME ZONE,
+       source_session TEXT
+     );
+     ```
+   - Add preference metadata improvements:
+     - Track preference strength/confidence
+     - Store contextual information
+     - Track when/where preference was learned
+     - Enable preference versioning and updates
+
+4. **Frontend Enhancements**
+   - Create new "Memory & Preferences" page:
+     - Display active user preferences with context
+     - Show preference history and changes
+     - Allow manual preference management
+     - Visualize preference confidence levels
+   - Add preference indicators in chat:
+     - Show when AI is using remembered preferences
+     - Indicate new preference learning
+     - Allow immediate preference correction
+   - Implement preference sync:
+     - Real-time updates between UI and database
+     - Conflict resolution for preference changes
+     - Batch preference updates
+
+### Implementation Status (2025-03-20)
+
+#### ✅ Completed Backend Implementation
+
+1. **Database Schema**
+   - ✅ Created new `user_preferences` table with fields for:
+     - User ID, preference type, preference value
+     - Confidence score (0-1)
+     - Context information
+     - Timestamps (created, updated, last used)
+     - Source session tracking
+     - Active/inactive flag
+   - ✅ Added database functions:
+     - `merge_preference_contexts`: Combines old and new context information
+     - `update_user_preference`: Smart upsert function for preferences
+     - `get_user_preferences`: Retrieves preferences with filtering options
+   - ✅ Created indexes for efficient querying
+
+2. **Database Client**
+   - ✅ Added methods to `SupabaseClient`:
+     - `save_user_preference`: Creates or updates preferences
+     - `get_user_preferences`: Retrieves preferences with filtering
+     - `deactivate_user_preference`: Soft-deletes preferences
+     - `delete_user_preference`: Hard-deletes preferences
+     - `get_preference_by_id`: Gets a single preference
+     - `update_preference_last_used`: Updates usage timestamp
+     - `get_preferences_by_type`: Filters by preference type
+     - `clear_user_preferences`: Removes all preferences for a user
+
+3. **ChatBot Class**
+   - ✅ Updated `add_user_message` to use LLM for preference extraction
+   - ✅ Added `analyze_for_preferences` method with intelligent detection
+   - ✅ Modified `get_response` to retrieve preferences from database
+   - ✅ Enhanced system prompt with preference context and confidence
+
+4. **API Endpoints**
+   - ✅ Added new endpoints for preference management:
+     - `GET /api/chat/preferences`: List user preferences
+     - `POST /api/chat/preferences`: Create a preference
+     - `DELETE /api/chat/preferences/{id}`: Delete a preference
+     - `PUT /api/chat/preferences/{id}/deactivate`: Deactivate a preference
+     - `DELETE /api/chat/preferences`: Clear all preferences
+
+#### Testing Instructions
+
+To test the new preference system, follow these steps:
+
+1. **Setup the Database**
+   ```bash
+   conda activate supa-crawl-chat
+   python main.py setup
+   ```
+
+2. **Test CLI Preference Extraction**
+   ```bash
+   conda activate supa-crawl-chat
+   python chat.py --user TestUser
+   ```
+   
+   Try these conversation patterns:
+   - Direct preferences: "I really enjoy programming in Python"
+   - Indirect preferences: "Whenever I need to build something quickly, I reach for JavaScript"
+   - Characteristics: "I've been a software engineer for 10 years"
+   - Opinions: "I think Docker is the best way to deploy applications"
+
+3. **Test API Endpoints**
+   ```bash
+   conda activate supa-crawl-chat
+   # Start the API server
+   cd api
+   uvicorn main:app --reload --port 8001
+   ```
+
+   Then use curl or a tool like Postman to test the endpoints:
+   
+   **List preferences:**
+   ```bash
+   curl -X GET "http://localhost:8001/api/chat/preferences?user_id=TestUser"
+   ```
+   
+   **Create a preference:**
+   ```bash
+   curl -X POST "http://localhost:8001/api/chat/preferences?user_id=TestUser" \
+     -H "Content-Type: application/json" \
+     -d '{"preference_type":"like","preference_value":"REST APIs","context":"Manually added","confidence":0.9}'
+   ```
+   
+   **Delete a preference:**
+   ```bash
+   curl -X DELETE "http://localhost:8001/api/chat/preferences/1?user_id=TestUser"
+   ```
+
+4. **Verify Memory Persistence**
+   - Start a chat session with a specific user ID
+   - Express some preferences
+   - End the session and start a new one with the same user ID
+   - Ask "What do you know about me?" or "What do I like?"
+   - The AI should recall your preferences from the previous session
+
+5. **Test Cross-Session Memory**
+   - Start a chat with user_id=UserA and session_id=Session1
+   - Express preferences
+   - Start a new chat with user_id=UserA but a different session_id
+   - The AI should remember preferences but not conversation details
+   - Start a chat with the same session_id but different user_id
+   - The AI should remember conversation details but not user preferences
+
+#### Next Steps
+
+1. **Frontend Implementation**
+   - Create "Memory & Preferences" page
+   - Add preference indicators in chat
+   - Implement preference management UI
+
+2. **Refinement**
+   - Fine-tune LLM prompt for better preference extraction
+   - Optimize confidence thresholds
+   - Add preference categorization
+   - Implement preference expiration for time-sensitive information
+
+3. **Advanced Features**
+   - Add preference strength tracking
+   - Implement preference conflict resolution
+   - Add preference versioning
+   - Create preference analytics
+
+### Notes for Development
+
+- The preference extraction is conservative by design - it's better to miss a preference than to store an incorrect one
+- The system uses a smaller LLM model for efficiency in preference extraction
+- Preferences are tied to user_id, not session_id, for long-term memory
+- The confidence score (0-1) determines how strongly the system believes in a preference
+- The context field stores why a preference was extracted, helping with debugging and explanation
+- The is_active flag allows for soft deletion of preferences
+- The last_used timestamp helps track which preferences are actively being used
+
 

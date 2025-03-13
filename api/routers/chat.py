@@ -2,6 +2,7 @@ from fastapi import APIRouter, Body, Query, HTTPException, status, Path, Depends
 from typing import List, Dict, Any, Optional
 from pydantic import BaseModel
 import uuid
+import os
 
 # Import from main project
 from chat import ChatBot
@@ -55,6 +56,43 @@ class ConversationHistoryResponse(BaseModel):
     session_id: str
     user_id: Optional[str] = None
 
+class UserPreference(BaseModel):
+    id: Optional[int] = None
+    preference_type: str
+    preference_value: str
+    context: Optional[str] = None
+    confidence: float
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+    last_used: Optional[str] = None
+    source_session: Optional[str] = None
+    is_active: bool = True
+    metadata: Optional[Dict[str, Any]] = None
+    
+    class Config:
+        arbitrary_types_allowed = True
+        
+    @classmethod
+    def from_dict(cls, pref_dict):
+        """Create a UserPreference from a dictionary, converting datetime to string if needed."""
+        for date_field in ['created_at', 'updated_at', 'last_used']:
+            if date_field in pref_dict and pref_dict[date_field] is not None:
+                if not isinstance(pref_dict[date_field], str):
+                    pref_dict[date_field] = str(pref_dict[date_field])
+        return cls(**pref_dict)
+
+class UserPreferenceCreate(BaseModel):
+    preference_type: str
+    preference_value: str
+    context: Optional[str] = None
+    confidence: float = 0.9
+    metadata: Optional[Dict[str, Any]] = None
+
+class UserPreferenceResponse(BaseModel):
+    preferences: List[UserPreference]
+    count: int
+    user_id: str
+
 # Dependency to get a ChatBot instance
 def get_chat_bot(
     model: Optional[str] = None,
@@ -65,6 +103,10 @@ def get_chat_bot(
     profile: str = "default",
 ):
     try:
+        # Get the absolute path to the profiles directory
+        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        profiles_dir = os.path.join(base_dir, "profiles")
+        
         return ChatBot(
             model=model,
             result_limit=result_limit,
@@ -72,6 +114,7 @@ def get_chat_bot(
             session_id=session_id,
             user_id=user_id,
             profile=profile,
+            profiles_dir=profiles_dir,
             verbose=False  # Always use quiet mode for API
         )
     except Exception as e:
@@ -290,4 +333,218 @@ async def clear_conversation_history(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error clearing conversation history: {str(e)}"
+        )
+
+# User Preferences Endpoints
+
+@router.get("/preferences", response_model=UserPreferenceResponse)
+async def get_user_preferences(
+    user_id: str = Query(..., description="User ID"),
+    min_confidence: float = Query(0.0, description="Minimum confidence score (0-1)"),
+    active_only: bool = Query(True, description="Whether to return only active preferences"),
+):
+    """
+    Get preferences for a user.
+    
+    - **user_id**: The user ID
+    - **min_confidence**: Minimum confidence score (0-1) for preferences to return
+    - **active_only**: Whether to return only active preferences
+    """
+    try:
+        # Initialize ChatBot
+        chat_bot = get_chat_bot(user_id=user_id)
+        
+        # Get preferences from the database
+        db_preferences = chat_bot.crawler.db_client.get_user_preferences(
+            user_id=user_id,
+            min_confidence=min_confidence,
+            active_only=active_only
+        )
+        
+        # Convert to UserPreference objects
+        preferences = [UserPreference.from_dict(pref) for pref in db_preferences]
+        
+        return UserPreferenceResponse(
+            preferences=preferences,
+            count=len(preferences),
+            user_id=user_id
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error getting user preferences: {str(e)}"
+        )
+
+@router.post("/preferences", response_model=UserPreference)
+async def create_user_preference(
+    user_id: str = Query(..., description="User ID"),
+    session_id: Optional[str] = Query(None, description="Session ID"),
+    preference: UserPreferenceCreate = Body(...),
+):
+    """
+    Create a new user preference.
+    
+    - **user_id**: The user ID
+    - **session_id**: Optional session ID
+    - **preference**: The preference to create
+    """
+    try:
+        # Initialize ChatBot
+        chat_bot = get_chat_bot(user_id=user_id, session_id=session_id)
+        
+        # Save the preference to the database
+        preference_id = chat_bot.crawler.db_client.save_user_preference(
+            user_id=user_id,
+            preference_type=preference.preference_type,
+            preference_value=preference.preference_value,
+            context=preference.context,
+            confidence=preference.confidence,
+            source_session=session_id,
+            metadata=preference.metadata
+        )
+        
+        # Get the created preference
+        created_preference = chat_bot.crawler.db_client.get_preference_by_id(preference_id)
+        
+        return UserPreference.from_dict(created_preference)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error creating user preference: {str(e)}"
+        )
+
+@router.delete("/preferences/{preference_id}", response_model=Dict[str, Any])
+async def delete_user_preference(
+    preference_id: int = Path(..., description="The ID of the preference to delete"),
+    user_id: str = Query(..., description="User ID"),
+):
+    """
+    Delete a user preference.
+    
+    - **preference_id**: The ID of the preference to delete
+    - **user_id**: The user ID
+    """
+    try:
+        # Initialize ChatBot
+        chat_bot = get_chat_bot(user_id=user_id)
+        
+        # Get the preference to verify ownership
+        preference = chat_bot.crawler.db_client.get_preference_by_id(preference_id)
+        
+        if not preference:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Preference with ID {preference_id} not found"
+            )
+        
+        if preference.get("user_id") != user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You do not have permission to delete this preference"
+            )
+        
+        # Delete the preference
+        success = chat_bot.crawler.db_client.delete_user_preference(preference_id)
+        
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to delete preference"
+            )
+        
+        return {
+            "message": f"Preference with ID {preference_id} deleted",
+            "id": preference_id,
+            "user_id": user_id
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error deleting user preference: {str(e)}"
+        )
+
+@router.put("/preferences/{preference_id}/deactivate", response_model=Dict[str, Any])
+async def deactivate_user_preference(
+    preference_id: int = Path(..., description="The ID of the preference to deactivate"),
+    user_id: str = Query(..., description="User ID"),
+):
+    """
+    Deactivate a user preference.
+    
+    - **preference_id**: The ID of the preference to deactivate
+    - **user_id**: The user ID
+    """
+    try:
+        # Initialize ChatBot
+        chat_bot = get_chat_bot(user_id=user_id)
+        
+        # Get the preference to verify ownership
+        preference = chat_bot.crawler.db_client.get_preference_by_id(preference_id)
+        
+        if not preference:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Preference with ID {preference_id} not found"
+            )
+        
+        if preference.get("user_id") != user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You do not have permission to deactivate this preference"
+            )
+        
+        # Deactivate the preference
+        success = chat_bot.crawler.db_client.deactivate_user_preference(preference_id)
+        
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to deactivate preference"
+            )
+        
+        return {
+            "message": f"Preference with ID {preference_id} deactivated",
+            "id": preference_id,
+            "user_id": user_id
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error deactivating user preference: {str(e)}"
+        )
+
+@router.delete("/preferences", response_model=Dict[str, Any])
+async def clear_user_preferences(
+    user_id: str = Query(..., description="User ID"),
+):
+    """
+    Clear all preferences for a user.
+    
+    - **user_id**: The user ID
+    """
+    try:
+        # Initialize ChatBot
+        chat_bot = get_chat_bot(user_id=user_id)
+        
+        # Clear preferences
+        success = chat_bot.crawler.db_client.clear_user_preferences(user_id)
+        
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to clear preferences"
+            )
+        
+        return {
+            "message": f"All preferences cleared for user {user_id}",
+            "user_id": user_id
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error clearing user preferences: {str(e)}"
         ) 

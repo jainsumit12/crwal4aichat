@@ -81,7 +81,148 @@ setup_statements = [
     );
     """,
     
-    # Create a function for similarity search
+    # Create user_preferences table for enhanced memory system
+    """
+    CREATE TABLE IF NOT EXISTS user_preferences (
+        id SERIAL PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        preference_type TEXT NOT NULL,
+        preference_value TEXT NOT NULL,
+        context TEXT,
+        confidence FLOAT CHECK (confidence >= 0 AND confidence <= 1),
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        last_used TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        source_session TEXT,
+        is_active BOOLEAN DEFAULT TRUE,
+        metadata JSONB
+    );
+    """,
+    
+    # Create indexes for user_preferences
+    """
+    CREATE INDEX IF NOT EXISTS idx_user_preferences_user_id ON user_preferences(user_id);
+    CREATE INDEX IF NOT EXISTS idx_user_preferences_type ON user_preferences(preference_type);
+    CREATE INDEX IF NOT EXISTS idx_user_preferences_last_used ON user_preferences(last_used);
+    CREATE INDEX IF NOT EXISTS idx_user_preferences_confidence ON user_preferences(confidence);
+    """,
+    
+    # Create function to merge preference contexts
+    """
+    CREATE OR REPLACE FUNCTION merge_preference_contexts(old_context TEXT, new_context TEXT)
+    RETURNS TEXT
+    LANGUAGE plpgsql
+    AS $$
+    BEGIN
+        IF old_context IS NULL THEN
+            RETURN new_context;
+        ELSIF new_context IS NULL THEN
+            RETURN old_context;
+        ELSE
+            RETURN old_context || ' | ' || new_context;
+        END IF;
+    END;
+    $$;
+    """,
+    
+    # Create function to update user preference
+    """
+    CREATE OR REPLACE FUNCTION update_user_preference(
+        p_user_id TEXT,
+        p_preference_type TEXT,
+        p_preference_value TEXT,
+        p_context TEXT,
+        p_confidence FLOAT,
+        p_source_session TEXT,
+        p_metadata JSONB
+    )
+    RETURNS user_preferences
+    LANGUAGE plpgsql
+    AS $$
+    DECLARE
+        v_preference user_preferences;
+    BEGIN
+        -- Try to update existing preference
+        UPDATE user_preferences
+        SET 
+            confidence = GREATEST(confidence, p_confidence),
+            context = merge_preference_contexts(context, p_context),
+            last_used = CURRENT_TIMESTAMP,
+            updated_at = CURRENT_TIMESTAMP,
+            metadata = COALESCE(metadata, '{}'::jsonb) || COALESCE(p_metadata, '{}'::jsonb)
+        WHERE 
+            user_id = p_user_id 
+            AND preference_type = p_preference_type 
+            AND preference_value = p_preference_value
+        RETURNING * INTO v_preference;
+        
+        -- If no row was updated, insert new preference
+        IF v_preference IS NULL THEN
+            INSERT INTO user_preferences (
+                user_id,
+                preference_type,
+                preference_value,
+                context,
+                confidence,
+                source_session,
+                metadata
+            )
+            VALUES (
+                p_user_id,
+                p_preference_type,
+                p_preference_value,
+                p_context,
+                p_confidence,
+                p_source_session,
+                p_metadata
+            )
+            RETURNING * INTO v_preference;
+        END IF;
+        
+        RETURN v_preference;
+    END;
+    $$;
+    """,
+    
+    # Create function to get user preferences
+    """
+    CREATE OR REPLACE FUNCTION get_user_preferences(
+        p_user_id TEXT,
+        p_min_confidence FLOAT DEFAULT 0.0,
+        p_active_only BOOLEAN DEFAULT TRUE
+    )
+    RETURNS TABLE (
+        id INTEGER,
+        preference_type TEXT,
+        preference_value TEXT,
+        context TEXT,
+        confidence FLOAT,
+        last_used TIMESTAMP WITH TIME ZONE,
+        metadata JSONB
+    )
+    LANGUAGE plpgsql
+    AS $$
+    BEGIN
+        RETURN QUERY
+        SELECT 
+            up.id,
+            up.preference_type,
+            up.preference_value,
+            up.context,
+            up.confidence,
+            up.last_used,
+            up.metadata
+        FROM user_preferences up
+        WHERE 
+            up.user_id = p_user_id
+            AND up.confidence >= p_min_confidence
+            AND (NOT p_active_only OR up.is_active = TRUE)
+        ORDER BY up.confidence DESC, up.last_used DESC;
+    END;
+    $$;
+    """,
+    
+    # Create function for similarity search
     """
     CREATE OR REPLACE FUNCTION match_page_embeddings(
         query_embedding VECTOR(1536),
@@ -156,6 +297,14 @@ setup_statements = [
     DROP TRIGGER IF EXISTS update_pages_updated_at ON crawl_pages;
     CREATE TRIGGER update_pages_updated_at
     BEFORE UPDATE ON crawl_pages
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column()
+    """,
+    
+    """
+    DROP TRIGGER IF EXISTS update_preferences_updated_at ON user_preferences;
+    CREATE TRIGGER update_preferences_updated_at
+    BEFORE UPDATE ON user_preferences
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column()
     """

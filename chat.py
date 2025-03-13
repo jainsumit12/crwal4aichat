@@ -402,42 +402,38 @@ class ChatBot:
         # Base metadata with profile information
         metadata = {"profile": self.profile_name}
         
-        # Check for preference keywords
-        preference_keywords = ["like", "love", "prefer", "favorite", "enjoy", "hate", "dislike"]
-        has_preference = any(keyword in content.lower() for keyword in preference_keywords)
-        
-        # If the message might contain a preference, use the LLM to extract it properly
-        if has_preference and len(self.conversation_history) >= 2:
+        # Extract preferences using LLM if we have a user_id
+        if self.user_id and len(self.conversation_history) >= 2:
             try:
-                # Create a prompt for the LLM to extract preferences
-                prompt = f"""Extract any clear user preference from this message: "{content}"
-
-If the user expresses a preference (like, love, prefer, favorite, enjoy, hate, dislike), 
-extract it in the format: "ACTION OBJECT" (e.g., "like corvettes", "hate brussels sprouts")
-
-Only extract clear, specific preferences. If there's no clear preference, respond with "NONE".
-Keep it concise (2-4 words) and focus on the main preference only.
-"""
+                # Get recent conversation context
+                recent_messages = self.conversation_history[-5:] if len(self.conversation_history) > 5 else self.conversation_history
+                context = []
+                for msg in recent_messages:
+                    if msg["role"] != "system":  # Skip system messages
+                        context.append(f"{msg['role'].capitalize()}: {msg['content']}")
                 
-                # Use a smaller model for this extraction
-                extraction_model = os.getenv("CHAT_MODEL", "gpt-4o-mini")
+                # Extract preferences using LLM
+                preferences = self.analyze_for_preferences(content, "\n".join(context))
                 
-                response = self.client.chat.completions.create(
-                    model=extraction_model,
-                    messages=[{"role": "user", "content": prompt}],
-                    temperature=0.3,
-                    max_tokens=50
-                )
-                
-                # Extract the preference
-                preference = response.choices[0].message.content.strip()
-                
-                # Only save if it's a valid preference
-                if preference and preference != "NONE":
-                    metadata["preference"] = preference
-                    console.print(f"[dim blue]Saved preference: {preference}[/dim blue]")
+                # If preferences were found, add them to metadata and save to database
+                if preferences:
+                    for pref in preferences:
+                        # Add to metadata
+                        metadata["preference"] = f"{pref['preference_type']} {pref['preference_value']}"
+                        console.print(f"[dim blue]Extracted preference: {pref['preference_type']} {pref['preference_value']} (confidence: {pref['confidence']:.2f})[/dim blue]")
+                        
+                        # Save to user preferences database
+                        self.crawler.db_client.save_user_preference(
+                            user_id=self.user_id,
+                            preference_type=pref["preference_type"],
+                            preference_value=pref["preference_value"],
+                            context=pref["context"],
+                            confidence=pref["confidence"],
+                            source_session=self.session_id,
+                            metadata={"message_content": content}
+                        )
             except Exception as e:
-                console.print(f"[dim red]Error extracting preference: {e}[/dim red]")
+                console.print(f"[dim red]Error extracting preferences: {e}[/dim red]")
         
         # Save to database
         try:
@@ -450,6 +446,149 @@ Keep it concise (2-4 words) and focus on the main preference only.
             )
         except Exception as e:
             console.print(f"[red]Error saving user message to database: {e}[/red]")
+    
+    def analyze_for_preferences(self, message_content: str, context: str) -> List[Dict[str, Any]]:
+        """Analyze message for meaningful preferences using LLM.
+        
+        Args:
+            message_content: The message content to analyze.
+            context: Recent conversation context.
+            
+        Returns:
+            List of extracted preferences with confidence scores.
+        """
+        # Create a prompt for the LLM to extract preferences
+        prompt = f"""Analyze this message for meaningful user information, preferences, traits, or characteristics:
+
+Message: "{message_content}"
+
+Recent Context:
+{context}
+
+Extract meaningful information about the user that would be helpful to remember for future conversations.
+Consider a wide range of information types:
+- Preferences (likes, dislikes)
+- Expertise areas or skills
+- Experience levels
+- Background information
+- Goals or aspirations
+- Challenges or pain points
+- Work context or industry
+- Tools or technologies used
+- Learning interests
+- Personal traits or characteristics
+
+Format as a JSON object with a 'preferences' array containing objects with these fields:
+- preference_type: (more specific than just like/dislike - use categories like expertise, experience, background, goal, challenge, tool, interest, trait, etc.)
+- preference_value: (the specific information)
+- confidence: (0.0-1.0)
+- context: (brief explanation of why this was extracted)
+
+Only extract information that would be genuinely useful to remember for future conversations.
+Return empty preferences array if no meaningful information found.
+
+Example valid response:
+{{
+  "preferences": [
+    {{
+      "preference_type": "expertise",
+      "preference_value": "Python programming",
+      "confidence": 0.95,
+      "context": "User mentioned having 5 years of experience with Python"
+    }},
+    {{
+      "preference_type": "challenge",
+      "preference_value": "Learning Ruby syntax",
+      "confidence": 0.85,
+      "context": "User expressed finding Ruby syntax confusing and difficult to learn"
+    }},
+    {{
+      "preference_type": "goal",
+      "preference_value": "Building web applications",
+      "confidence": 0.8,
+      "context": "User mentioned wanting to build web applications as their primary goal"
+    }}
+  ]
+}}
+"""
+        
+        # Use a smaller model for this extraction
+        extraction_model = os.getenv("CHAT_MODEL", "gpt-4o-mini")
+        
+        try:
+            console.print(f"[blue]Analyzing message for preferences using {extraction_model}...[/blue]")
+            console.print(f"[dim]Prompt: {prompt}[/dim]")
+            
+            # Create a wrapper for the prompt to ensure we get a JSON array
+            response = self.client.chat.completions.create(
+                model=extraction_model,
+                messages=[
+                    {"role": "system", "content": "You are a preference extraction assistant. Always return a JSON object with a 'preferences' array."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.3,
+                max_tokens=500,
+                response_format={"type": "json_object"}
+            )
+            
+            # Extract the response
+            response_text = response.choices[0].message.content.strip()
+            console.print(f"[dim]Raw response: {response_text}[/dim]")
+            
+            # Parse the JSON response
+            try:
+                parsed_response = json.loads(response_text)
+                console.print(f"[dim]Parsed response: {json.dumps(parsed_response, indent=2)}[/dim]")
+                
+                # Handle different response formats
+                if isinstance(parsed_response, dict) and 'preferences' in parsed_response:
+                    # Standard format with preferences key
+                    preferences = parsed_response['preferences']
+                    console.print(f"[dim]Response has 'preferences' key with {len(preferences)} items[/dim]")
+                elif isinstance(parsed_response, list):
+                    # Direct array format
+                    preferences = parsed_response
+                    console.print(f"[dim]Response is a list with {len(preferences)} items[/dim]")
+                elif isinstance(parsed_response, dict) and 'preference_type' in parsed_response and 'preference_value' in parsed_response:
+                    # Single preference object
+                    preferences = [parsed_response]
+                    console.print(f"[dim]Response is a single preference object[/dim]")
+                else:
+                    # No recognizable format
+                    console.print(f"[dim]Response is not in a recognized format[/dim]")
+                    preferences = []
+                
+                # Validate each preference
+                valid_preferences = []
+                for pref in preferences:
+                    if (
+                        isinstance(pref, dict) and
+                        'preference_type' in pref and
+                        'preference_value' in pref
+                    ):
+                        # Ensure confidence is a float between 0 and 1
+                        if 'confidence' not in pref:
+                            pref['confidence'] = 0.8  # Default confidence
+                        else:
+                            pref['confidence'] = float(pref['confidence'])
+                            if pref['confidence'] < 0:
+                                pref['confidence'] = 0.0
+                            elif pref['confidence'] > 1:
+                                pref['confidence'] = 1.0
+                        
+                        # Add context if missing
+                        if 'context' not in pref:
+                            pref['context'] = f"Extracted from: {message_content}"
+                        
+                        valid_preferences.append(pref)
+                
+                return valid_preferences
+            except json.JSONDecodeError:
+                console.print(f"[dim red]Error parsing preference JSON: {response_text}[/dim red]")
+                return []
+        except Exception as e:
+            console.print(f"[dim red]Error in preference extraction: {e}[/dim red]")
+            return []
     
     def add_assistant_message(self, content: str):
         """Add an assistant message to the conversation history.
@@ -1009,19 +1148,56 @@ List ONLY the 3-5 most important entities, separated by commas. No explanations.
         time_str = now.strftime("%I:%M %p")
         system_prompt += f"\n\nThe current date is {date_str} and the time is {time_str}."
         
-        # Extract user preferences from conversation history
-        preferences = []
-        for message in self.conversation_history:
-            if message.get("metadata") and "preference" in message.get("metadata", {}):
-                preference = message["metadata"]["preference"]
-                if preference not in preferences:
-                    preferences.append(preference)
+        # Get user preferences from the database
+        user_preferences = []
+        if self.user_id:
+            try:
+                # Get preferences from the database with a minimum confidence of 0.7
+                db_preferences = self.crawler.db_client.get_user_preferences(
+                    user_id=self.user_id,
+                    min_confidence=0.7,
+                    active_only=True
+                )
+                
+                # Format preferences for the system prompt
+                for pref in db_preferences:
+                    pref_type = pref.get("preference_type", "")
+                    pref_value = pref.get("preference_value", "")
+                    confidence = pref.get("confidence", 0.0)
+                    context = pref.get("context", "")
+                    
+                    # Update the last_used timestamp for this preference
+                    self.crawler.db_client.update_preference_last_used(pref.get("id"))
+                    
+                    # Add to the list of preferences
+                    user_preferences.append({
+                        "type": pref_type,
+                        "value": pref_value,
+                        "confidence": confidence,
+                        "context": context
+                    })
+            except Exception as e:
+                console.print(f"[red]Error getting user preferences from database: {e}[/red]")
         
         # Add user preferences to the system prompt if available
-        if preferences:
-            system_prompt += "\n\nUser preferences from previous conversations:"
-            for preference in preferences:
-                system_prompt += f"\n- {preference}"
+        if user_preferences:
+            system_prompt += "\n\nUser information from previous conversations:"
+            
+            # Group preferences by type for better organization
+            preference_by_type = {}
+            for pref in user_preferences:
+                pref_type = pref['type']
+                if pref_type not in preference_by_type:
+                    preference_by_type[pref_type] = []
+                preference_by_type[pref_type].append(pref)
+            
+            # Add preferences by type
+            for pref_type, prefs in preference_by_type.items():
+                system_prompt += f"\n\n{pref_type.capitalize()}:"
+                for pref in prefs:
+                    system_prompt += f"\n- {pref['value']} (confidence: {pref['confidence']:.2f})"
+                    if pref.get('context'):
+                        system_prompt += f" - {pref['context']}"
         
         # Create a system message that guides the LLM's behavior
         system_message = f"""You are acting according to this profile: {self.profile_name}
@@ -1236,35 +1412,175 @@ For example, change 'https://example.com/page/#chunk-0' to 'https://example.com/
                         console.print("[green]Exiting chat. Goodbye![/green]")
                         break
                     
-                    # Check if the user wants to clear the current conversation history
-                    if query.lower() == 'clear':
+                    # Check for clear command
+                    if query.lower() == "clear":
                         self.clear_conversation_history()
+                        console.print("[green]Conversation history cleared for this session[/green]")
                         continue
                     
-                    # Check if the user wants to clear ALL conversation history
-                    if query.lower() == 'clear all':
-                        # Ask for confirmation
-                        confirm = Prompt.ask("[bold red]This will delete ALL conversation history for ALL sessions. Are you sure?[/bold red] (yes/no)")
-                        if confirm.lower() in ['yes', 'y']:
+                    # Check for clear all command
+                    if query.lower() == "clear all":
+                        if Confirm.ask("[bold red]Are you sure you want to clear ALL conversation history?[/bold red]"):
                             self.clear_all_conversation_history()
-                        else:
-                            console.print("[green]Operation cancelled[/green]")
+                        console.print("[green]All conversation history cleared[/green]")
                         continue
                     
-                    # Check if the user wants to view the conversation history
-                    if query.lower() == 'history':
+                    # Check for history command
+                    if query.lower() == "history":
                         self.show_conversation_history()
                         continue
                     
-                    # Check if the user wants to list available profiles
-                    if query.lower() == 'profiles':
+                    # Check for profiles command
+                    if query.lower() == "profiles":
                         self.show_profiles()
                         continue
                     
-                    # Check if the user wants to change the profile
-                    if query.lower().startswith('profile '):
-                        profile_name = query.lower().split('profile ')[1].strip()
+                    # Check for profile command
+                    if query.lower().startswith("profile "):
+                        profile_name = query.split(" ", 1)[1].strip()
                         self.change_profile(profile_name)
+                        continue
+                    
+                    # Check for preferences command
+                    if query.lower() == "preferences":
+                        if not self.user_id:
+                            console.print("[yellow]No user ID provided. Preferences are only stored for identified users.[/yellow]")
+                            console.print("[yellow]Restart with --user <name> to use preferences.[/yellow]")
+                        else:
+                            # Get preferences from the database
+                            try:
+                                preferences = self.crawler.db_client.get_user_preferences(
+                                    user_id=self.user_id,
+                                    min_confidence=0.0,
+                                    active_only=True
+                                )
+                                
+                                if not preferences:
+                                    console.print("[yellow]No preferences found for this user.[/yellow]")
+                                else:
+                                    # Create a table for the preferences
+                                    table = Table(title=f"Preferences for {self.user_id}")
+                                    table.add_column("ID", style="cyan")
+                                    table.add_column("Type", style="green")
+                                    table.add_column("Value", style="blue")
+                                    table.add_column("Confidence", style="yellow")
+                                    table.add_column("Context", style="magenta")
+                                    table.add_column("Last Used", style="dim")
+                                    
+                                    for pref in preferences:
+                                        table.add_row(
+                                            str(pref.get("id", "")),
+                                            pref.get("preference_type", ""),
+                                            pref.get("preference_value", ""),
+                                            f"{pref.get('confidence', 0.0):.2f}",
+                                            pref.get("context", "")[:50] + ("..." if len(pref.get("context", "")) > 50 else ""),
+                                            str(pref.get("last_used", ""))
+                                        )
+                                    
+                                    console.print(table)
+                            except Exception as e:
+                                console.print(f"[red]Error getting preferences: {e}[/red]")
+                        continue
+                    
+                    # Check for add preference command
+                    if query.lower().startswith("add preference "):
+                        if not self.user_id:
+                            console.print("[yellow]No user ID provided. Preferences are only stored for identified users.[/yellow]")
+                            console.print("[yellow]Restart with --user <name> to use preferences.[/yellow]")
+                        else:
+                            # Parse the preference
+                            try:
+                                # Format: add preference <type> <value> [confidence]
+                                parts = query[14:].strip().split(" ", 2)
+                                if len(parts) < 2:
+                                    console.print("[yellow]Invalid format. Use: add preference <type> <value> [confidence][/yellow]")
+                                    console.print("[yellow]Example: add preference like Python 0.9[/yellow]")
+                                else:
+                                    pref_type = parts[0]
+                                    
+                                    # Check if confidence is provided
+                                    if len(parts) == 3 and parts[2].replace(".", "", 1).isdigit():
+                                        pref_value = parts[1]
+                                        confidence = float(parts[2])
+                                    else:
+                                        # If no confidence or not a valid number, combine the rest as the value
+                                        pref_value = " ".join(parts[1:])
+                                        confidence = 0.9  # Default confidence
+                                    
+                                    # Add the preference
+                                    pref_id = self.crawler.db_client.save_user_preference(
+                                        user_id=self.user_id,
+                                        preference_type=pref_type,
+                                        preference_value=pref_value,
+                                        context="Manually added via CLI",
+                                        confidence=confidence,
+                                        source_session=self.session_id,
+                                        metadata={"source": "cli_manual_entry"}
+                                    )
+                                    
+                                    if pref_id > 0:
+                                        console.print(f"[green]Preference added with ID: {pref_id}[/green]")
+                                    else:
+                                        console.print("[red]Failed to add preference[/red]")
+                            except Exception as e:
+                                console.print(f"[red]Error adding preference: {e}[/red]")
+                        continue
+                    
+                    # Check for delete preference command
+                    if query.lower().startswith("delete preference "):
+                        if not self.user_id:
+                            console.print("[yellow]No user ID provided. Preferences are only stored for identified users.[/yellow]")
+                            console.print("[yellow]Restart with --user <name> to use preferences.[/yellow]")
+                        else:
+                            # Parse the preference ID
+                            try:
+                                pref_id = int(query[17:].strip())
+                                
+                                # Delete the preference
+                                success = self.crawler.db_client.delete_user_preference(pref_id)
+                                
+                                if success:
+                                    console.print(f"[green]Preference with ID {pref_id} deleted[/green]")
+                                else:
+                                    console.print(f"[red]Failed to delete preference with ID {pref_id}[/red]")
+                            except ValueError:
+                                console.print("[yellow]Invalid preference ID. Use: delete preference <id>[/yellow]")
+                            except Exception as e:
+                                console.print(f"[red]Error deleting preference: {e}[/red]")
+                        continue
+                    
+                    # Check for clear preferences command
+                    if query.lower() == "clear preferences":
+                        if not self.user_id:
+                            console.print("[yellow]No user ID provided. Preferences are only stored for identified users.[/yellow]")
+                            console.print("[yellow]Restart with --user <name> to use preferences.[/yellow]")
+                        else:
+                            if Confirm.ask("[bold red]Are you sure you want to clear ALL preferences for this user?[/bold red]"):
+                                try:
+                                    success = self.crawler.db_client.clear_user_preferences(self.user_id)
+                                    
+                                    if success:
+                                        console.print(f"[green]All preferences cleared for user {self.user_id}[/green]")
+                                    else:
+                                        console.print("[red]Failed to clear preferences[/red]")
+                                except Exception as e:
+                                    console.print(f"[red]Error clearing preferences: {e}[/red]")
+                        continue
+                    
+                    # Check for help command
+                    if query.lower() in ["help", "?"]:
+                        console.print("\n[bold]Available Commands:[/bold]")
+                        console.print("  [cyan]exit, quit, bye, goodbye, q[/cyan] - Exit the chat")
+                        console.print("  [cyan]clear[/cyan] - Clear conversation history for this session")
+                        console.print("  [cyan]clear all[/cyan] - Clear ALL conversation history")
+                        console.print("  [cyan]history[/cyan] - View conversation history")
+                        console.print("  [cyan]profiles[/cyan] - List available profiles")
+                        console.print("  [cyan]profile <name>[/cyan] - Change to a different profile")
+                        console.print("  [cyan]preferences[/cyan] - List your preferences")
+                        console.print("  [cyan]add preference <type> <value> [confidence][/cyan] - Add a new preference")
+                        console.print("  [cyan]delete preference <id>[/cyan] - Delete a preference")
+                        console.print("  [cyan]clear preferences[/cyan] - Clear all your preferences")
+                        console.print("  [cyan]help, ?[/cyan] - Show this help message")
                         continue
                     
                     # Show thinking indicator
@@ -1517,6 +1833,148 @@ def main():
                 chat_bot.change_profile(profile_name)
                 continue
             
+            # Check for preferences command
+            if user_input.lower() == "preferences":
+                if not chat_bot.user_id:
+                    console.print("[yellow]No user ID provided. Preferences are only stored for identified users.[/yellow]")
+                    console.print("[yellow]Restart with --user <name> to use preferences.[/yellow]")
+                else:
+                    # Get preferences from the database
+                    try:
+                        preferences = chat_bot.crawler.db_client.get_user_preferences(
+                            user_id=chat_bot.user_id,
+                            min_confidence=0.0,
+                            active_only=True
+                        )
+                        
+                        if not preferences:
+                            console.print("[yellow]No preferences found for this user.[/yellow]")
+                        else:
+                            # Create a table for the preferences
+                            table = Table(title=f"Preferences for {chat_bot.user_id}")
+                            table.add_column("ID", style="cyan")
+                            table.add_column("Type", style="green")
+                            table.add_column("Value", style="blue")
+                            table.add_column("Confidence", style="yellow")
+                            table.add_column("Context", style="magenta")
+                            table.add_column("Last Used", style="dim")
+                            
+                            for pref in preferences:
+                                table.add_row(
+                                    str(pref.get("id", "")),
+                                    pref.get("preference_type", ""),
+                                    pref.get("preference_value", ""),
+                                    f"{pref.get('confidence', 0.0):.2f}",
+                                    pref.get("context", "")[:50] + ("..." if len(pref.get("context", "")) > 50 else ""),
+                                    str(pref.get("last_used", ""))
+                                )
+                            
+                            console.print(table)
+                    except Exception as e:
+                        console.print(f"[red]Error getting preferences: {e}[/red]")
+                continue
+            
+            # Check for add preference command
+            if user_input.lower().startswith("add preference "):
+                if not chat_bot.user_id:
+                    console.print("[yellow]No user ID provided. Preferences are only stored for identified users.[/yellow]")
+                    console.print("[yellow]Restart with --user <name> to use preferences.[/yellow]")
+                else:
+                    # Parse the preference
+                    try:
+                        # Format: add preference <type> <value> [confidence]
+                        parts = user_input[14:].strip().split(" ", 2)
+                        if len(parts) < 2:
+                            console.print("[yellow]Invalid format. Use: add preference <type> <value> [confidence][/yellow]")
+                            console.print("[yellow]Example: add preference like Python 0.9[/yellow]")
+                        else:
+                            pref_type = parts[0]
+                            
+                            # Check if confidence is provided
+                            if len(parts) == 3 and parts[2].replace(".", "", 1).isdigit():
+                                pref_value = parts[1]
+                                confidence = float(parts[2])
+                            else:
+                                # If no confidence or not a valid number, combine the rest as the value
+                                pref_value = " ".join(parts[1:])
+                                confidence = 0.9  # Default confidence
+                            
+                            # Add the preference
+                            pref_id = chat_bot.crawler.db_client.save_user_preference(
+                                user_id=chat_bot.user_id,
+                                preference_type=pref_type,
+                                preference_value=pref_value,
+                                context="Manually added via CLI",
+                                confidence=confidence,
+                                source_session=chat_bot.session_id,
+                                metadata={"source": "cli_manual_entry"}
+                            )
+                            
+                            if pref_id > 0:
+                                console.print(f"[green]Preference added with ID: {pref_id}[/green]")
+                            else:
+                                console.print("[red]Failed to add preference[/red]")
+                    except Exception as e:
+                        console.print(f"[red]Error adding preference: {e}[/red]")
+                continue
+            
+            # Check for delete preference command
+            if user_input.lower().startswith("delete preference "):
+                if not chat_bot.user_id:
+                    console.print("[yellow]No user ID provided. Preferences are only stored for identified users.[/yellow]")
+                    console.print("[yellow]Restart with --user <name> to use preferences.[/yellow]")
+                else:
+                    # Parse the preference ID
+                    try:
+                        pref_id = int(user_input[17:].strip())
+                        
+                        # Delete the preference
+                        success = chat_bot.crawler.db_client.delete_user_preference(pref_id)
+                        
+                        if success:
+                            console.print(f"[green]Preference with ID {pref_id} deleted[/green]")
+                        else:
+                            console.print(f"[red]Failed to delete preference with ID {pref_id}[/red]")
+                    except ValueError:
+                        console.print("[yellow]Invalid preference ID. Use: delete preference <id>[/yellow]")
+                    except Exception as e:
+                        console.print(f"[red]Error deleting preference: {e}[/red]")
+                continue
+            
+            # Check for clear preferences command
+            if user_input.lower() == "clear preferences":
+                if not chat_bot.user_id:
+                    console.print("[yellow]No user ID provided. Preferences are only stored for identified users.[/yellow]")
+                    console.print("[yellow]Restart with --user <name> to use preferences.[/yellow]")
+                else:
+                    if Confirm.ask("[bold red]Are you sure you want to clear ALL preferences for this user?[/bold red]"):
+                        try:
+                            success = chat_bot.crawler.db_client.clear_user_preferences(chat_bot.user_id)
+                            
+                            if success:
+                                console.print(f"[green]All preferences cleared for user {chat_bot.user_id}[/green]")
+                            else:
+                                console.print("[red]Failed to clear preferences[/red]")
+                        except Exception as e:
+                            console.print(f"[red]Error clearing preferences: {e}[/red]")
+                continue
+            
+            # Check for help command
+            if user_input.lower() in ["help", "?"]:
+                console.print("\n[bold]Available Commands:[/bold]")
+                console.print("  [cyan]exit, quit, bye, goodbye, q[/cyan] - Exit the chat")
+                console.print("  [cyan]clear[/cyan] - Clear conversation history for this session")
+                console.print("  [cyan]clear all[/cyan] - Clear ALL conversation history")
+                console.print("  [cyan]history[/cyan] - View conversation history")
+                console.print("  [cyan]profiles[/cyan] - List available profiles")
+                console.print("  [cyan]profile <name>[/cyan] - Change to a different profile")
+                console.print("  [cyan]preferences[/cyan] - List your preferences")
+                console.print("  [cyan]add preference <type> <value> [confidence][/cyan] - Add a new preference")
+                console.print("  [cyan]delete preference <id>[/cyan] - Delete a preference")
+                console.print("  [cyan]clear preferences[/cyan] - Clear all your preferences")
+                console.print("  [cyan]help, ?[/cyan] - Show this help message")
+                continue
+            
             # Process the user input
             console.print("Searching all sites...")
             
@@ -1531,7 +1989,7 @@ def main():
             
             # Print the response
             console.print("\nAssistant", style="bold")
-            console.print(Panel(response, border_style="green"))
+            console.print(Panel(Markdown(response), border_style="green"))
             
     except KeyboardInterrupt:
         console.print("\n[yellow]Chat session interrupted[/yellow]")

@@ -60,12 +60,12 @@ app.add_middleware(
 )
 
 # Include routers
-print("Registering routers...")
-print(f"Search router: {search.router}")
-print(f"Crawl router: {crawl.router}")
-print(f"Chat router: {chat.router}")
-print(f"Sites router: {sites.router}")
-print(f"Pages router: {pages.router}")
+# print("Registering routers...")
+# print(f"Search router: {search.router}")
+# print(f"Crawl router: {crawl.router}")
+# print(f"Chat router: {chat.router}")
+# print(f"Sites router: {sites.router}")
+# print(f"Pages router: {pages.router}")
 
 app.include_router(search.router, prefix="/api/search", tags=["search"])
 app.include_router(crawl.router, prefix="/api/crawl", tags=["crawl"])

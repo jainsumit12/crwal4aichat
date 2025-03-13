@@ -1479,4 +1479,362 @@ class SupabaseClient:
             raise
         finally:
             if conn:
+                conn.close()
+    
+    # User Preferences Methods
+    
+    def save_user_preference(self, user_id: str, preference_type: str, preference_value: str, 
+                            context: Optional[str] = None, confidence: float = 0.8,
+                            source_session: Optional[str] = None, 
+                            metadata: Optional[Dict[str, Any]] = None) -> int:
+        """Save or update a user preference.
+        
+        Args:
+            user_id: The user ID.
+            preference_type: The type of preference (e.g., 'like', 'dislike', 'trait').
+            preference_value: The value of the preference.
+            context: Optional context for the preference.
+            confidence: Confidence score (0-1) for the preference.
+            source_session: Optional session ID where the preference was detected.
+            metadata: Optional additional metadata.
+            
+        Returns:
+            The ID of the preference.
+        """
+        conn = None
+        try:
+            conn = self._get_connection()
+            cur = conn.cursor()
+            
+            # Use the database function to update or insert the preference
+            cur.execute(
+                """
+                SELECT * FROM update_user_preference(
+                    %s, %s, %s, %s, %s, %s, %s
+                )
+                """,
+                (
+                    user_id,
+                    preference_type,
+                    preference_value,
+                    context,
+                    confidence,
+                    source_session,
+                    Json(metadata) if metadata else None
+                )
+            )
+            
+            # Get the result
+            result = cur.fetchone()
+            conn.commit()
+            
+            # Return the ID
+            return result[0] if result else -1
+            
+        except Exception as e:
+            print_error(f"Error saving user preference: {e}")
+            if conn:
+                conn.rollback()
+            return -1
+        finally:
+            if conn:
+                conn.close()
+    
+    def get_user_preferences(self, user_id: str, min_confidence: float = 0.0, 
+                            active_only: bool = True) -> List[Dict[str, Any]]:
+        """Get preferences for a user.
+        
+        Args:
+            user_id: The user ID.
+            min_confidence: Minimum confidence score (0-1) for preferences to return.
+            active_only: Whether to return only active preferences.
+            
+        Returns:
+            List of user preferences.
+        """
+        conn = None
+        try:
+            conn = self._get_connection()
+            cur = conn.cursor()
+            
+            # Use the database function to get preferences
+            cur.execute(
+                """
+                SELECT * FROM get_user_preferences(%s, %s, %s)
+                """,
+                (user_id, min_confidence, active_only)
+            )
+            
+            # Convert results to dictionaries
+            columns = [desc[0] for desc in cur.description]
+            preferences = []
+            
+            for row in cur.fetchall():
+                preference = dict(zip(columns, row))
+                
+                # Convert metadata from JSON to dict if it exists
+                if preference.get('metadata') and isinstance(preference['metadata'], str):
+                    preference['metadata'] = json.loads(preference['metadata'])
+                
+                preferences.append(preference)
+            
+            return preferences
+            
+        except Exception as e:
+            print_error(f"Error getting user preferences: {e}")
+            return []
+        finally:
+            if conn:
+                conn.close()
+    
+    def deactivate_user_preference(self, preference_id: int) -> bool:
+        """Deactivate a user preference.
+        
+        Args:
+            preference_id: The ID of the preference to deactivate.
+            
+        Returns:
+            True if successful, False otherwise.
+        """
+        conn = None
+        try:
+            conn = self._get_connection()
+            cur = conn.cursor()
+            
+            # Update the preference
+            cur.execute(
+                """
+                UPDATE user_preferences
+                SET is_active = FALSE, updated_at = CURRENT_TIMESTAMP
+                WHERE id = %s
+                """,
+                (preference_id,)
+            )
+            
+            conn.commit()
+            return True
+            
+        except Exception as e:
+            print_error(f"Error deactivating user preference: {e}")
+            if conn:
+                conn.rollback()
+            return False
+        finally:
+            if conn:
+                conn.close()
+    
+    def delete_user_preference(self, preference_id: int) -> bool:
+        """Delete a user preference.
+        
+        Args:
+            preference_id: The ID of the preference to delete.
+            
+        Returns:
+            True if successful, False otherwise.
+        """
+        conn = None
+        try:
+            conn = self._get_connection()
+            cur = conn.cursor()
+            
+            # Delete the preference
+            cur.execute(
+                """
+                DELETE FROM user_preferences
+                WHERE id = %s
+                """,
+                (preference_id,)
+            )
+            
+            conn.commit()
+            return True
+            
+        except Exception as e:
+            print_error(f"Error deleting user preference: {e}")
+            if conn:
+                conn.rollback()
+            return False
+        finally:
+            if conn:
+                conn.close()
+    
+    def get_preference_by_id(self, preference_id: int) -> Optional[Dict[str, Any]]:
+        """Get a preference by ID.
+        
+        Args:
+            preference_id: The ID of the preference to get.
+            
+        Returns:
+            The preference, or None if not found.
+        """
+        conn = None
+        try:
+            conn = self._get_connection()
+            cur = conn.cursor()
+            
+            # Get the preference
+            cur.execute(
+                """
+                SELECT 
+                    id, user_id, preference_type, preference_value, 
+                    context, confidence, created_at, updated_at,
+                    last_used, source_session, is_active, metadata
+                FROM user_preferences
+                WHERE id = %s
+                """,
+                (preference_id,)
+            )
+            
+            # Get the result
+            row = cur.fetchone()
+            if not row:
+                return None
+                
+            # Convert to dictionary
+            columns = [desc[0] for desc in cur.description]
+            preference = dict(zip(columns, row))
+            
+            # Convert metadata from JSON to dict if it exists
+            if preference.get('metadata') and isinstance(preference['metadata'], str):
+                preference['metadata'] = json.loads(preference['metadata'])
+            
+            # Convert datetime objects to strings
+            for date_field in ['created_at', 'updated_at', 'last_used']:
+                if preference.get(date_field) and not isinstance(preference[date_field], str):
+                    preference[date_field] = str(preference[date_field])
+                
+            return preference
+            
+        except Exception as e:
+            print_error(f"Error getting preference by ID: {e}")
+            return None
+        finally:
+            if conn:
+                conn.close()
+    
+    def update_preference_last_used(self, preference_id: int) -> bool:
+        """Update the last_used timestamp for a preference.
+        
+        Args:
+            preference_id: The ID of the preference to update.
+            
+        Returns:
+            True if successful, False otherwise.
+        """
+        conn = None
+        try:
+            conn = self._get_connection()
+            cur = conn.cursor()
+            
+            # Update the preference
+            cur.execute(
+                """
+                UPDATE user_preferences
+                SET last_used = CURRENT_TIMESTAMP
+                WHERE id = %s
+                """,
+                (preference_id,)
+            )
+            
+            conn.commit()
+            return True
+            
+        except Exception as e:
+            print_error(f"Error updating preference last_used: {e}")
+            if conn:
+                conn.rollback()
+            return False
+        finally:
+            if conn:
+                conn.close()
+    
+    def get_preferences_by_type(self, user_id: str, preference_type: str, 
+                               min_confidence: float = 0.0) -> List[Dict[str, Any]]:
+        """Get preferences of a specific type for a user.
+        
+        Args:
+            user_id: The user ID.
+            preference_type: The type of preference to get.
+            min_confidence: Minimum confidence score (0-1) for preferences to return.
+            
+        Returns:
+            List of user preferences of the specified type.
+        """
+        conn = None
+        try:
+            conn = self._get_connection()
+            cur = conn.cursor()
+            
+            # Get the preferences
+            cur.execute(
+                """
+                SELECT 
+                    id, preference_type, preference_value, context, 
+                    confidence, last_used, metadata
+                FROM user_preferences
+                WHERE 
+                    user_id = %s 
+                    AND preference_type = %s
+                    AND confidence >= %s
+                    AND is_active = TRUE
+                ORDER BY confidence DESC, last_used DESC
+                """,
+                (user_id, preference_type, min_confidence)
+            )
+            
+            # Convert results to dictionaries
+            columns = [desc[0] for desc in cur.description]
+            preferences = []
+            
+            for row in cur.fetchall():
+                preference = dict(zip(columns, row))
+                
+                # Convert metadata from JSON to dict if it exists
+                if preference.get('metadata') and isinstance(preference['metadata'], str):
+                    preference['metadata'] = json.loads(preference['metadata'])
+                
+                preferences.append(preference)
+            
+            return preferences
+            
+        except Exception as e:
+            print_error(f"Error getting preferences by type: {e}")
+            return []
+        finally:
+            if conn:
+                conn.close()
+    
+    def clear_user_preferences(self, user_id: str) -> bool:
+        """Clear all preferences for a user.
+        
+        Args:
+            user_id: The user ID.
+            
+        Returns:
+            True if successful, False otherwise.
+        """
+        conn = None
+        try:
+            conn = self._get_connection()
+            cur = conn.cursor()
+            
+            # Delete the preferences
+            cur.execute(
+                """
+                DELETE FROM user_preferences
+                WHERE user_id = %s
+                """,
+                (user_id,)
+            )
+            
+            conn.commit()
+            return True
+            
+        except Exception as e:
+            print_error(f"Error clearing user preferences: {e}")
+            if conn:
+                conn.rollback()
+            return False
+        finally:
+            if conn:
                 conn.close() 
