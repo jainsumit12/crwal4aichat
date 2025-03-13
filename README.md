@@ -565,6 +565,43 @@ This memory persistence works by:
 3. Extracting user preferences and information from previous messages
 
 To get the most out of this feature, always use the same session ID and user ID when you want the assistant to remember previous conversations.
+
+#### Managing User Preferences via CLI
+
+The chat interface includes several commands for managing user preferences directly from the command line:
+
+**Viewing Preferences**
+```
+preferences
+```
+Displays a table of all active preferences for the current user, including ID, type, value, confidence, context, and last used timestamp.
+
+**Adding Preferences**
+```
+add preference <type> <value> [confidence]
+```
+Manually adds a new preference for the current user. If confidence is not specified, it defaults to 0.9.
+
+Examples:
+```
+add preference like Python
+add preference expertise JavaScript 0.85
+add preference goal "Learn machine learning"
+```
+
+**Deleting Preferences**
+```
+delete preference <id>
+```
+Deletes a specific preference by ID.
+
+**Clearing All Preferences**
+```
+clear preferences
+```
+Deletes all preferences for the current user after confirmation.
+
+**Important**: Preference commands are only available when a user ID is provided (using `--user` when starting the chat). For more detailed information about the user preference system, see the [preferences documentation](docs/preferences.md).
 </details>
 
 ### Chat Profiles
