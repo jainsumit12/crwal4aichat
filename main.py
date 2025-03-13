@@ -144,6 +144,11 @@ def chat_command(args):
     profile = args.profile or os.getenv("CHAT_PROFILE")
     profiles_dir = args.profiles_dir or os.getenv("CHAT_PROFILES_DIR", "profiles")
     
+    # Get verbose flag from .env if not provided in args
+    verbose = False
+    if os.getenv("CHAT_VERBOSE", "").lower() == "true":
+        verbose = True
+    
     # Create a chat interface
     chat_bot = ChatBot(
         model=model,
@@ -151,7 +156,9 @@ def chat_command(args):
         similarity_threshold=threshold,
         session_id=session_id,
         user_id=user_id,
-        profile=profile
+        profile=profile,
+        profiles_dir=profiles_dir,
+        verbose=verbose
     )
     
     # Start the chat loop

@@ -22,6 +22,7 @@ import datetime
 import sys
 from rich.progress import Progress, SpinnerColumn, TextColumn
 import time
+import re
 
 from utils import print_header, print_success, print_error, print_warning, print_info
 
@@ -66,7 +67,16 @@ original_print_error = crawler.print_error
 original_print_success = crawler.print_success
 
 def set_quiet_mode():
-    """Set quiet mode by replacing print functions with chat versions."""
+    """Set quiet mode for the crawler."""
+    # Only set quiet mode if verbose output is not enabled
+    if not VERBOSE_OUTPUT:
+        # Override print functions in utils.py
+        utils.print_info = lambda text: None
+        utils.print_warning = lambda text: None
+        utils.print_success = lambda text: None
+        # Keep error messages visible
+        # utils.print_error = lambda text: None
+    
     crawler.print_info = chat_print_info
     crawler.print_warning = chat_print_warning
     crawler.print_error = chat_print_error
@@ -656,7 +666,100 @@ Example valid response:
             console.print("[yellow]No database connection, search functionality is disabled[/yellow]")
             return []
         
-        # Use the LLM to understand the query intent
+        # For website domain queries, use a more direct approach
+        if ".com" in query or ".org" in query or ".net" in query or ".io" in query:
+            console.print("[blue]Domain name detected in query, searching directly...[/blue]")
+            # Extract the domain part
+            domain_parts = re.findall(r'[\w\.-]+\.\w+', query)
+            if domain_parts:
+                domain = domain_parts[0]
+                console.print(f"[blue]Searching for domain: {domain}[/blue]")
+                
+                # First try to find sites with this domain in the name or URL
+                all_sites = self.crawler.db_client.get_all_sites()
+                site_ids = []
+                site_names = []
+                
+                for site in all_sites:
+                    site_name = site.get("name", "").lower()
+                    site_url = site.get("url", "").lower()
+                    
+                    if domain.lower() in site_name or domain.lower() in site_url:
+                        site_ids.append(site["id"])
+                        site_names.append(site_name)
+                
+                if site_ids:
+                    console.print(f"[blue]Found {len(site_ids)} sites matching domain: {', '.join(site_names)}[/blue]")
+                    
+                    all_results = []
+                    for i, site_id in enumerate(site_ids):
+                        try:
+                            # Get pages for this site
+                            pages = self.crawler.db_client.get_pages_by_site_id(
+                                site_id=site_id,
+                                limit=self.result_limit,
+                                include_chunks=True
+                            )
+                            
+                            # Add site information to each page
+                            for page in pages:
+                                page["site_name"] = site_names[i]
+                                page["similarity"] = 0.9  # High similarity for direct matches
+                                all_results.append(page)
+                        except Exception as e:
+                            console.print(f"[red]Error getting pages for site {site_names[i]}: {e}[/red]")
+                    
+                    if all_results:
+                        console.print(f"[green]Found {len(all_results)} pages from sites matching domain[/green]")
+                        return all_results[:self.result_limit]
+        
+        # For website name queries without domain extensions
+        # Check if the query might be a website name
+        if len(query.split()) <= 3 and not query.startswith("what") and not query.startswith("how") and not query.startswith("why"):
+            console.print("[blue]Short query detected, checking for site name matches...[/blue]")
+            
+            # Get all sites
+            all_sites = self.crawler.db_client.get_all_sites()
+            site_ids = []
+            site_names = []
+            
+            # Clean the query for matching
+            clean_query = query.lower().replace("about ", "").replace("tell me about ", "").strip()
+            
+            for site in all_sites:
+                site_name = site.get("name", "").lower()
+                
+                # Check if the site name contains the query or vice versa
+                if clean_query in site_name or any(word in site_name for word in clean_query.split()):
+                    site_ids.append(site["id"])
+                    site_names.append(site.get("name", ""))
+            
+            if site_ids:
+                console.print(f"[blue]Found {len(site_ids)} sites matching name: {', '.join(site_names)}[/blue]")
+                
+                all_results = []
+                for i, site_id in enumerate(site_ids):
+                    try:
+                        # Get pages for this site
+                        pages = self.crawler.db_client.get_pages_by_site_id(
+                            site_id=site_id,
+                            limit=self.result_limit,
+                            include_chunks=True
+                        )
+                        
+                        # Add site information to each page
+                        for page in pages:
+                            page["site_name"] = site_names[i]
+                            page["similarity"] = 0.85  # High similarity for name matches
+                            all_results.append(page)
+                    except Exception as e:
+                        console.print(f"[red]Error getting pages for site {site_names[i]}: {e}[/red]")
+                
+                if all_results:
+                    console.print(f"[green]Found {len(all_results)} pages from sites matching name[/green]")
+                    return all_results[:self.result_limit]
+        
+        # Use the LLM to understand the query intent for more complex queries
         try:
             # Only use this for more complex queries
             if len(query.split()) > 3 and any(word in query.lower() for word in ["best", "top", "recommend", "favorite", "good", "great", "url", "link", "site"]):
@@ -967,6 +1070,34 @@ Respond with ONLY the strategy name (e.g., "REGULAR_SEARCH").
             
             return context
         
+        # Check if we have site information in the results
+        site_info = {}
+        for result in results:
+            site_id = result.get("site_id")
+            site_name = result.get("site_name", "Unknown")
+            
+            if site_id and site_id not in site_info:
+                site_info[site_id] = {
+                    "name": site_name,
+                    "url": result.get("url", "").split("/")[0] + "//" + result.get("url", "").split("/")[2] if "/" in result.get("url", "") else "",
+                    "description": ""
+                }
+        
+        # If we have site information, add it to the context
+        if site_info:
+            context = "Site Information:\n\n"
+            for site_data in site_info.values():
+                context += f"Site: {site_data['name']}\n"
+                if site_data['url']:
+                    context += f"URL: {site_data['url']}\n"
+                if site_data['description']:
+                    context += f"Description: {site_data['description']}\n"
+                context += "\n"
+            
+            context += "Content from these sites:\n\n"
+        else:
+            context = ""
+        
         # Group results by site
         results_by_site = {}
         for result in results:
@@ -976,7 +1107,6 @@ Respond with ONLY the strategy name (e.g., "REGULAR_SEARCH").
             results_by_site[site_name].append(result)
         
         # Format the context
-        context = ""
         for site_name, site_results in results_by_site.items():
             # Sort by similarity score
             site_results.sort(key=lambda x: x.get("similarity", 0), reverse=True)
@@ -987,6 +1117,7 @@ Respond with ONLY the strategy name (e.g., "REGULAR_SEARCH").
                 title = result.get("title", "Untitled")
                 url = result.get("url", "")
                 content = result.get("content", "")
+                summary = result.get("summary", "")
                 
                 # Clean up the URL by removing chunk fragments
                 if "#chunk-" in url:
@@ -994,7 +1125,17 @@ Respond with ONLY the strategy name (e.g., "REGULAR_SEARCH").
                 
                 context += f"Document: {title}\n"
                 context += f"URL: {url}\n"
-                context += f"Content: {content}\n\n"
+                
+                # Use summary if available, otherwise use content
+                if summary:
+                    context += f"Summary: {summary}\n"
+                    # If we have both summary and content, include the content too
+                    if content:
+                        context += f"Content: {content}\n"
+                else:
+                    context += f"Content: {content}\n"
+                
+                context += "\n"
         
         return context
     
@@ -1759,6 +1900,11 @@ def main():
     # If new-session is specified, ignore any saved session ID
     session_id = None if args.new_session else args.session
     
+    # Get verbose flag from .env if not provided in args
+    verbose = args.verbose
+    if not verbose and os.getenv("CHAT_VERBOSE", "").lower() == "true":
+        verbose = True
+    
     # Create the chat bot
     chat_bot = ChatBot(
         model=args.model,
@@ -1768,7 +1914,7 @@ def main():
         user_id=args.user,
         profile=args.profile,
         profiles_dir=args.profiles_dir,
-        verbose=args.verbose
+        verbose=verbose
     )
     
     # Print welcome message

@@ -359,6 +359,48 @@ The frontend implements several accessibility features:
 - Unique preferences are added to the system prompt for the LLM
 - This ensures the LLM remembers user preferences across multiple chat sessions
 
+### Enhanced Preference System
+- Preferences are now stored in a dedicated `user_preferences` table for identified users
+- Each preference includes:
+  - Type (like, dislike, expertise, experience, goal, etc.)
+  - Value (the specific preference)
+  - Confidence score (0.0-1.0)
+  - Context (why this preference was extracted)
+  - Timestamps (created, updated, last used)
+  - Source session
+  - Active/inactive status
+  - Metadata (additional information)
+
+### Preference Management
+- CLI commands for managing preferences:
+  - `preferences`: List all preferences for the current user
+  - `add preference <type> <value> [confidence]`: Manually add a preference
+  - `delete preference <id>`: Delete a specific preference
+  - `clear preferences`: Delete all preferences for the current user
+- API endpoints for preference management:
+  - `GET /api/chat/preferences`: List user preferences
+  - `POST /api/chat/preferences`: Create a preference
+  - `DELETE /api/chat/preferences/{id}`: Delete a preference
+  - `PUT /api/chat/preferences/{id}/deactivate`: Deactivate a preference
+  - `DELETE /api/chat/preferences`: Clear all preferences
+
+### Confidence Scoring
+- Preferences are assigned confidence scores based on certainty:
+  - 0.95-1.0: Very high confidence (explicit statements)
+  - 0.85-0.94: High confidence (strong implications)
+  - 0.75-0.84: Moderate confidence (reasonable inferences)
+  - 0.65-0.74: Low confidence (possible but uncertain)
+  - <0.65: Very low confidence (typically not extracted)
+- Only preferences with confidence ≥ 0.7 are used in responses by default
+- Higher confidence preferences are given more weight in responses
+
+### Smart Preference Merging
+- Similar preferences are merged rather than duplicated
+- Confidence scores are updated to the maximum of the two scores
+- Context information is combined
+- Last used timestamp is updated
+- This prevents duplicate preferences while enriching existing ones
+
 ## Search Process
 
 ### Query Intent Analysis
@@ -366,6 +408,14 @@ The frontend implements several accessibility features:
   - REGULAR_SEARCH: Standard semantic search for information
   - URL_SEARCH: The user is specifically asking for URLs or links
   - BEST_CONTENT: The user is asking for the best/top/recommended content
+
+### Direct Site Matching
+- For simple queries that might be website names or domains:
+  - Domain detection for queries containing .com, .org, .net, etc.
+  - Site name matching for short queries without question words
+  - Direct retrieval of pages from matching sites
+  - Higher similarity scores assigned to direct matches
+  - This ensures reliable results for website-specific queries
 
 ### Search Strategies
 
@@ -420,6 +470,14 @@ This hybrid approach ensures that even when vector similarity might not find exa
 7. Conversation analysis (if applicable)
 8. Search results
 
+### Preference Integration
+- User preferences are retrieved from the database with a minimum confidence of 0.7
+- Preferences are grouped by type (like, dislike, expertise, experience, goal, etc.)
+- Each preference type is added to the system prompt as a separate section
+- Each preference includes its confidence score and context
+- This organization makes it easier for the LLM to understand and use preferences naturally
+- The `last_used` timestamp is updated for each preference used in a response
+
 ### LLM Processing
 - All context is sent to the LLM (OpenAI API)
 - The LLM generates a response based on the context
@@ -469,6 +527,8 @@ This hybrid approach ensures that even when vector similarity might not find exa
 - `CHAT_PROFILE`: Default chat profile (default: default)
 - `CHAT_PROFILES_DIR`: Directory containing profile YAML files (default: profiles)
 - `CHAT_VERBOSE`: Enable verbose debug output (default: false)
+- `OPENAI_EMBEDDING_MODEL`: Model to use for embeddings (default: text-embedding-3-small)
+- `OPENAI_CONTENT_MODEL`: Model to use for title and summary generation (default: gpt-4o-mini)
 
 ### Command-Line Parameters
 - `--model`: OpenAI model to use
@@ -503,8 +563,9 @@ search_settings:
 | Conversation Analysis | Extract relevant information from conversation history | Same as chat model |
 | Follow-up Detection | Determine if a query is a follow-up question | Same as chat model |
 | Entity Extraction | Extract key entities from previous responses | Same as chat model |
-| Preference Extraction | Extract user preferences from messages | Same as chat model |
+| Preference Extraction | Extract user preferences from messages with confidence scoring | gpt-4o-mini |
 | Query Intent Analysis | Determine the best search strategy | Same as chat model |
+| Domain Matching | Enhance search for website-specific queries | N/A (rule-based) |
 
 ## Complete Flow Example
 
@@ -516,12 +577,13 @@ search_settings:
    - ChatBot is initialized with the specified user and session
    - System enables verbose debug output
    - System loads conversation history for session abc123
-   - System extracts user preferences from the conversation history
+   - System retrieves user preferences from the database
    - Welcome message and session information are displayed
 
 2. **User Query**:
    - User asks "Tell me more about Corvettes"
    - System adds user message to conversation history
+   - System analyzes the message for preferences (none found in this query)
 
 3. **Query Processing**:
    - System checks if this is a follow-up question (in this case, it's not)
@@ -530,17 +592,23 @@ search_settings:
    - System filters search results based on the profile's site patterns
    - System formats the search results
 
-4. **Conversation Analysis**:
+4. **Preference Retrieval**:
+   - System retrieves active preferences for user "Joe" with confidence ≥ 0.7
+   - System groups preferences by type (likes, dislikes, expertise, etc.)
+   - System updates the `last_used` timestamp for each preference
+   - System adds preferences to the system prompt, organized by type
+
+5. **Conversation Analysis**:
    - System analyzes the conversation history using an LLM
    - System extracts that the user likes Corvettes (from previous messages)
    - System includes this information in the context
 
-5. **Response Generation**:
+6. **Response Generation**:
    - System assembles the context:
      - System prompt from the profile
      - User information ("The user's name is Joe")
      - Current date and time
-     - User preferences ("User likes Corvettes")
+     - User preferences (grouped by type)
      - Conversation history
      - Current query
      - Conversation analysis
@@ -550,9 +618,10 @@ search_settings:
    - System adds the response to the conversation history
    - System displays the response to the user
 
-6. **Follow-up Query**:
+7. **Follow-up Query**:
    - User asks "What's the best model?"
    - System adds user message to conversation history
+   - System analyzes the message for preferences (none found in this query)
    - System detects this is a follow-up question about Corvettes
    - System extracts key entities from the previous response (Corvettes, models, etc.)
    - System enhances the search query with these entities
@@ -560,7 +629,15 @@ search_settings:
    - System includes the previous response in the context
    - System generates and displays a response
 
-This flow demonstrates how the system maintains context, remembers user preferences, and provides continuity in the conversation, even across multiple chat sessions.
+8. **Preference Management**:
+   - User types `preferences` to view their stored preferences
+   - System displays a table of all preferences for user "Joe"
+   - User adds a new preference with `add preference expertise Corvettes 0.95`
+   - System saves the preference to the database with context "Manually added via CLI"
+   - User can delete a preference with `delete preference <id>` if needed
+   - User can clear all preferences with `clear preferences` if needed
+
+This flow demonstrates how the system maintains context, remembers user preferences, and provides continuity in the conversation, even across multiple chat sessions. The enhanced preference system allows for more nuanced understanding of user characteristics and more natural integration into responses.
 
 ## Clearing Conversation History
 
@@ -807,9 +884,7 @@ SUPABASE_PASSWORD=${POSTGRES_PASSWORD}
      ```
      SUPABASE_HOST=db
      SUPABASE_PORT=5432
-     ```
-
-2. **Kong API Gateway Issues**:
+     ```2. **Kong API Gateway Issues**:
    - The API should connect directly to the database, not through Kong
    - If seeing SSL negotiation errors, ensure `SUPABASE_URL` is unset or empty
    - Check Kong logs: `docker logs supachat-kong`
@@ -880,3 +955,4 @@ When using Docker, environment variables are resolved in the following order (hi
 3. Variables defined in the container's environment
 
 This precedence order is important to understand when troubleshooting configuration issues. 
+
