@@ -23,20 +23,10 @@ Seamlessly crawl websites, transform content into vector embeddings, and enable 
   - Achieve up to 95% more relevant search results compared to traditional keyword-based approaches
   - Fine-tuned ranking algorithms that understand semantic relationships between concepts
 
-- 💾 **Robust Supabase Integration**
-  - Enterprise-level data persistence with Supabase's PostgreSQL-based infrastructure
-  - Optimized vector storage for lightning-fast similarity searches
-  - Automatic data synchronization and backup capabilities
-
 - 📝 **AI-Powered Content Intelligence**
-  - Transform raw web content into structured, actionable data through OpenAI's advanced language models
+  - Transform raw web content into structured, actionable data using terminal or UI.
   - Generate human-quality titles, summaries, and site descriptions with remarkable accuracy
   - Automatic content categorization and entity extraction for enhanced data organization
-
-- 💬 **Conversational AI Interface**
-  - Engage with your data through a sophisticated LLM-powered chat interface
-  - Context-aware conversations that maintain state and understand complex queries
-  - Customizable AI personalities to match your specific use case or brand voice
 
 - 📊 **Interactive Data Visualization**
   - Explore your data ecosystem through an intuitive Streamlit-based interface
@@ -58,6 +48,7 @@ Seamlessly crawl websites, transform content into vector embeddings, and enable 
 ## Prerequisites
 
 - Python 3.10+
+- Node 18+
 - A running Crawl4AI instance (self-hosted or provided)
 - A Supabase instance (self-hosted or provided)
 - OpenAI API key for generating embeddings, content summaries and chat
@@ -103,7 +94,6 @@ OPENAI_API_KEY=sk-proj-
 OPENAI_EMBEDDING_MODEL=text-embedding-3-small
 # Model to use for title and summary generation and chat analysis
 OPENAI_CONTENT_MODEL=gpt-4o-mini
-# Model to use for the chat interface
 
 # Crawl Configuration
 # Set to 'url' for regular website or 'sitemap' for sitemap crawling, will crawl child pages from the sitemap
