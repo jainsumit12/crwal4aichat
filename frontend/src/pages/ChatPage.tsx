@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import { ChatMessage, Profile } from '@/api/apiService';
 import { api } from '@/api/apiWrapper';
-import ReactMarkdown from 'react-markdown';
 import { v4 as uuidv4 } from 'uuid';
 import { useUser } from '@/context/UserContext';
 import remarkGfm from 'remark-gfm';
@@ -474,18 +473,12 @@ const ChatPage = () => {
         
         const uniqueId = `code-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
         
+        // Use a completely different HTML structure with minimal styling
         return `
-          <div class="relative group">
-            <pre class="bg-[#171923] p-4 rounded-md overflow-x-auto my-2 text-sm">
-              <div class="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button 
-                  class="bg-primary/10 hover:bg-primary/20 text-primary rounded p-1 text-xs"
-                  onclick="navigator.clipboard.writeText(document.getElementById('${uniqueId}').textContent); this.innerText='Copied!'; setTimeout(() => this.innerText='Copy', 2000);"
-                >
-                  Copy
-                </button>
-              </div>
-              <code id="${uniqueId}">${codeContent}</code>
+          <div class="code-block-container">
+            <pre class="code-block-pre">
+              <code id="${uniqueId}" class="code-block-code">${codeContent}</code>
+              <button class="code-block-button" data-clipboard-target="${uniqueId}">Copy</button>
             </pre>
           </div>
         `;
@@ -677,6 +670,56 @@ const ChatPage = () => {
     );
   }
 
+  // Add this useEffect to handle the copy button functionality
+  useEffect(() => {
+    // Function to handle copy button clicks
+    const handleCopyButtonClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.classList.contains('code-block-button') || target.closest('.code-block-button')) {
+        const button = target.classList.contains('code-block-button') ? target : target.closest('.code-block-button');
+        if (!button) return;
+        
+        const targetId = button.getAttribute('data-clipboard-target');
+        if (!targetId) return;
+        
+        const codeElement = document.getElementById(targetId);
+        if (!codeElement) return;
+        
+        // Copy the text content to clipboard
+        navigator.clipboard.writeText(codeElement.textContent || '')
+          .then(() => {
+            // Change button text temporarily
+            const originalText = button.textContent;
+            button.textContent = 'Copied!';
+            
+            // Reset button text after 2 seconds
+            setTimeout(() => {
+              button.textContent = originalText;
+            }, 2000);
+            
+            createNotification('Success', 'Code copied to clipboard', 'success', true);
+          })
+          .catch(err => {
+            console.error('Failed to copy code: ', err);
+            createNotification('Error', 'Failed to copy code', 'error', true);
+          });
+      }
+    };
+    
+    // Add event listener to the chat container
+    const chatContainer = chatContainerRef.current;
+    if (chatContainer) {
+      chatContainer.addEventListener('click', handleCopyButtonClick);
+    }
+    
+    // Clean up event listener
+    return () => {
+      if (chatContainer) {
+        chatContainer.removeEventListener('click', handleCopyButtonClick);
+      }
+    };
+  }, [chatContainerRef.current]); // Only re-run if the chat container changes
+
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="flex flex-col h-[calc(100vh-10rem)]">
@@ -702,7 +745,7 @@ const ChatPage = () => {
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-5 w-5 p-0 hover:bg-white/[0.06] ml-2"
+                          className="h-5 w-5 p-0 hover:bg-white/[0.06] ml-2 transition-none"
                           onClick={() => sessionId && copyToClipboard(sessionId)}
                         >
                           <Copy className="h-3 w-3" />
@@ -780,7 +823,7 @@ const ChatPage = () => {
                                           <Button
                                             variant="ghost"
                                             size="icon"
-                                            className="h-5 w-5 p-0 hover:bg-white/[0.06]"
+                                            className="h-5 w-5 p-0 hover:bg-white/[0.06] transition-none"
                                             onClick={(e) => {
                                               e.stopPropagation();
                                               copyToClipboard(session.id);
