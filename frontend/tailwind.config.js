@@ -104,44 +104,114 @@ export default {
         DEFAULT: {
           css: {
             maxWidth: 'none',
-            color: theme('colors.gray.700'),
+            color: theme('colors.foreground.DEFAULT', theme('colors.gray.700')),
             a: {
-              color: theme('colors.primary.500'),
+              color: theme('colors.primary.DEFAULT', theme('colors.primary.500')),
               '&:hover': {
                 color: theme('colors.primary.600'),
               },
+            },
+            img: {
+              marginTop: '1.5rem',
+              marginBottom: '1.5rem',
+              borderRadius: theme('borderRadius.lg'),
+            },
+            h1: {
+              color: theme('colors.foreground.DEFAULT', theme('colors.gray.900')),
+              fontWeight: '700',
+              fontSize: theme('fontSize.3xl[0]'),
+              marginTop: '1.5rem',
+              marginBottom: '1rem',
+            },
+            h2: {
+              color: theme('colors.foreground.DEFAULT', theme('colors.gray.900')),
+              fontWeight: '600',
+              fontSize: theme('fontSize.2xl[0]'),
+              marginTop: '2rem',
+              marginBottom: '1rem',
+            },
+            h3: {
+              color: theme('colors.foreground.DEFAULT', theme('colors.gray.900')),
+              fontWeight: '500',
+              fontSize: theme('fontSize.xl[0]'),
+              marginTop: '1.5rem',
+              marginBottom: '0.75rem',
+            },
+            code: {
+              color: theme('colors.foreground.DEFAULT', theme('colors.gray.700')),
+              backgroundColor: theme('colors.muted.DEFAULT', theme('colors.gray.100')),
+              borderRadius: theme('borderRadius.md'),
+              padding: '0.25rem 0.5rem',
+              fontSize: '0.875rem',
+              fontFamily: theme('fontFamily.mono'),
+            },
+            'code::before': {
+              content: '""',
+            },
+            'code::after': {
+              content: '""',
+            },
+            pre: {
+              backgroundColor: theme('colors.muted.DEFAULT', theme('colors.gray.100')),
+              borderRadius: theme('borderRadius.md'),
+              padding: '1rem',
+              overflowX: 'auto',
+            },
+            'pre code': {
+              backgroundColor: 'transparent',
+              padding: '0',
+            },
+            ul: {
+              listStyleType: 'disc',
+              paddingLeft: '1.5rem',
+              marginTop: '1rem',
+              marginBottom: '1rem',
+            },
+            ol: {
+              listStyleType: 'decimal',
+              paddingLeft: '1.5rem',
+              marginTop: '1rem',
+              marginBottom: '1rem',
+            },
+            li: {
+              marginTop: '0.5rem',
+              marginBottom: '0.5rem',
             },
           },
         },
         dark: {
           css: {
-            color: theme('colors.gray.300'),
+            color: theme('colors.foreground.DEFAULT', theme('colors.gray.300')),
             a: {
-              color: theme('colors.primary.400'),
+              color: theme('colors.primary.DEFAULT', theme('colors.primary.400')),
               '&:hover': {
                 color: theme('colors.primary.300'),
               },
             },
             h1: {
-              color: theme('colors.gray.100'),
+              color: theme('colors.foreground.DEFAULT', theme('colors.gray.100')),
             },
             h2: {
-              color: theme('colors.gray.100'),
+              color: theme('colors.foreground.DEFAULT', theme('colors.gray.100')),
             },
             h3: {
-              color: theme('colors.gray.100'),
+              color: theme('colors.foreground.DEFAULT', theme('colors.gray.100')),
             },
             h4: {
-              color: theme('colors.gray.100'),
+              color: theme('colors.foreground.DEFAULT', theme('colors.gray.100')),
             },
             code: {
-              color: theme('colors.gray.300'),
+              color: theme('colors.foreground.DEFAULT', theme('colors.gray.300')),
+              backgroundColor: theme('colors.muted.DEFAULT', theme('colors.gray.800')),
+            },
+            pre: {
+              backgroundColor: theme('colors.muted.DEFAULT', theme('colors.gray.800')),
             },
             strong: {
-              color: theme('colors.gray.300'),
+              color: theme('colors.foreground.DEFAULT', theme('colors.gray.300')),
             },
             blockquote: {
-              color: theme('colors.gray.400'),
+              color: theme('colors.foreground.DEFAULT', theme('colors.gray.400')),
             },
           },
         },

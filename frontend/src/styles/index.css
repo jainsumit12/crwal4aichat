@@ -355,21 +355,18 @@
 
 /* Chat message styling */
 .prose pre {
-  background-color: hsl(220, 26%, 14%);
-  border-radius: 0.375rem;
+  background-color: hsl(var(--muted));
+  border-radius: 0.5rem;
   padding: 1rem;
   overflow-x: auto;
-  margin: 1rem 0;
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  position: relative;
+  margin: 1.5rem 0;
+  border: 1px solid hsl(var(--border));
 }
 
 .prose pre code {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-  font-size: 0.875rem;
-  color: hsl(210, 40%, 96.1%);
-  display: block;
-  padding-right: 1rem;
+  background-color: transparent;
+  padding: 0;
+  color: hsl(var(--foreground));
 }
 
 /* Fix for copy button in code blocks */
@@ -713,4 +710,207 @@
 .dark .notification-item[data-type="info"] {
   background-color: rgba(59, 130, 246, 0.1) !important;
   border-left: 3px solid #3b82f6 !important;
+}
+
+/* User Guide Prose Styling */
+.prose h1 {
+  @apply text-2xl font-bold mb-4 mt-6 text-foreground;
+}
+
+.prose h2 {
+  @apply text-xl font-semibold mb-3 mt-5 text-foreground;
+}
+
+.prose h3 {
+  @apply text-lg font-medium mb-2 mt-4 text-foreground;
+}
+
+.prose p {
+  @apply mb-4 text-foreground;
+}
+
+.prose ul {
+  @apply list-disc pl-6 mb-4;
+}
+
+.prose ol {
+  @apply list-decimal pl-6 mb-4;
+}
+
+.prose li {
+  @apply mb-1;
+}
+
+.prose a {
+  @apply text-primary hover:underline;
+}
+
+.prose code {
+  @apply bg-muted px-1 py-0.5 rounded text-sm font-mono;
+}
+
+.prose blockquote {
+  @apply border-l-4 border-muted pl-4 italic;
+}
+
+.dark .prose {
+  @apply text-foreground;
+}
+
+.light .prose {
+  @apply text-foreground;
+}
+
+/* Add styles for markdown images */
+.prose img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.5rem;
+  margin: 1.5rem auto;
+  display: block;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+.dark .prose img {
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2), 0 2px 4px -1px rgba(0, 0, 0, 0.1);
+}
+
+/* Ensure code blocks are properly styled */
+.prose pre {
+  background-color: hsl(var(--muted));
+  border-radius: 0.5rem;
+  padding: 1rem;
+  overflow-x: auto;
+  margin: 1.5rem 0;
+  border: 1px solid hsl(var(--border));
+}
+
+.prose code {
+  background-color: hsl(var(--muted));
+  border-radius: 0.25rem;
+  padding: 0.2rem 0.4rem;
+  font-size: 0.875rem;
+  font-family: var(--font-mono);
+  color: hsl(var(--foreground));
+}
+
+.prose pre code {
+  background-color: transparent;
+  padding: 0;
+  color: hsl(var(--foreground));
+}
+
+/* Code block syntax highlighting */
+.prose .code-highlight {
+  color: hsl(var(--foreground));
+}
+
+.dark .prose pre {
+  background-color: hsl(var(--muted));
+  border-color: hsl(var(--border));
+}
+
+.dark .prose code {
+  color: hsl(var(--foreground));
+}
+
+/* API endpoint styling */
+.prose code:has(a) {
+  color: hsl(var(--primary));
+}
+
+.prose code a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.prose code a:hover {
+  text-decoration: underline;
+}
+
+/* Notification panel styling */
+.notification-panel {
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.5rem;
+  overflow: hidden;
+  width: 320px;
+  max-height: 400px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.dark .notification-panel {
+  background-color: hsl(220, 26%, 14%);
+  border-color: rgba(255, 255, 255, 0.05);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.notification-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  background-color: hsl(var(--muted));
+  border-bottom: 1px solid hsl(var(--border));
+}
+
+.dark .notification-panel-header {
+  background-color: hsl(220, 26%, 18%);
+  border-color: rgba(255, 255, 255, 0.05);
+}
+
+.notification-panel-list {
+  overflow-y: auto;
+  max-height: 320px;
+}
+
+.notification-item {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid hsl(var(--border));
+  cursor: pointer;
+}
+
+.dark .notification-item {
+  border-color: rgba(255, 255, 255, 0.05);
+}
+
+.notification-item:hover {
+  background-color: hsl(var(--accent));
+}
+
+/* Toast notification styling */
+.toast-notification {
+  border-radius: 0.5rem;
+  padding: 0.75rem 1rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  max-width: 350px;
+}
+
+.toast-notification.light {
+  background-color: white;
+  color: hsl(215.4, 16.3%, 46.9%);
+  border: 1px solid hsl(214.3, 31.8%, 91.4%);
+}
+
+.toast-notification.dark {
+  background-color: hsl(215.3, 25%, 26.7%);
+  color: hsl(210, 40%, 98%);
+  border: 1px solid hsl(215.3, 25%, 32%);
+}
+
+.toast-success.light {
+  border-left: 4px solid hsl(142.1, 76.2%, 36.3%);
+}
+
+.toast-success.dark {
+  border-left: 4px solid hsl(142.1, 70.6%, 45.3%);
+}
+
+.toast-error.light {
+  border-left: 4px solid hsl(0, 84.2%, 60.2%);
+}
+
+.toast-error.dark {
+  border-left: 4px solid hsl(0, 72.2%, 50.6%);
 } 

@@ -11,6 +11,7 @@ import SiteDetailPage from './pages/SiteDetailPage';
 import NotFoundPage from './pages/NotFoundPage';
 import NotificationInfo from './pages/NotificationInfo';
 import UserPreferencesPage from './pages/UserPreferencesPage';
+import UserGuidePage from './pages/UserGuidePage';
 import { useTheme } from './context/ThemeContext';
 
 // Custom toast container that respects the current theme
@@ -77,6 +78,7 @@ function App() {
           <Route path="notifications" element={<NotificationInfo />} />
           <Route path="preferences" element={<UserPreferencesPage />} />
           <Route path="preferences/:userId" element={<UserPreferencesPage />} />
+          <Route path="guide" element={<UserGuidePage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Route>
       </Routes>

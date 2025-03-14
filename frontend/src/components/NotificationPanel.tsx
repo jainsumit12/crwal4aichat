@@ -13,11 +13,16 @@ import {
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { 
-  Notification,
+  Notification as ApiNotification,
   isNotificationsMuted,
   toggleNotificationsMuted
 } from '@/utils/notifications';
 import { useTheme } from '@/context/ThemeContext';
+
+// Extend the ApiNotification interface to include the read property
+interface Notification extends ApiNotification {
+  read?: boolean;
+}
 
 interface NotificationPanelProps {
   notifications: Notification[];
@@ -90,6 +95,7 @@ const NotificationPanel: React.FC<NotificationPanelProps> = ({
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: '0.75rem 1rem',
+    paddingRight: '0.75rem',
     backgroundColor: isDark ? 'hsl(220, 26%, 18%)' : '#f9fafb',
     borderBottom: `1px solid ${isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.1)'}`
   };
@@ -121,7 +127,7 @@ const NotificationPanel: React.FC<NotificationPanelProps> = ({
   return (
     <div style={panelStyle}>
       <div style={headerStyle}>
-        <h3 className="text-sm font-medium">Notifications</h3>
+        <h3 className="text-xs font-medium">Notifications</h3>
         <div className="flex gap-1">
           {notifications.length > 0 && (
             <>
@@ -148,8 +154,9 @@ const NotificationPanel: React.FC<NotificationPanelProps> = ({
           <Button 
             variant="ghost" 
             size="sm" 
-            className="h-8 w-8 p-0"
+            className="h-8 w-8 p-0 ml-1 mr-1"
             onClick={onClose}
+            aria-label="Close notifications"
           >
             <X className="h-4 w-4" />
           </Button>

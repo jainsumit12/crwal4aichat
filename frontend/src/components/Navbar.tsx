@@ -11,7 +11,8 @@ import {
   Search,
   Globe,
   Database,
-  Bell
+  Bell,
+  BookOpen
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -146,6 +147,15 @@ const Navbar: React.FC<NavbarProps> = ({ toggleSidebar }) => {
               <Link to="/preferences">
                 <User className="mr-2 h-4 w-4" />
                 <span>User Preferences</span>
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem 
+              asChild
+              className="hover:bg-accent focus:bg-accent"
+            >
+              <Link to="/guide">
+                <BookOpen className="mr-2 h-4 w-4" />
+                <span>User Guide</span>
               </Link>
             </DropdownMenuItem>
           </DropdownMenuContent>

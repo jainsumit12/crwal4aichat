@@ -2,6 +2,7 @@
 
 This document provides a detailed explanation of all the components, flows, and interactions in the Crawl4AI system. It covers how different parts of the system work together, what happens in different scenarios, and how various settings affect the behavior of the system.
 
+
 ## Core Components
 
 ### 1. Database (Supabase)
