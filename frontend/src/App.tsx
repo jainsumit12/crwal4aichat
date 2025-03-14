@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import Layout from './components/Layout';
@@ -23,27 +23,21 @@ const ToastContainer = () => {
       position="top-right"
       toastOptions={{
         duration: 4000,
-        className: 'toast-notification',
-        style: {
-          background: isDark ? 'hsl(220, 26%, 9%)' : 'hsl(var(--background))',
-          color: isDark ? 'hsl(var(--card-foreground))' : 'hsl(var(--foreground))',
-          border: '1px solid',
-          borderColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'hsl(var(--border))',
-          fontSize: '14px',
-          maxWidth: '380px',
-          padding: '12px 16px',
-        },
+        className: `toast-notification ${isDark ? 'dark' : 'light'}`,
+        style: {}, // Remove inline styles to use CSS classes
         success: {
           iconTheme: {
             primary: isDark ? '#10b981' : '#059669',
             secondary: isDark ? '#ecfdf5' : '#ffffff',
           },
+          className: 'toast-notification toast-success',
         },
         error: {
           iconTheme: {
             primary: isDark ? '#ef4444' : '#dc2626',
             secondary: isDark ? '#fef2f2' : '#ffffff',
           },
+          className: 'toast-notification toast-error',
         },
       }}
     />
@@ -53,13 +47,22 @@ const ToastContainer = () => {
 function App() {
   // Add a flag to disable automatic API calls in development mode
   const isDevelopment = process.env.NODE_ENV === 'development';
+  const { theme } = useTheme();
   
   // Log once on initial render to help with debugging
-  React.useEffect(() => {
+  useEffect(() => {
     if (isDevelopment) {
       console.log('App running in development mode - some background API calls may occur due to hot reloading');
     }
-  }, [isDevelopment]);
+    
+    // Add theme class to body
+    document.body.classList.toggle('theme-dark', theme === 'dark');
+    document.body.classList.toggle('theme-light', theme === 'light');
+    
+    return () => {
+      document.body.classList.remove('theme-dark', 'theme-light');
+    };
+  }, [isDevelopment, theme]);
 
   return (
     <>

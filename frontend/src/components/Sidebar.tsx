@@ -82,7 +82,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
               leaveFrom="translate-x-0"
               leaveTo="-translate-x-full"
             >
-              <Dialog.Panel className="relative mr-16 flex w-full max-w-xs flex-1 flex-col bg-[#0f1117] pb-4">
+              <Dialog.Panel className="relative mr-16 flex w-full max-w-xs flex-1 flex-col bg-background pb-4">
                 <Transition.Child
                   as={Fragment}
                   enter="ease-in-out duration-300"
@@ -97,14 +97,14 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                       variant="ghost"
                       size="icon"
                       onClick={onClose}
-                      className="ml-1 flex h-10 w-10 items-center justify-center text-white"
+                      className="ml-1 flex h-10 w-10 items-center justify-center"
                     >
                       <X className="h-6 w-6" />
                     </Button>
                   </div>
                 </Transition.Child>
                 
-                <div className="border-b border-white/[0.05] px-6 py-4">
+                <div className="border-b border-border px-6 py-4">
                   <div className="flex items-center gap-3">
                     <div className="h-8 w-8 overflow-hidden rounded-full">
                       <img 
@@ -124,8 +124,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                         key={item.name}
                         to={item.href}
                         className={cn(
-                          "flex items-center gap-3 rounded-md px-3 py-2.5 text-base font-medium hover:bg-white/[0.06] transition-colors",
-                          pathname === item.href ? "bg-white/[0.08] text-primary" : "text-gray-300"
+                          "flex items-center gap-3 rounded-md px-3 py-2.5 text-base font-medium hover:bg-accent transition-colors",
+                          pathname === item.href ? "bg-accent text-primary" : "text-foreground/60"
                         )}
                         onClick={onClose}
                       >
@@ -136,7 +136,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                   </nav>
                 </ScrollArea>
                 
-                <div className="border-t border-white/[0.05] p-4">
+                <div className="border-t border-border p-4">
                   <div className="flex items-center gap-4">
                     <a 
                       href="https://github.com/bigsk1/supa-crawl-chat" 
@@ -186,8 +186,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                 key={item.name}
                 to={item.href}
                 className={cn(
-                  "flex items-center gap-3 rounded-md px-3 py-2.5 text-base font-medium hover:bg-white/[0.06] transition-colors",
-                  pathname === item.href ? "bg-white/[0.08] text-primary" : "text-gray-300"
+                  "flex items-center gap-3 rounded-md px-3 py-2.5 text-base font-medium hover:bg-accent transition-colors",
+                  pathname === item.href ? "bg-accent text-primary" : "text-foreground/60"
                 )}
               >
                 <item.icon className="h-5 w-5" />

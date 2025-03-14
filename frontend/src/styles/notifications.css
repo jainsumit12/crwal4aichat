@@ -1,0 +1,212 @@
+/* Notification panel styling */
+.notification-panel {
+  background-color: white;
+  color: hsl(220, 26%, 14%);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 0.5rem;
+  overflow: hidden;
+  width: 320px;
+  max-height: 400px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* Dark mode notification panel */
+.dark .notification-panel {
+  background-color: hsl(220, 26%, 14%);
+  color: hsl(210, 40%, 98%);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.notification-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  background-color: #f9fafb;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+/* Dark mode notification header */
+.dark .notification-header {
+  background-color: hsl(220, 26%, 18%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.notification-list {
+  overflow-y: auto;
+  max-height: 320px;
+}
+
+.notification-item {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  cursor: pointer;
+  background-color: white;
+  color: hsl(220, 26%, 14%);
+}
+
+.notification-item:hover {
+  background-color: #f9fafb;
+}
+
+/* Dark mode notification item */
+.dark .notification-item {
+  background-color: hsl(220, 26%, 14%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  color: hsl(210, 40%, 98%);
+}
+
+/* Dark mode notification item hover */
+.dark .notification-item:hover {
+  background-color: hsl(220, 26%, 18%);
+}
+
+.notification-item-read {
+  opacity: 0.7;
+}
+
+.notification-empty {
+  text-align: center;
+  padding: 2rem 0;
+  color: hsl(var(--muted-foreground));
+}
+
+/* Toast notification styling */
+.toast-notification {
+  padding: 0.75rem 1rem;
+  font-size: 0.875rem;
+  border-radius: 0.375rem;
+  background-color: white;
+  color: hsl(220, 26%, 14%);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+/* Success toast */
+.toast-notification.toast-success {
+  background-color: #ecfdf5;
+  border-left: 4px solid #10b981;
+}
+
+/* Error toast */
+.toast-notification.toast-error {
+  background-color: #fef2f2;
+  border-left: 4px solid #ef4444;
+}
+
+/* Dark mode toast notifications */
+.dark .toast-notification {
+  background-color: hsl(220, 26%, 14%);
+  color: hsl(210, 40%, 98%);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+/* Dark mode success toast */
+.dark .toast-notification.toast-success {
+  border-left: 4px solid #10b981;
+}
+
+/* Dark mode error toast */
+.dark .toast-notification.toast-error {
+  border-left: 4px solid #ef4444;
+}
+
+/* Notification panel styling - Light Theme */
+body.theme-light .notification-panel {
+  background-color: white !important;
+  color: hsl(220, 26%, 14%) !important;
+  border: 1px solid rgba(0, 0, 0, 0.1) !important;
+  border-radius: 0.5rem !important;
+  overflow: hidden !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Notification panel styling - Dark Theme */
+body.theme-dark .notification-panel {
+  background-color: hsl(220, 26%, 14%) !important;
+  color: hsl(210, 40%, 98%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.05) !important;
+  border-radius: 0.5rem !important;
+  overflow: hidden !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
+}
+
+/* Notification header - Light Theme */
+body.theme-light .notification-header {
+  background-color: #f9fafb !important;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1) !important;
+  color: hsl(220, 26%, 14%) !important;
+}
+
+/* Notification header - Dark Theme */
+body.theme-dark .notification-header {
+  background-color: hsl(220, 26%, 18%) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
+  color: hsl(210, 40%, 98%) !important;
+}
+
+/* Notification item - Light Theme */
+body.theme-light .notification-item {
+  background-color: white !important;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05) !important;
+  color: hsl(220, 26%, 14%) !important;
+}
+
+/* Notification item hover - Light Theme */
+body.theme-light .notification-item:hover {
+  background-color: #f9fafb !important;
+}
+
+/* Notification item - Dark Theme */
+body.theme-dark .notification-item {
+  background-color: hsl(220, 26%, 14%) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
+  color: hsl(210, 40%, 98%) !important;
+}
+
+/* Notification item hover - Dark Theme */
+body.theme-dark .notification-item:hover {
+  background-color: hsl(220, 26%, 18%) !important;
+}
+
+/* Toast notification - Light Theme */
+body.theme-light .toast-notification {
+  background-color: white !important;
+  color: hsl(220, 26%, 14%) !important;
+  border: 1px solid rgba(0, 0, 0, 0.1) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08) !important;
+}
+
+/* Success toast - Light Theme */
+body.theme-light .toast-notification.toast-success {
+  background-color: #ecfdf5 !important;
+  border-left: 4px solid #10b981 !important;
+}
+
+/* Error toast - Light Theme */
+body.theme-light .toast-notification.toast-error {
+  background-color: #fef2f2 !important;
+  border-left: 4px solid #ef4444 !important;
+}
+
+/* Toast notification - Dark Theme */
+body.theme-dark .toast-notification {
+  background-color: hsl(220, 26%, 14%) !important;
+  color: hsl(210, 40%, 98%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.05) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
+}
+
+/* Success toast - Dark Theme */
+body.theme-dark .toast-notification.toast-success {
+  background-color: rgba(16, 185, 129, 0.1) !important;
+  border-left: 4px solid #10b981 !important;
+}
+
+/* Error toast - Dark Theme */
+body.theme-dark .toast-notification.toast-error {
+  background-color: rgba(239, 68, 68, 0.1) !important;
+  border-left: 4px solid #ef4444 !important;
+} 

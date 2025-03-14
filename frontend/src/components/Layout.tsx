@@ -3,6 +3,7 @@ import { Outlet } from 'react-router-dom';
 import Navbar from './Navbar';
 import Sidebar from './Sidebar';
 import { useMediaQuery } from '@/hooks/use-media-query';
+import { useTheme } from '@/context/ThemeContext';
 
 const Layout = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -25,7 +26,7 @@ const Layout = () => {
   };
   
   return (
-    <div className="flex h-screen flex-col bg-[#0f1117] text-foreground">
+    <div className="flex h-screen flex-col bg-background text-foreground">
       <Navbar toggleSidebar={toggleSidebar} />
       
       <div className="flex flex-1 overflow-hidden">

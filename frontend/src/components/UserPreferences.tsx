@@ -428,15 +428,15 @@ const UserPreferences: React.FC<UserPreferencesProps> = ({ userId: initialUserId
 
   return (
     <div className="user-preferences p-4">
-      <div className="mb-6 p-4 border border-gray-700 rounded-lg bg-gray-800">
-        <h2 className="text-xl font-bold text-gray-200 mb-4">User ID</h2>
+      <div className="mb-6 p-4 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 shadow-sm">
+        <h2 className="text-xl font-bold text-gray-800 dark:text-gray-200 mb-4">User ID</h2>
         <div className="flex flex-col md:flex-row gap-4">
           <Input
             type="text"
             value={userId}
             onChange={(e) => setUserId(e.target.value)}
             placeholder="Enter user ID (e.g., TestUser)"
-            className="flex-grow bg-gray-700 border-gray-600 text-gray-200"
+            className="flex-grow bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200"
           />
           <Button 
             onClick={loadPreferences} 
@@ -447,13 +447,13 @@ const UserPreferences: React.FC<UserPreferencesProps> = ({ userId: initialUserId
             Load Preferences
           </Button>
         </div>
-        <p className="text-sm text-gray-400 mt-2">
+        <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
           This should match your display name in your profile settings.
         </p>
       </div>
 
       <div className="flex justify-between items-center mb-4">
-        <h2 className="text-xl font-bold text-gray-200">User Preferences</h2>
+        <h2 className="text-xl font-bold text-gray-800 dark:text-gray-200">User Preferences</h2>
         <div className="flex space-x-2">
           <Button 
             onClick={handleFilterChange} 
@@ -475,12 +475,12 @@ const UserPreferences: React.FC<UserPreferencesProps> = ({ userId: initialUserId
 
       <div className="filter-controls mb-4 grid grid-cols-1 md:grid-cols-3 gap-2">
         <div className="flex items-center">
-          <label className="mr-2 text-gray-200 whitespace-nowrap">Min Confidence:</label>
+          <label className="mr-2 text-gray-800 dark:text-gray-200 whitespace-nowrap">Min Confidence:</label>
           <NativeSelect
             value={minConfidence.toString()}
             onChange={(e) => setMinConfidence(parseFloat(e.target.value))}
             disabled={loading}
-            className="w-full"
+            className="w-full bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200"
           >
             <option value="0">{confidenceLabels[0.0]}</option>
             <option value="0.5">{confidenceLabels[0.5]}</option>
@@ -490,7 +490,7 @@ const UserPreferences: React.FC<UserPreferencesProps> = ({ userId: initialUserId
           </NativeSelect>
         </div>
         <div className="flex items-center">
-          <label className="mr-2 text-gray-200 whitespace-nowrap">Show:</label>
+          <label className="mr-2 text-gray-800 dark:text-gray-200 whitespace-nowrap">Show:</label>
           <NativeSelect
             value={showStatus}
             onChange={(e) => {
@@ -499,7 +499,7 @@ const UserPreferences: React.FC<UserPreferencesProps> = ({ userId: initialUserId
               setShowStatus(newStatus);
             }}
             disabled={loading}
-            className="w-full"
+            className="w-full bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200"
           >
             <option value="active">Active Only (Used by AI)</option>
             <option value="inactive">Inactive Only (Not Used by AI)</option>
@@ -507,7 +507,7 @@ const UserPreferences: React.FC<UserPreferencesProps> = ({ userId: initialUserId
           </NativeSelect>
         </div>
         <div className="flex items-center">
-          <label className="mr-2 text-gray-200 whitespace-nowrap">Sort By:</label>
+          <label className="mr-2 text-gray-800 dark:text-gray-200 whitespace-nowrap">Sort By:</label>
           <NativeSelect
             value={sortField + ":" + sortDirection}
             onChange={(e) => {
@@ -516,7 +516,7 @@ const UserPreferences: React.FC<UserPreferencesProps> = ({ userId: initialUserId
               setSortDirection(direction as 'asc' | 'desc');
             }}
             disabled={loading}
-            className="w-full"
+            className="w-full bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200"
           >
             <option value="preference_type:asc">Type (A-Z)</option>
             <option value="preference_type:desc">Type (Z-A)</option>
@@ -535,9 +535,9 @@ const UserPreferences: React.FC<UserPreferencesProps> = ({ userId: initialUserId
           <Spinner size="lg" />
         </div>
       ) : sortedPreferences.length === 0 ? (
-        <div className="text-center my-8 p-6 bg-gray-800 text-gray-200 rounded-md border border-gray-700">
+        <div className="text-center my-8 p-6 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 rounded-md border border-gray-300 dark:border-gray-700 shadow-sm">
           <p className="text-lg mb-2">No preferences found</p>
-          <p className="text-sm text-gray-400">
+          <p className="text-sm text-gray-600 dark:text-gray-400">
             {showStatus === 'inactive' 
               ? "No inactive preferences found. Try selecting 'Active Only' or 'All Preferences'."
               : showStatus === 'active'
@@ -551,59 +551,60 @@ const UserPreferences: React.FC<UserPreferencesProps> = ({ userId: initialUserId
             <TableHeader>
               <TableRow>
                 <TableHead 
-                  className="cursor-pointer hover:bg-gray-700"
+                  className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-900 dark:text-gray-200"
                   onClick={() => handleSortClick('preference_type')}
                 >
                   Type {getSortIndicator('preference_type')}
                 </TableHead>
                 <TableHead 
-                  className="cursor-pointer hover:bg-gray-700"
+                  className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-900 dark:text-gray-200"
                   onClick={() => handleSortClick('preference_value')}
                 >
                   Value {getSortIndicator('preference_value')}
                 </TableHead>
                 <TableHead 
-                  className="cursor-pointer hover:bg-gray-700"
+                  className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-900 dark:text-gray-200"
                   onClick={() => handleSortClick('confidence')}
                 >
                   Confidence {getSortIndicator('confidence')}
                 </TableHead>
-                <TableHead className="w-1/3">Context</TableHead>
+                <TableHead className="w-1/3 text-gray-900 dark:text-gray-200">Context</TableHead>
                 <TableHead 
-                  className="cursor-pointer hover:bg-gray-700"
+                  className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-900 dark:text-gray-200"
                   onClick={() => handleSortClick('last_used')}
                 >
                   Last Used {getSortIndicator('last_used')}
                 </TableHead>
-                <TableHead>Actions</TableHead>
+                <TableHead className="text-gray-900 dark:text-gray-200">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {sortedPreferences.map((pref) => (
                 <TableRow 
                   key={pref.id} 
-                  className={`${pref.is_active ? '' : 'bg-gray-800'}`}
+                  className={`${pref.is_active ? '' : 'bg-gray-50 dark:bg-gray-800'}`}
                 >
-                  <TableCell>
+                  <TableCell className="text-gray-900 dark:text-gray-200">
                     <Badge variant={pref.preference_type === 'like' ? 'default' : 
                                     pref.preference_type === 'dislike' ? 'destructive' : 
-                                    'secondary'}>
+                                    'secondary'}
+                           className="text-white dark:text-white">
                       {pref.preference_type}
                     </Badge>
                     {pref.is_active === false && (
-                      <Badge variant="outline" className="ml-1 text-gray-400">
+                      <Badge variant="outline" className="ml-1 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600">
                         Inactive
                       </Badge>
                     )}
                   </TableCell>
-                  <TableCell>{pref.preference_value}</TableCell>
-                  <TableCell>{(pref.confidence * 100).toFixed(0)}%</TableCell>
-                  <TableCell className="whitespace-normal break-words max-w-xs" title={pref.context}>
+                  <TableCell className="text-gray-900 dark:text-gray-200">{pref.preference_value}</TableCell>
+                  <TableCell className="text-gray-900 dark:text-gray-200">{(pref.confidence * 100).toFixed(0)}%</TableCell>
+                  <TableCell className="whitespace-normal break-words max-w-xs text-gray-900 dark:text-gray-200" title={pref.context}>
                     <div className="line-clamp-2">
                       {pref.context || 'N/A'}
                     </div>
                   </TableCell>
-                  <TableCell>{formatDate(pref.last_used)}</TableCell>
+                  <TableCell className="text-gray-900 dark:text-gray-200">{formatDate(pref.last_used)}</TableCell>
                   <TableCell>
                     <div className="flex flex-col space-y-2">
                       {pref.is_active ? (
@@ -645,7 +646,7 @@ const UserPreferences: React.FC<UserPreferencesProps> = ({ userId: initialUserId
               ))}
             </TableBody>
           </Table>
-          <div className="mt-2 text-sm text-gray-400">
+          <div className="mt-2 text-sm text-gray-600 dark:text-gray-400">
             Showing {sortedPreferences.length} of {preferences.length} preferences
             {showStatus !== 'all' && (
               <span> ({showStatus === 'active' ? 'active only' : 'inactive only'})</span>
@@ -654,12 +655,12 @@ const UserPreferences: React.FC<UserPreferencesProps> = ({ userId: initialUserId
         </div>
       )}
 
-      <div className="add-preference-form mt-8 mb-4 p-6 border border-gray-700 rounded-lg bg-gray-800">
-        <h3 className="text-xl font-semibold mb-4 text-gray-200">Add New Preference</h3>
+      <div className="add-preference-form mt-8 mb-4 p-6 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 shadow-sm">
+        <h3 className="text-xl font-semibold mb-4 text-gray-800 dark:text-gray-200">Add New Preference</h3>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
           <div>
-            <label className="block mb-2 font-medium text-gray-200">Preference Type</label>
+            <label className="block mb-2 font-medium text-gray-800 dark:text-gray-200">Preference Type</label>
             <NativeSelect
               value={newPreference.type}
               onChange={(e) => setNewPreference({
@@ -667,7 +668,7 @@ const UserPreferences: React.FC<UserPreferencesProps> = ({ userId: initialUserId
                 type: e.target.value
               })}
               disabled={loading}
-              className="w-full bg-gray-700 border-gray-600 text-gray-200"
+              className="w-full bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200"
             >
               {preferenceTypes.map((type) => (
                 <option key={type.value} value={type.value}>
@@ -675,13 +676,13 @@ const UserPreferences: React.FC<UserPreferencesProps> = ({ userId: initialUserId
                 </option>
               ))}
             </NativeSelect>
-            <p className="text-sm text-gray-400 mt-2">
+            <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
               Choose what kind of preference you want to add
             </p>
           </div>
           
           <div>
-            <label className="block mb-2 font-medium text-gray-200">Summary/Value</label>
+            <label className="block mb-2 font-medium text-gray-800 dark:text-gray-200">Summary/Value</label>
             <Input
               type="text"
               value={newPreference.value}
@@ -696,9 +697,9 @@ const UserPreferences: React.FC<UserPreferencesProps> = ({ userId: initialUserId
                             newPreference.type === 'characteristic' ? 'are characterized by' : 
                             'have an opinion about'}`}
               disabled={loading}
-              className="w-full bg-gray-700 border-gray-600 text-gray-200"
+              className="w-full bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200"
             />
-            <p className="text-sm text-gray-400 mt-2">
+            <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
               Examples: {preferenceTypeExamples[newPreference.type as keyof typeof preferenceTypeExamples]}
             </p>
           </div>
@@ -706,7 +707,7 @@ const UserPreferences: React.FC<UserPreferencesProps> = ({ userId: initialUserId
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
           <div>
-            <label className="block mb-2 font-medium text-gray-200">Confidence Level</label>
+            <label className="block mb-2 font-medium text-gray-800 dark:text-gray-200">Confidence Level</label>
             <NativeSelect
               value={newPreference.confidence.toString()}
               onChange={(e) => setNewPreference({
@@ -714,20 +715,20 @@ const UserPreferences: React.FC<UserPreferencesProps> = ({ userId: initialUserId
                 confidence: parseFloat(e.target.value)
               })}
               disabled={loading}
-              className="w-full bg-gray-700 border-gray-600 text-gray-200"
+              className="w-full bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200"
             >
               <option value="0.7">{confidenceLabels[0.7]}</option>
               <option value="0.8">{confidenceLabels[0.8]}</option>
               <option value="0.9">{confidenceLabels[0.9]}</option>
               <option value="1.0">{confidenceLabels[1.0]}</option>
             </NativeSelect>
-            <p className="text-sm text-gray-400 mt-2">
+            <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
               Higher confidence means the AI will prioritize this preference more strongly
             </p>
           </div>
           
           <div>
-            <label className="block mb-2 font-medium text-gray-200">Additional Context</label>
+            <label className="block mb-2 font-medium text-gray-800 dark:text-gray-200">Additional Context</label>
             <Input
               type="text"
               value={newPreference.context}
@@ -737,9 +738,9 @@ const UserPreferences: React.FC<UserPreferencesProps> = ({ userId: initialUserId
               })}
               placeholder="Information to help AI understand this preference"
               disabled={loading}
-              className="w-full bg-gray-700 border-gray-600 text-gray-200"
+              className="w-full bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200"
             />
-            <p className="text-sm text-gray-400 mt-2">
+            <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
               Explain when/why this preference applies or provide more details
             </p>
           </div>

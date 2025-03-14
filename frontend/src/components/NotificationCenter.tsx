@@ -7,7 +7,6 @@ import {
   Info, 
   CheckCircle,
   Clock,
-  BellOff,
   Volume2,
   VolumeX
 } from 'lucide-react';
@@ -26,6 +25,7 @@ import {
 } from '@/utils/notifications';
 import { cn } from '@/lib/utils';
 import { Switch } from '@/components/ui/switch';
+import NotificationPanel from './NotificationPanel';
 
 export interface Notification extends ApiNotification {
   read?: boolean;
@@ -174,7 +174,6 @@ const NotificationItem = ({ notification }: { notification: Notification }) => {
 export const NotificationBell = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [isMuted, setIsMuted] = useState(isNotificationsMuted);
   const notificationList = useNotifications();
   const dropdownRef = useRef<HTMLDivElement>(null);
   
@@ -210,10 +209,23 @@ export const NotificationBell = () => {
     notificationListeners.forEach(listener => listener(notifications));
   };
   
-  // Toggle mute state
-  const handleToggleMute = () => {
-    const newMuteState = toggleNotificationsMuted();
-    setIsMuted(newMuteState);
+  // Handle notification click
+  const handleNotificationClick = (id: string) => {
+    // Mark notification as read
+    const index = notifications.findIndex(n => n.id === id);
+    if (index !== -1) {
+      notifications[index] = { ...notifications[index], read: true };
+      notificationListeners.forEach(listener => listener(notifications));
+    }
+  };
+  
+  // Mark all as read
+  const handleMarkAllAsRead = () => {
+    // Mark all notifications as read
+    for (let i = 0; i < notifications.length; i++) {
+      notifications[i] = { ...notifications[i], read: true };
+    }
+    notificationListeners.forEach(listener => listener(notifications));
   };
   
   return (
@@ -235,60 +247,15 @@ export const NotificationBell = () => {
       </Button>
       
       {isOpen && (
-        <Card className="absolute right-0 mt-2 w-80 max-h-[70vh] overflow-hidden z-50 shadow-lg">
-          <div className="p-4 border-b border-border/40 flex justify-between items-center">
-            <h3 className="font-medium">Notifications</h3>
-            <div className="flex gap-2">
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={clearNotifications}
-                className="text-xs h-7 px-2"
-              >
-                Clear all
-              </Button>
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                className="h-7 w-7" 
-                onClick={() => setIsOpen(false)}
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-          
-          <div className="p-3 border-b border-border/40 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              {isMuted ? (
-                <VolumeX className="h-4 w-4 text-muted-foreground" />
-              ) : (
-                <Volume2 className="h-4 w-4 text-primary" />
-              )}
-              <span className="text-sm">Mute popup notifications</span>
-            </div>
-            <Switch 
-              checked={isMuted} 
-              onCheckedChange={handleToggleMute}
-              aria-label="Toggle notification sounds"
-            />
-          </div>
-          
-          <div className="overflow-y-auto max-h-[calc(70vh-120px)] p-3">
-            {notificationList.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground text-sm">
-                No notifications
-              </div>
-            ) : (
-              notificationList.map(notification => (
-                <NotificationItem 
-                  key={notification.id} 
-                  notification={notification} 
-                />
-              ))
-            )}
-          </div>
-        </Card>
+        <div className="absolute right-0 mt-2 z-50">
+          <NotificationPanel 
+            notifications={notificationList}
+            onClose={() => setIsOpen(false)}
+            onClearAll={clearNotifications}
+            onMarkAllAsRead={handleMarkAllAsRead}
+            onNotificationClick={handleNotificationClick}
+          />
+        </div>
       )}
     </div>
   );
@@ -298,7 +265,6 @@ const NotificationCenter: React.FC<NotificationCenterProps> = () => {
   const [localNotifications, setLocalNotifications] = useState<Notification[]>(notifications);
   const [unreadCount, setUnreadCount] = useState<number>(0);
   const [open, setOpen] = useState(false);
-  const [isMuted, setIsMuted] = useState(isNotificationsMuted);
   
   // Update local state when notifications change
   useEffect(() => {
@@ -346,43 +312,6 @@ const NotificationCenter: React.FC<NotificationCenterProps> = () => {
     notificationListeners.forEach(listener => listener(notifications));
   };
   
-  // Toggle mute state
-  const handleToggleMute = () => {
-    const newMuteState = toggleNotificationsMuted();
-    setIsMuted(newMuteState);
-  };
-  
-  const getNotificationIcon = (type: Notification['type']) => {
-    switch (type) {
-      case 'success':
-        return <CheckCircle className="h-4 w-4 text-green-500" />;
-      case 'error':
-        return <AlertCircle className="h-4 w-4 text-red-500" />;
-      case 'info':
-        return <Info className="h-4 w-4 text-blue-500" />;
-      case 'pending':
-        return <Clock className="h-4 w-4 text-yellow-500" />;
-      default:
-        return <Info className="h-4 w-4 text-blue-500" />;
-    }
-  };
-  
-  const formatTimestamp = (timestamp: number) => {
-    const now = new Date();
-    const date = new Date(timestamp);
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMins / 60);
-    const diffDays = Math.floor(diffHours / 24);
-    
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    if (diffDays < 7) return `${diffDays}d ago`;
-    
-    return date.toLocaleDateString();
-  };
-  
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger asChild>
@@ -394,84 +323,17 @@ const NotificationCenter: React.FC<NotificationCenterProps> = () => {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent 
-        className="notification-panel w-80" 
         align="end"
         forceMount
+        className="p-0 border-0 bg-transparent shadow-none"
       >
-        <div className="notification-header">
-          <h3 className="text-sm font-medium">Notifications</h3>
-          <div className="flex gap-1">
-            {unreadCount > 0 && (
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                className="h-8 px-2 text-xs"
-                onClick={handleMarkAllAsRead}
-              >
-                <Check className="h-3.5 w-3.5 mr-1" />
-                Mark all read
-              </Button>
-            )}
-            {localNotifications.length > 0 && (
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                className="h-8 px-2 text-xs"
-                onClick={handleClearAll}
-              >
-                <X className="h-3.5 w-3.5 mr-1" />
-                Clear all
-              </Button>
-            )}
-          </div>
-        </div>
-        
-        <div className="p-3 border-t border-b border-border/40 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            {isMuted ? (
-              <VolumeX className="h-4 w-4 text-muted-foreground" />
-            ) : (
-              <Volume2 className="h-4 w-4 text-primary" />
-            )}
-            <span className="text-sm">Mute popup notifications</span>
-          </div>
-          <Switch 
-            checked={isMuted} 
-            onCheckedChange={handleToggleMute}
-            aria-label="Toggle notification sounds"
-          />
-        </div>
-        
-        <div className="notification-list">
-          {localNotifications.length === 0 ? (
-            <div className="notification-empty">
-              <p>No notifications</p>
-            </div>
-          ) : (
-            localNotifications.map((notification) => (
-              <div 
-                key={notification.id} 
-                className={`notification-item ${notification.read ? 'notification-item-read' : ''}`}
-                onClick={() => handleNotificationClick(notification.id)}
-              >
-                <div className="flex items-start gap-3">
-                  <div className="flex-shrink-0 mt-0.5">
-                    {getNotificationIcon(notification.type)}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex justify-between items-start">
-                      <p className="text-sm font-medium truncate">{notification.title}</p>
-                      <span className="text-xs text-muted-foreground ml-2">
-                        {formatTimestamp(notification.timestamp)}
-                      </span>
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-1">{notification.message}</p>
-                  </div>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
+        <NotificationPanel 
+          notifications={localNotifications}
+          onClose={() => setOpen(false)}
+          onClearAll={handleClearAll}
+          onMarkAllAsRead={handleMarkAllAsRead}
+          onNotificationClick={handleNotificationClick}
+        />
       </DropdownMenuContent>
     </DropdownMenu>
   );

@@ -49,12 +49,12 @@ const Navbar: React.FC<NavbarProps> = ({ toggleSidebar }) => {
   ];
 
   return (
-    <header className="sticky top-0 z-40 flex h-16 items-center gap-4 border-b border-white/[0.05] bg-[#0f1117] px-6">
+    <header className="sticky top-0 z-40 flex h-16 items-center gap-4 border-b border-border bg-background px-6">
       <Button
         variant="ghost"
         size="icon"
         onClick={toggleSidebar}
-        className={cn("text-gray-300 hover:text-white hover:bg-white/[0.06]", isDesktop && "lg:hidden")}
+        className={cn("hover:bg-accent", isDesktop && "lg:hidden")}
         aria-label="Toggle sidebar"
       >
         <Menu className="h-5 w-5" />
@@ -101,7 +101,7 @@ const Navbar: React.FC<NavbarProps> = ({ toggleSidebar }) => {
         
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="relative h-9 w-9 rounded-full hover:bg-white/[0.06]">
+            <Button variant="ghost" className="relative h-9 w-9 rounded-full hover:bg-accent">
               <Avatar className="h-9 w-9">
                 {userProfile.avatar ? (
                   <AvatarImage src={userProfile.avatar} alt={userProfile.name} />
@@ -113,7 +113,7 @@ const Navbar: React.FC<NavbarProps> = ({ toggleSidebar }) => {
               </Avatar>
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent className="w-56 bg-[#171923] border-white/[0.05]" align="end" forceMount>
+          <DropdownMenuContent className="w-56 bg-popover border-border" align="end" forceMount>
             <DropdownMenuLabel className="font-normal">
               <div className="flex flex-col space-y-1">
                 <p className="text-sm font-medium leading-none">{userProfile.name}</p>
@@ -122,21 +122,30 @@ const Navbar: React.FC<NavbarProps> = ({ toggleSidebar }) => {
                 </p>
               </div>
             </DropdownMenuLabel>
-            <DropdownMenuSeparator className="bg-white/[0.05]" />
+            <DropdownMenuSeparator className="bg-border" />
             <DropdownMenuItem 
               onClick={() => setIsProfileModalOpen(true)}
-              className="hover:bg-white/[0.06] focus:bg-white/[0.06]"
+              className="hover:bg-accent focus:bg-accent"
             >
               <User className="mr-2 h-4 w-4" />
               <span>Profile</span>
             </DropdownMenuItem>
             <DropdownMenuItem 
               asChild
-              className="hover:bg-white/[0.06] focus:bg-white/[0.06]"
+              className="hover:bg-accent focus:bg-accent"
             >
               <Link to="/notifications">
                 <Bell className="mr-2 h-4 w-4" />
                 <span>Notification Info</span>
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem 
+              asChild
+              className="hover:bg-accent focus:bg-accent"
+            >
+              <Link to="/preferences">
+                <User className="mr-2 h-4 w-4" />
+                <span>User Preferences</span>
               </Link>
             </DropdownMenuItem>
           </DropdownMenuContent>
