@@ -122,36 +122,36 @@ services:
     networks:
       - supa-network
 
-     # Supabase Kong API Gateway
-   kong:
-     image: kong:2.8.1
-     container_name: supachat-kong
-     restart: unless-stopped
-     depends_on:
-       db:
-         condition: service_healthy
-       rest:
-         condition: service_started
-       meta:
-         condition: service_started
-     ports:
-       - "8002:8002"  # Map external 8002 to internal 8002
-     environment:
-       KONG_DATABASE: "off"
-       KONG_DECLARATIVE_CONFIG: /home/kong/kong.yml
-       KONG_DNS_ORDER: LAST,A,CNAME
-       KONG_PLUGINS: request-transformer,cors,key-auth,acl,basic-auth
-       KONG_NGINX_PROXY_PROXY_BUFFER_SIZE: 160k
-       KONG_NGINX_PROXY_PROXY_BUFFERS: 64 160k
-       KONG_PROXY_LISTEN: 0.0.0.0:8002  # Removed the "http" part
-       SUPABASE_ANON_KEY: ${ANON_KEY}
-       SUPABASE_SERVICE_KEY: ${SERVICE_ROLE_KEY}
-       DASHBOARD_USERNAME: supabase
-       DASHBOARD_PASSWORD: ${DASHBOARD_PASSWORD}
-     volumes:
-       - ./volumes/api/kong.yml:/home/kong/kong.yml:ro
-     networks:
-       - supa-network
+    # Supabase Kong API Gateway
+  kong:
+    image: kong:2.8.1
+    container_name: supachat-kong
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      rest:
+        condition: service_started
+      meta:
+        condition: service_started
+    ports:
+      - "8002:8002"  # Map external 8002 to internal 8002
+    environment:
+      KONG_DATABASE: "off"
+      KONG_DECLARATIVE_CONFIG: /home/kong/kong.yml
+      KONG_DNS_ORDER: LAST,A,CNAME
+      KONG_PLUGINS: request-transformer,cors,key-auth,acl,basic-auth
+      KONG_NGINX_PROXY_PROXY_BUFFER_SIZE: 160k
+      KONG_NGINX_PROXY_PROXY_BUFFERS: 64 160k
+      KONG_PROXY_LISTEN: 0.0.0.0:8002  # Removed the "http" part
+      SUPABASE_ANON_KEY: ${ANON_KEY}
+      SUPABASE_SERVICE_KEY: ${SERVICE_ROLE_KEY}
+      DASHBOARD_USERNAME: supabase
+      DASHBOARD_PASSWORD: ${DASHBOARD_PASSWORD}
+    volumes:
+      - ./volumes/api/kong.yml:/home/kong/kong.yml:ro
+    networks:
+      - supa-network
 
   # Supabase REST API
   rest:
