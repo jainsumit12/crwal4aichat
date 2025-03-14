@@ -198,8 +198,8 @@ This will start the backend API on port 8001 and the frontend UI on port 3000.
 ![Image](https://github.com/user-attachments/assets/4042e241-23ca-4009-b629-a362dac74f7a)
 ---
 
-- As you chat the AI will add preferences and remeber them or add manually
-![Image](https://github.com/user-attachments/assets/125ed2f2-7ba2-4e3e-a6e0-ed0a19277e30)
+- As you chat the AI will add preferences based on your conversation and remeber them or you can add manually
+![Image](https://github.com/user-attachments/assets/5836dfa8-3b09-406e-a5d9-392114d07b99)
 ---
 
 - Dedicated User Guide
