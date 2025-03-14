@@ -67,7 +67,18 @@ Seamlessly crawl websites, transform content into vector embeddings, and enable 
    pip install -r requirements.txt
    ```
 
-3. Create a `.env` file with your configuration:
+3. Changed directory to frontend and install dependencies:
+
+   ```bash
+   cd frontend
+   ```
+
+   ```bash
+   npm install
+   ```
+
+
+4. Create a `.env` file with your configuration:
 <details>
 <summary>Click to expand</summary>
 
@@ -160,19 +171,39 @@ This will start the backend API on port 8001 and the frontend UI on port 3000.
 
 ![Image](https://github.com/user-attachments/assets/a56cf708-dfe5-4aa7-a854-0685867cee18)
 
-<details>
-<summary>Click to expand more images of the UI</summary>
+<details open>
+<summary>Click to close or open images</summary>
 
-![Image](https://github.com/user-attachments/assets/86b26bf1-15e9-4cc9-9cba-6a666c2d0646)
----
-![Image](https://github.com/user-attachments/assets/4c1a0b52-953e-4dc8-b7a9-4a62ecb56c93)
----
+- Crawl a url or sitemap
 ![Image](https://github.com/user-attachments/assets/9155d59e-303e-484f-96de-1a7a917eeefe)
 ---
+
+- Chat with your docs!
+![Image](https://github.com/user-attachments/assets/86b26bf1-15e9-4cc9-9cba-6a666c2d0646)
+---
+
+- Manage your sites
+![Image](https://github.com/user-attachments/assets/f106ebd6-96a8-448d-b871-eaa9038169f9)
+---
+
+- Search your crawled pages - view chunks
+![Image](https://github.com/user-attachments/assets/6b0defc7-d0c9-405b-bbf4-1c8045e6f206)
+---
+
+- View your sites - parent pages and chunks
+![Image](https://github.com/user-attachments/assets/4c1a0b52-953e-4dc8-b7a9-4a62ecb56c93)
+---
+
+- Get detailed info - view whats in the db, view raw, render in md or fetch url live!
 ![Image](https://github.com/user-attachments/assets/4042e241-23ca-4009-b629-a362dac74f7a)
 ---
-![Image](https://github.com/user-attachments/assets/6b0defc7-d0c9-405b-bbf4-1c8045e6f206)
 
+- As you chat the AI will add preferences and remeber them or add manually
+![Image](https://github.com/user-attachments/assets/125ed2f2-7ba2-4e3e-a6e0-ed0a19277e30)
+---
+
+- Dedicated User Guide
+![Image](https://github.com/user-attachments/assets/b6e00fb5-e55a-4f8a-8019-16a73ce347df)
 
 </details>
 
