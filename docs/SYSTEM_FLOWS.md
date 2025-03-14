@@ -1,6 +1,6 @@
-# Crawl4AI System Flows and Components
+# Supa Crawl Chat Docs
 
-This document provides a detailed explanation of all the components, flows, and interactions in the Crawl4AI system. It covers how different parts of the system work together, what happens in different scenarios, and how various settings affect the behavior of the system.
+This document provides a detailed explanation of all the components, flows, and interactions in the Supa Crawl Chat system. It covers how different parts of the system work together, what happens in different scenarios, and how various settings affect the behavior of the system.
 
 
 ## Core Components
