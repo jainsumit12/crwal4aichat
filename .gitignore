@@ -42,7 +42,6 @@ docker/.env
 logs/
 
 # Output files
-*.json
 *.csv
 *.xlsx
 
