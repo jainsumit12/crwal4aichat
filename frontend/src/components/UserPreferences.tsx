@@ -167,6 +167,9 @@ const UserPreferences: React.FC<UserPreferencesProps> = ({ userId: initialUserId
     }
     
     setLoading(true);
+    // Clear existing preferences to ensure we're showing fresh data
+    setPreferences([]);
+    
     try {
       console.log(`Loading preferences for user: ${userId}`);
       
@@ -203,7 +206,12 @@ const UserPreferences: React.FC<UserPreferencesProps> = ({ userId: initialUserId
       console.log('Combined preferences:', allPrefs.length);
       
       setPreferences(allPrefs);
-      showNotification(`Loaded ${allPrefs.length} preferences for ${userId}`, 'success');
+      showNotification(
+        allPrefs.length > 0 
+          ? `Loaded ${allPrefs.length} preferences for ${userId}` 
+          : `No preferences found for ${userId}`,
+        'success'
+      );
     } catch (error) {
       console.error('Error loading preferences:', error);
       showNotification('Failed to load preferences', 'error');
@@ -221,7 +229,11 @@ const UserPreferences: React.FC<UserPreferencesProps> = ({ userId: initialUserId
 
   // Apply filter changes when Refresh button is clicked
   const handleFilterChange = () => {
+    // Force a reload of preferences from the API
     loadPreferences();
+    
+    // Notify the user that the refresh is happening
+    showNotification('Refreshing preferences...', 'info');
   };
 
   // Debug function to check active/inactive status
@@ -460,6 +472,7 @@ const UserPreferences: React.FC<UserPreferencesProps> = ({ userId: initialUserId
             variant="outline"
             disabled={loading || !userId.trim()}
           >
+            {loading ? <Spinner size="sm" className="mr-2" /> : null}
             Refresh
           </Button>
           <Button 
