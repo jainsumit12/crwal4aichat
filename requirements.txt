@@ -3,7 +3,7 @@ python-dotenv==1.0.1
 openai==1.65.4
 supabase==2.3.0
 psycopg2-binary==2.9.9
-tqdm==4.66.1
+tqdm==4.66.3
 pandas==2.1.4
 numpy==1.26.3
 rich==13.7.0 
