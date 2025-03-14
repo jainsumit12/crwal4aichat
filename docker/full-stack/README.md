@@ -175,3 +175,31 @@ docker logs supachat-api
 docker logs supachat-kong
 docker logs supachat-frontend
 ```
+
+fix errors in Meta
+
+```bash
+in meta container  
+   docker-compose -f full-stack-compose.yml restart meta
+```  
+  
+Make sure DB is setup
+
+```bash
+   docker exec -it supachat-api python main.py setup
+```
+
+Other common commands 
+
+```bash
+
+docker exec -it supachat-db psql -U postgres -c "ALTER ROLE authenticator WITH PASSWORD 'StrongPassword123!';"
+```
+
+```bash
+docker restart supachat-rest
+```
+
+```bash
+docker exec -it supachat-db bash -c "psql -U postgres -c \"ALTER ROLE authenticator WITH PASSWORD 'postgres';\""
+```
