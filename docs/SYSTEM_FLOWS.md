@@ -819,8 +819,33 @@ DASHBOARD_PASSWORD=your-dashboard-password
 SUPABASE_HOST=db
 SUPABASE_PORT=5432
 SUPABASE_DB=postgres
+SUPABASE_KEY=supabase_admin
 SUPABASE_PASSWORD=${POSTGRES_PASSWORD}
+
+# IMPORTANT: Comment out or leave empty to ensure direct database connection
+# SUPABASE_URL=http://kong:8002
 ```
+
+#### Critical Environment Variable Configuration
+
+The `SUPABASE_URL` environment variable requires special attention:
+
+1. **Direct Database Connection**: The API service should connect directly to the database using the PostgreSQL protocol, not through Kong. To ensure this:
+   - Comment out or leave empty the `SUPABASE_URL` variable in your `.env` file
+   - Ensure the direct connection parameters are set correctly:
+     ```
+     SUPABASE_HOST=db
+     SUPABASE_PORT=5432
+     SUPABASE_KEY=supabase_admin
+     SUPABASE_PASSWORD=${POSTGRES_PASSWORD}
+     ```
+
+2. **Kong's Role**: Kong is an API gateway that routes HTTP/HTTPS requests, not database connections. It's used by:
+   - The frontend to access REST API endpoints
+   - Supabase Studio for database management
+   - External clients accessing the API
+
+3. **SSL Negotiation Errors**: If `SUPABASE_URL` is set to `http://kong:8002`, the API will try to connect to Kong for database operations, resulting in SSL negotiation errors.
 
 #### Setup and Deployment
 
@@ -829,13 +854,20 @@ SUPABASE_PASSWORD=${POSTGRES_PASSWORD}
    cd docker
    ```
 
-2. Run the setup script to create necessary files:
+2. Run the setup script to create necessary configuration files:
    ```bash
-   chmod +x setup.sh
-   ./setup.sh
+   chmod +x setup_update.sh
+   ./setup_update.sh
    ```
+   
+   This script will:
+   - Check for the existence of the `.env` file
+   - Create SQL scripts for database initialization
+   - Download Supabase initialization scripts
+   - Create application tables and functions
+   - Generate the Kong configuration file
 
-3. Edit the Docker-specific `.env` file:
+3. Edit the Docker-specific `.env` file if needed:
    ```bash
    nano .env
    ```
@@ -876,19 +908,85 @@ SUPABASE_PASSWORD=${POSTGRES_PASSWORD}
   - `volumes/api`: API configuration files
   - `volumes/shm`: Shared memory for Crawl4AI
 
+#### Kong Configuration
+
+The Kong configuration file is located at `volumes/api/kong.yml`. This file is mounted to the Kong container and defines the API routes and services:
+
+```yaml
+_format_version: "2.1"
+_transform: true
+
+services:
+  - name: api-service
+    url: http://api:8001
+    routes:
+      - name: api-route
+        paths:
+          - /api
+        strip_path: false
+        preserve_host: true
+    plugins:
+      - name: cors
+        config:
+          origins:
+            - "*"
+          methods:
+            - GET
+            - POST
+            - PUT
+            - DELETE
+            - OPTIONS
+          headers:
+            - Accept
+            - Accept-Version
+            - Content-Length
+            - Content-MD5
+            - Content-Type
+            - Date
+            - X-Auth-Token
+          credentials: true
+          max_age: 3600
+          preflight_continue: false
+
+  - name: rest-service
+    url: http://rest:3000
+    routes:
+      - name: rest-route
+        paths:
+          - /rest
+```
+
+If you need to modify the Kong configuration:
+1. Edit `volumes/api/kong.yml`
+2. Restart Kong:
+   ```bash
+   docker-compose -f full-stack-compose.yml restart kong
+   ```
+
 #### Troubleshooting
 
 1. **Database Connection Issues**:
    - Check if the database container is healthy: `docker ps | grep supachat-db`
    - Verify the database credentials in the `.env` file
-   - Ensure the API container is using the correct connection parameters:
+   - Ensure the API container has the correct environment variables:
+     ```bash
+     docker exec -it supachat-api env | grep SUPA
      ```
-     SUPABASE_HOST=db
-     SUPABASE_PORT=5432
-     ```2. **Kong API Gateway Issues**:
-   - The API should connect directly to the database, not through Kong
-   - If seeing SSL negotiation errors, ensure `SUPABASE_URL` is unset or empty
-   - Check Kong logs: `docker logs supachat-kong`
+   - If you see SSL negotiation errors, make sure `SUPABASE_URL` is commented out or empty in your `.env` file
+   - Restart the API service after making changes:
+     ```bash
+     docker-compose -f full-stack-compose.yml restart api
+     ```
+
+2. **REST Service Issues**:
+   - If the REST service is not connecting properly, run the fix script:
+     ```bash
+     ./fix_rest.sh
+     ```
+   - This script will:
+     - Extract the correct database password from your `.env` file
+     - Restart the REST service with the correct configuration
+     - Restart Kong to ensure it connects to the REST service
 
 3. **Missing Database Tables**:
    - The setup script should create all necessary tables
@@ -906,6 +1004,18 @@ SUPABASE_PASSWORD=${POSTGRES_PASSWORD}
      ```bash
      docker-compose -f full-stack-compose.yml down
      docker-compose -f full-stack-compose.yml up -d
+     ```
+
+5. **Checking Logs**:
+   - View logs for a specific service:
+     ```bash
+     docker logs supachat-api
+     docker logs supachat-kong
+     docker logs supachat-frontend
+     ```
+   - Follow logs in real-time:
+     ```bash
+     docker logs -f supachat-api
      ```
 
 ### Docker Volumes and Data Persistence
@@ -955,5 +1065,5 @@ When using Docker, environment variables are resolved in the following order (hi
 2. Variables defined in the `.env` file in the same directory as the Docker Compose file
 3. Variables defined in the container's environment
 
-This precedence order is important to understand when troubleshooting configuration issues. 
+This precedence order is important to understand when troubleshooting configuration issues. For example, even if `SUPABASE_URL` is commented out in your `.env` file, it might still be set in the Docker Compose file's `environment` section.
 

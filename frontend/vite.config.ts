@@ -28,6 +28,7 @@ export default defineConfig({
         target: API_TARGET,
         changeOrigin: true,
         secure: false,
+        rewrite: (path) => path, // Don't rewrite the path
         configure: (proxy, _options) => {
           proxy.on('error', (err, _req, _res) => {
             console.log('proxy error', err);

@@ -22,13 +22,36 @@ The setup includes the following components:
 - Docker and Docker Compose installed
 - `.env` file with required environment variables (see `.env.example`)
 
-### Starting the Services
+### Important Environment Variable Configuration
 
-To start all services:
+Before starting the services, make sure your `.env` file is properly configured:
 
-```bash
-docker-compose -f full-stack-compose.yml up -d
-```
+1. **SUPABASE_URL**: This should be commented out or left empty to ensure the API connects directly to the database:
+   ```
+   # SUPABASE_URL=http://kong:8002
+   ```
+   
+   If this is set, the API will try to connect to Kong for database operations, which will cause SSL negotiation errors.
+
+2. Ensure these database connection parameters are set correctly:
+   ```
+   SUPABASE_HOST=db
+   SUPABASE_PORT=5432
+   SUPABASE_KEY=supabase_admin
+   SUPABASE_PASSWORD=StrongPassword123!
+   ```
+
+### Setup Process
+
+1. Run the setup script to create necessary configuration files:
+   ```bash
+   ./setup_update.sh
+   ```
+
+2. Start all services:
+   ```bash
+   docker-compose -f full-stack-compose.yml up -d
+   ```
 
 ### Checking Service Status
 
@@ -57,6 +80,7 @@ If you need to reset the setup (this will remove all data):
 ## Accessing the Services
 
 - **API**: http://localhost:8001
+- **API Documentation**: http://localhost:8001/docs
 - **Frontend UI**: http://localhost:3000
 - **Supabase REST API**: http://localhost:8002/rest/v1/ (requires API key)
 - **Supabase Studio**: http://localhost:3001
@@ -70,16 +94,58 @@ If you need to reset the setup (this will remove all data):
    - Chat with AI about the crawled content
    - Manage crawl jobs and view results
 3. For database administration, access Supabase Studio at http://localhost:3001
+4. For API documentation, visit http://localhost:8001/docs
 
 ## Troubleshooting
 
-If you encounter issues with the database, you can check the database connections:
+### Database Connection Issues
+
+If you encounter database connection errors like "connection to server at 'kong', port 8002 failed: received invalid response to SSL negotiation":
+
+1. Check your `.env` file and make sure `SUPABASE_URL` is commented out or empty
+2. Verify the API container has the correct environment variables:
+   ```bash
+   docker exec -it supachat-api env | grep SUPA
+   ```
+3. Restart the API service after making changes:
+   ```bash
+   docker-compose -f full-stack-compose.yml restart api
+   ```
+
+### REST Service Issues
+
+If the REST service is not connecting properly:
 
 ```bash
-./check_db_connections.sh
+./fix_rest.sh
 ```
+
+This script will:
+- Extract the correct database password from your `.env` file
+- Restart the REST service with the correct configuration
+- Restart Kong to ensure it connects to the REST service
+
+### Kong Configuration
+
+The Kong configuration file is located at `volumes/api/kong.yml`. This file is mounted to the Kong container and defines the API routes and services.
+
+If you need to modify the Kong configuration:
+1. Edit `volumes/api/kong.yml`
+2. Restart Kong:
+   ```bash
+   docker-compose -f full-stack-compose.yml restart kong
+   ```
+
+### Other Common Issues
 
 If the frontend is not connecting to the API, verify:
 - The API service is running (`docker ps | grep supachat-api`)
 - The frontend environment variables are correctly set
 - Network connectivity between containers is working
+
+For any other issues, check the container logs:
+```bash
+docker logs supachat-api
+docker logs supachat-kong
+docker logs supachat-frontend
+```

@@ -37,6 +37,13 @@ class TrailingSlashMiddleware(BaseHTTPMiddleware):
         
         # Continue processing the request
         response = await call_next(request)
+        
+        # Ensure we don't return 307 redirects for trailing slashes
+        if response.status_code == 307 and response.headers.get("location", "").endswith("/"):
+            print(f"Preventing 307 redirect for path: {request.url.path}")
+            # Create a new response with the same content but status code 200
+            return await call_next(request)
+            
         return response
 
 # Create FastAPI app

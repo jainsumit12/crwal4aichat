@@ -1067,19 +1067,29 @@ We provide a comprehensive Docker setup that includes everything you need to run
 - Supabase Docker images (Database, Kong, Realtime, etc.)
 - Crawl4AI Docker image for web crawling
 
-This setup comes with everything!
+This setup comes with everything you need to run the complete application without any external dependencies.
 
 <details>
-<summary>Click to expand details</summary>
+<summary>Click to expand more images of the UI</summary>
 
-#### Important Note on Environment Files
+#### Important Environment Variable Configuration
 
-The full-stack Docker setup uses its own `.env` file located in the `docker/` directory, which is separate from the root `.env` file:
+The full-stack Docker setup requires careful configuration of environment variables:
 
-- **docker/.env**: Used exclusively by the full-stack Docker setup
-- **Root .env**: Used by the standard setup or API + Crawl4ai Docker setup
+1. **SUPABASE_URL**: This should be commented out or left empty to ensure the API connects directly to the database:
+   ```
+   # SUPABASE_URL=http://kong:8002
+   ```
+   
+   If this is set, the API will try to connect to Kong for database operations, which will cause SSL negotiation errors.
 
-This separation allows users to run either setup without conflicts.
+2. **Direct Database Connection**: Ensure these database connection parameters are set correctly:
+   ```
+   SUPABASE_HOST=db
+   SUPABASE_PORT=5432
+   SUPABASE_KEY=supabase_admin
+   SUPABASE_PASSWORD=${POSTGRES_PASSWORD}
+   ```
 
 #### Setting Up the Full Stack
 
@@ -1090,11 +1100,18 @@ To use the full stack Docker setup:
    cd docker
    ```
 
-2. Run the setup script:
+2. Run the setup script to create necessary configuration files:
    ```bash
-   chmod +x setup.sh
-   ./setup.sh
+   chmod +x setup_update.sh
+   ./setup_update.sh
    ```
+   
+   This script will:
+   - Check for the existence of the `.env` file
+   - Create SQL scripts for database initialization
+   - Download Supabase initialization scripts
+   - Create application tables and functions
+   - Generate the Kong configuration file
 
 3. Edit the Docker-specific `.env` file with your actual values:
    ```bash
@@ -1107,9 +1124,11 @@ To use the full stack Docker setup:
    ```
 
 5. Access the services:
-   - Supa Chat API: http://localhost:8001
+   - API: http://localhost:8001
+   - API Documentation: http://localhost:8001/docs
    - Frontend UI: http://localhost:3000
    - Supabase Studio: http://localhost:3001 (username: supabase, password: from your .env file)
+   - Kong API Gateway: http://localhost:8002
    - Crawl4AI: http://localhost:11235
 
 6. Monitor or manage the stack:
@@ -1121,8 +1140,33 @@ To use the full stack Docker setup:
    ./reset.sh
    ```
 
-For more detailed instructions, see the [Docker README](docker/full-stack/README.md).
+#### Troubleshooting
+
+1. **Database Connection Issues**:
+   - If you see SSL negotiation errors, make sure `SUPABASE_URL` is commented out or empty in your `.env` file
+   - Verify the database credentials in the `.env` file
+   - Restart the API service after making changes:
+     ```bash
+     docker-compose -f full-stack-compose.yml restart api
+     ```
+
+2. **REST Service Issues**:
+   - If the REST service is not connecting properly, run the fix script:
+     ```bash
+     ./fix_rest.sh
+     ```
+
+3. **Checking Logs**:
+   - View logs for a specific service:
+     ```bash
+     docker logs supachat-api
+     docker logs supachat-kong
+     docker logs supachat-frontend
+     ```
+
 </details>
+
+For more detailed instructions, see the [Docker README](docker/full-stack/README.md) and [System Flows Documentation](docs/SYSTEM_FLOWS.md).
 
 ## API
 

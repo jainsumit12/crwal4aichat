@@ -22,6 +22,12 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
     echo "Running setup script to recreate necessary files..."
     ./setup.sh
 
+    # Preserve the Kong configuration
+    if [ -f "config/kong.yml" ]; then
+      echo "Backing up Kong configuration..."
+      cp config/kong.yml config/kong.yml.bak
+    fi
+
     echo ""
     echo "Reset complete! You can now start the services with:"
     echo "docker-compose -f full-stack-compose.yml up -d"
@@ -31,6 +37,13 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
     echo ""
     echo "If the database is running but other services can't connect to it, check if it's listening on all interfaces:"
     echo "./check_db_connections.sh"
+
+    # Restore the Kong configuration if it was backed up
+    if [ -f "config/kong.yml.bak" ]; then
+      echo "Restoring Kong configuration..."
+      cp config/kong.yml.bak config/kong.yml
+      rm config/kong.yml.bak
+    fi
 else
     echo "Reset cancelled."
 fi 
