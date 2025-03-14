@@ -46,8 +46,5 @@ export default defineConfig({
   build: {
     // Ignore TypeScript errors during build
     sourcemap: true,
-    commonjsOptions: {
-      transformMixedEsModules: true,
-    },
   },
 }); 
