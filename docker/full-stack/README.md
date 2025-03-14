@@ -112,6 +112,32 @@ If you encounter database connection errors like "connection to server at 'kong'
    docker-compose -f full-stack-compose.yml restart api
    ```
 
+This seems to work for db
+
+```env
+docker exec -it supachat-db psql -U postgres -c "
+-- Create supabase_auth_admin if it doesn't exist
+DO \$\$
+BEGIN
+  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'supabase_auth_admin') THEN
+    CREATE USER supabase_auth_admin NOINHERIT CREATEROLE LOGIN NOREPLICATION;
+  END IF;
+END
+\$\$;
+
+-- Set password for supabase_auth_admin
+ALTER ROLE supabase_auth_admin WITH PASSWORD 'StrongPassword123!';
+
+-- Set password for authenticator
+ALTER ROLE authenticator WITH PASSWORD 'StrongPassword123!';
+
+-- Make sure authenticator has required permissions
+GRANT anon TO authenticator;
+GRANT authenticated TO authenticator;
+GRANT service_role TO authenticator;
+"
+```
+
 ### REST Service Issues
 
 If the REST service is not connecting properly:
