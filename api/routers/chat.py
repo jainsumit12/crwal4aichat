@@ -348,19 +348,26 @@ async def get_user_preferences(
         # Initialize ChatBot
         chat_bot = get_chat_bot(user_id=user_id)
         
-        # Get preferences from the database
-        db_preferences = chat_bot.crawler.db_client.get_user_preferences(
-            user_id=user_id,
-            min_confidence=min_confidence,
-            active_only=active_only
+        # Get preferences
+        preferences = chat_bot.crawler.db_client.get_user_preferences(
+            user_id, min_confidence, active_only
         )
         
-        # Convert to UserPreference objects
-        preferences = [UserPreference.from_dict(pref) for pref in db_preferences]
+        # Convert to Pydantic models
+        preference_models = []
+        for pref in preferences:
+            # Ensure is_active is a boolean
+            if 'is_active' in pref:
+                pref['is_active'] = bool(pref['is_active'])
+            else:
+                # Default to True if not present (for backward compatibility)
+                pref['is_active'] = True if active_only else False
+                
+            preference_models.append(UserPreference.from_dict(pref))
         
         return UserPreferenceResponse(
-            preferences=preferences,
-            count=len(preferences),
+            preferences=preference_models,
+            count=len(preference_models),
             user_id=user_id
         )
     except Exception as e:
@@ -509,6 +516,58 @@ async def deactivate_user_preference(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error deactivating user preference: {str(e)}"
+        )
+
+@router.put("/preferences/{preference_id}/activate", response_model=Dict[str, Any])
+async def activate_user_preference(
+    preference_id: int = Path(..., description="The ID of the preference to activate"),
+    user_id: str = Query(..., description="User ID"),
+):
+    """
+    Activate a user preference.
+    
+    - **preference_id**: The ID of the preference to activate
+    - **user_id**: The user ID
+    """
+    try:
+        # Initialize ChatBot
+        chat_bot = get_chat_bot(user_id=user_id)
+        
+        # Get the preference to verify ownership
+        preference = chat_bot.crawler.db_client.get_preference_by_id(preference_id)
+        
+        if not preference:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Preference with ID {preference_id} not found"
+            )
+        
+        if preference.get("user_id") != user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You do not have permission to activate this preference"
+            )
+        
+        # Activate the preference
+        success = chat_bot.crawler.db_client.activate_user_preference(preference_id)
+        
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to activate preference"
+            )
+        
+        return {
+            "message": f"Preference with ID {preference_id} activated",
+            "id": preference_id,
+            "user_id": user_id
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error activating user preference: {str(e)}"
         )
 
 @router.delete("/preferences", response_model=Dict[str, Any])

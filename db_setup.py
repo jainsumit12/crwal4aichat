@@ -193,11 +193,16 @@ setup_statements = [
     )
     RETURNS TABLE (
         id INTEGER,
+        user_id TEXT,
         preference_type TEXT,
         preference_value TEXT,
         context TEXT,
         confidence FLOAT,
+        created_at TIMESTAMP WITH TIME ZONE,
+        updated_at TIMESTAMP WITH TIME ZONE,
         last_used TIMESTAMP WITH TIME ZONE,
+        source_session TEXT,
+        is_active BOOLEAN,
         metadata JSONB
     )
     LANGUAGE plpgsql
@@ -206,11 +211,16 @@ setup_statements = [
         RETURN QUERY
         SELECT 
             up.id,
+            up.user_id,
             up.preference_type,
             up.preference_value,
             up.context,
             up.confidence,
+            up.created_at,
+            up.updated_at,
             up.last_used,
+            up.source_session,
+            up.is_active,
             up.metadata
         FROM user_preferences up
         WHERE 

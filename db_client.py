@@ -1612,10 +1612,44 @@ class SupabaseClient:
             )
             
             conn.commit()
-            return True
-            
+            return cur.rowcount > 0
         except Exception as e:
-            print_error(f"Error deactivating user preference: {e}")
+            print(f"Error deactivating user preference: {e}")
+            if conn:
+                conn.rollback()
+            return False
+        finally:
+            if conn:
+                conn.close()
+    
+    def activate_user_preference(self, preference_id: int) -> bool:
+        """Activate a user preference.
+        
+        Args:
+            preference_id: The ID of the preference to activate.
+            
+        Returns:
+            True if successful, False otherwise.
+        """
+        conn = None
+        try:
+            conn = self._get_connection()
+            cur = conn.cursor()
+            
+            # Update the preference
+            cur.execute(
+                """
+                UPDATE user_preferences
+                SET is_active = TRUE, updated_at = CURRENT_TIMESTAMP
+                WHERE id = %s
+                """,
+                (preference_id,)
+            )
+            
+            conn.commit()
+            return cur.rowcount > 0
+        except Exception as e:
+            print(f"Error activating user preference: {e}")
             if conn:
                 conn.rollback()
             return False

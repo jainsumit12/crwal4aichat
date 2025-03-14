@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { useUser } from '@/context/UserContext';
+import { useNavigate } from 'react-router-dom';
 import { 
   Dialog, 
   DialogContent, 
@@ -11,8 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Badge } from '@/components/ui/badge';
-import { X, Upload, Trash2 } from 'lucide-react';
+import { Upload, Settings } from 'lucide-react';
 
 interface UserProfileModalProps {
   isOpen: boolean;
@@ -20,10 +20,10 @@ interface UserProfileModalProps {
 }
 
 const UserProfileModal: React.FC<UserProfileModalProps> = ({ isOpen, onClose }) => {
-  const { userProfile, updateName, updateAvatar, addPreference, removePreference, clearPreferences } = useUser();
+  const { userProfile, updateName, updateAvatar } = useUser();
   const [name, setName] = useState(userProfile.name);
-  const [newPreference, setNewPreference] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const navigate = useNavigate();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -43,11 +43,9 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ isOpen, onClose }) 
     }
   };
 
-  const handleAddPreference = () => {
-    if (newPreference.trim()) {
-      addPreference(newPreference.trim());
-      setNewPreference('');
-    }
+  const handleManagePreferences = () => {
+    onClose();
+    navigate(`/preferences/${userProfile.name}`);
   };
 
   return (
@@ -102,60 +100,26 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ isOpen, onClose }) 
               required
               className="bg-[#0f1117] border-white/[0.05] text-gray-200 placeholder:text-gray-500"
             />
+            <p className="text-sm text-gray-500 mt-1">
+              This name will be used as your user ID for preferences and chat history.
+            </p>
           </div>
 
           <div className="space-y-2">
             <Label className="text-gray-300">Preferences</Label>
-            <div className="flex gap-2">
-              <Input
-                value={newPreference}
-                onChange={(e) => setNewPreference(e.target.value)}
-                placeholder="Add a preference (e.g., 'I like Docker')"
-                className="flex-1 bg-[#0f1117] border-white/[0.05] text-gray-200 placeholder:text-gray-500"
-              />
+            <div className="bg-[#0f1117] border border-white/[0.05] rounded-md p-4">
+              <p className="text-sm text-gray-300 mb-3">
+                Manage your preferences to help the AI understand your interests, expertise, and preferences.
+              </p>
               <Button
                 type="button"
-                onClick={handleAddPreference}
-                disabled={!newPreference.trim()}
-                className="bg-primary hover:bg-primary/90"
+                onClick={handleManagePreferences}
+                className="w-full bg-primary hover:bg-primary/90"
               >
-                Add
+                <Settings className="h-4 w-4 mr-2" />
+                Manage Preferences
               </Button>
             </div>
-            
-            <div className="flex flex-wrap gap-2 mt-4">
-              {userProfile.preferences.map((pref, index) => (
-                <Badge 
-                  key={index}
-                  variant="secondary"
-                  className="flex items-center gap-1 bg-[#1e2130] text-gray-200 border border-white/[0.05]"
-                >
-                  {pref}
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="h-4 w-4 p-0 hover:bg-transparent text-gray-400 hover:text-white"
-                    onClick={() => removePreference(pref)}
-                  >
-                    <X className="h-3 w-3" />
-                  </Button>
-                </Badge>
-              ))}
-            </div>
-            
-            {userProfile.preferences.length > 0 && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={clearPreferences}
-                className="text-destructive hover:text-destructive/90 hover:bg-destructive/10 mt-2"
-              >
-                <Trash2 className="h-4 w-4 mr-2" />
-                Clear All
-              </Button>
-            )}
           </div>
 
           <DialogFooter>

@@ -682,6 +682,18 @@ export const apiService = {
     }
   },
 
+  activateUserPreference: async (userId: string, preferenceId: number): Promise<boolean> => {
+    try {
+      await apiClient.put(`/chat/preferences/${preferenceId}/activate`, null, {
+        params: { user_id: userId }
+      });
+      return true;
+    } catch (error) {
+      console.error(`Error activating preference ${preferenceId}:`, error);
+      return false;
+    }
+  },
+
   clearUserPreferences: async (userId: string): Promise<boolean> => {
     try {
       await apiClient.delete('/chat/preferences', {
