@@ -159,18 +159,6 @@ const NotificationInfo = () => {
             Pending Notification
           </Button>
         </div>
-        <p className="mt-4 text-sm text-gray-500 dark:text-gray-400">
-          Note: If notifications are muted, success and info notifications won't show popups, but they'll still appear in the notification center.
-          Error notifications will always show popups, even when muted.
-        </p>
-        <div className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
-          <p className="mb-2">
-            For more comprehensive testing, visit the dedicated test page:
-          </p>
-          <Button asChild variant="outline">
-            <a href="/notifications/test">Go to Notification Test Page</a>
-          </Button>
-        </div>
       </Card>
       
       <Card className="p-6">
