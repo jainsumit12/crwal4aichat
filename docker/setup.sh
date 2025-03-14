@@ -3,9 +3,67 @@
 # Create necessary directories
 mkdir -p volumes/{db/data,db/init,api,shm}
 
+# Create the authentication roles script first (00-auth-roles.sql)
+cat > volumes/db/init/00-auth-roles.sql << 'EOL'
+-- Create all the necessary roles for Supabase and PostgREST
+DO $$
+BEGIN
+  -- First create the basic roles
+  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'anon') THEN
+    CREATE ROLE anon;
+    RAISE NOTICE 'Created anon role';
+  END IF;
+
+  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'authenticated') THEN
+    CREATE ROLE authenticated;
+    RAISE NOTICE 'Created authenticated role';
+  END IF;
+
+  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'service_role') THEN
+    CREATE ROLE service_role;
+    RAISE NOTICE 'Created service_role role';
+  END IF;
+
+  -- Then create authenticator and grant the basic roles to it
+  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'authenticator') THEN
+    CREATE ROLE authenticator WITH LOGIN;
+    RAISE NOTICE 'Created authenticator role';
+  END IF;
+  
+  -- Create admin roles
+  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'supabase_admin') THEN
+    CREATE ROLE supabase_admin WITH LOGIN SUPERUSER CREATEDB CREATEROLE REPLICATION BYPASSRLS;
+    RAISE NOTICE 'Created supabase_admin role';
+  END IF;
+  
+  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'supabase_auth_admin') THEN
+    CREATE ROLE supabase_auth_admin WITH LOGIN;
+    RAISE NOTICE 'Created supabase_auth_admin role';
+  END IF;
+  
+  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'supabase_storage_admin') THEN
+    CREATE ROLE supabase_storage_admin WITH LOGIN;
+    RAISE NOTICE 'Created supabase_storage_admin role';
+  END IF;
+
+  -- Grant roles to authenticator
+  GRANT anon TO authenticator;
+  GRANT authenticated TO authenticator;
+  GRANT service_role TO authenticator;
+
+  -- Grant privileges
+  GRANT ALL PRIVILEGES ON DATABASE postgres TO supabase_admin;
+  GRANT USAGE ON SCHEMA public TO authenticator, anon, authenticated, service_role;
+
+  RAISE NOTICE 'All roles created and configured successfully';
+END
+$$;
+EOL
+
 # Download Supabase initialization scripts for the database
 echo "Downloading Supabase initialization scripts..."
 curl -s https://raw.githubusercontent.com/supabase/postgres/develop/migrations/db/init-scripts/00000000000000-initial-schema.sql > volumes/db/init/00-initial-schema.sql
+curl -s https://raw.githubusercontent.com/supabase/postgres/develop/migrations/db/init-scripts/00000000000001-auth-schema.sql > volumes/db/init/01-auth-schema.sql
 curl -s https://raw.githubusercontent.com/supabase/postgres/develop/migrations/db/init-scripts/00000000000003-post-setup.sql > volumes/db/init/03-post-setup.sql
 
 # Create database initialization script for our app tables
@@ -72,6 +130,14 @@ EOL
 echo "Created database initialization scripts"
 
 # Create Kong configuration file
+echo "Creating Kong configuration file..."
+# First, ensure any existing kong.yml directory is removed
+if [ -d "volumes/api/kong.yml" ]; then
+  echo "Removing existing kong.yml directory..."
+  rm -rf volumes/api/kong.yml
+fi
+
+# Create the kong.yml file
 cat > volumes/api/kong.yml << 'EOL'
 _format_version: "2.1"
 _transform: true
@@ -118,23 +184,108 @@ consumers:
       - group: admin
 EOL
 
-echo "Created Kong configuration"
+# Verify the kong.yml is a file and not a directory
+if [ -d "volumes/api/kong.yml" ]; then
+  echo "ERROR: kong.yml is still a directory! Attempting to fix..."
+  rm -rf volumes/api/kong.yml
+  echo "_format_version: \"2.1\"" > volumes/api/kong.yml
+  echo "_transform: true" >> volumes/api/kong.yml
+  echo "Created minimal Kong configuration as fallback"
+else
+  echo "Created Kong configuration file successfully"
+fi
 
 # Create a script to set passwords for database roles
 cat > volumes/db/init/99-set-passwords.sh << 'EOL'
 #!/bin/bash
 set -e
 
+echo "=== Setting database roles and passwords ==="
+
+# CRITICAL: Set all passwords to match environment variable
+echo "Setting role passwords to match POSTGRES_PASSWORD environment variable"
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
-  -- Set passwords for all roles
+  -- First ensure all roles exist
+  DO \$\$
+  BEGIN
+    -- Create authenticator role if it doesn't exist
+    IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'authenticator') THEN
+      CREATE ROLE authenticator WITH LOGIN;
+      RAISE NOTICE 'Created authenticator role';
+    END IF;
+
+    -- Create supabase_admin role if it doesn't exist
+    IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'supabase_admin') THEN
+      CREATE ROLE supabase_admin WITH LOGIN;
+      ALTER ROLE supabase_admin WITH SUPERUSER CREATEDB CREATEROLE REPLICATION BYPASSRLS;
+      RAISE NOTICE 'Created supabase_admin role';
+    END IF;
+    
+    -- Create other Supabase roles if they don't exist
+    IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'supabase_auth_admin') THEN
+      CREATE ROLE supabase_auth_admin WITH LOGIN;
+      RAISE NOTICE 'Created supabase_auth_admin role';
+    END IF;
+    
+    IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'supabase_storage_admin') THEN
+      CREATE ROLE supabase_storage_admin WITH LOGIN;
+      RAISE NOTICE 'Created supabase_storage_admin role';
+    END IF;
+
+    -- Create PostgREST roles if they don't exist
+    IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'anon') THEN
+      CREATE ROLE anon;
+      RAISE NOTICE 'Created anon role';
+    END IF;
+
+    IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'authenticated') THEN
+      CREATE ROLE authenticated;
+      RAISE NOTICE 'Created authenticated role';
+    END IF;
+
+    IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'service_role') THEN
+      CREATE ROLE service_role;
+      RAISE NOTICE 'Created service_role role';
+    END IF;
+
+    -- Grant roles to authenticator
+    GRANT anon TO authenticator;
+    GRANT authenticated TO authenticator;
+    GRANT service_role TO authenticator;
+
+    -- Grant privileges
+    GRANT ALL PRIVILEGES ON DATABASE postgres TO supabase_admin;
+    GRANT USAGE ON SCHEMA public TO authenticator, anon, authenticated, service_role;
+  END
+  \$\$;
+
+  -- Now set passwords for all roles
+  ALTER ROLE postgres WITH PASSWORD '$POSTGRES_PASSWORD';
   ALTER ROLE authenticator WITH PASSWORD '$POSTGRES_PASSWORD';
   ALTER ROLE supabase_admin WITH PASSWORD '$POSTGRES_PASSWORD';
   ALTER ROLE supabase_auth_admin WITH PASSWORD '$POSTGRES_PASSWORD';
   ALTER ROLE supabase_storage_admin WITH PASSWORD '$POSTGRES_PASSWORD';
+
+  -- Verify that the authenticator role is set up correctly
+  SELECT 
+    rolname, 
+    rolcanlogin,
+    pg_catalog.array_to_string(ARRAY(
+      SELECT b.rolname 
+      FROM pg_catalog.pg_auth_members m 
+      JOIN pg_catalog.pg_roles b ON (m.roleid = b.oid) 
+      WHERE m.member = r.oid
+    ), ', ') as member_of
+  FROM pg_catalog.pg_roles r
+  WHERE r.rolname = 'authenticator';
 EOSQL
+
+echo "✅ Database roles and passwords set up successfully!"
 EOL
 
+# Make the script executable - CRITICAL for proper initialization
 chmod +x volumes/db/init/99-set-passwords.sh
+echo "Created password configuration script (made executable)"
 
 echo "Setup complete! You can now start the services with:"
 echo "docker-compose -f full-stack-compose.yml up -d" 
