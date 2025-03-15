@@ -36,10 +36,43 @@ def crawl_in_background(url: str, site_name: Optional[str], site_description: Op
     try:
         crawler = WebCrawler()
         
-        if is_sitemap:
-            site_id = crawler.crawl_sitemap(url, site_name, site_description, max_urls=max_urls)
+        # Get the site ID from the database
+        existing_site = crawler.db_client.get_site_by_url(url)
+        if existing_site:
+            site_id = existing_site['id']
+            
+            # Check if we need to generate a description
+            needs_description = (
+                not site_description and 
+                (not existing_site.get('description') or 
+                 existing_site.get('description') == "AI is generating a description... (refresh in a moment)")
+            )
+            
+            # Only proceed with crawling, the site already exists with the description
+            if is_sitemap:
+                # Pass needs_description=True to force description generation
+                site_id = crawler.crawl_sitemap(
+                    url, 
+                    site_name, 
+                    site_description, 
+                    max_urls=max_urls,
+                    needs_description=needs_description
+                )
+            else:
+                # Pass needs_description=True to force description generation
+                site_id = crawler.crawl_site(
+                    url, 
+                    site_name, 
+                    site_description,
+                    needs_description=needs_description
+                )
         else:
-            site_id = crawler.crawl_site(url, site_name, site_description)
+            # This shouldn't happen as we create the site before starting the background task,
+            # but just in case, create the site and crawl
+            if is_sitemap:
+                site_id = crawler.crawl_sitemap(url, site_name, site_description, max_urls=max_urls)
+            else:
+                site_id = crawler.crawl_site(url, site_name, site_description)
             
         # Get the final page count
         page_count = crawler.db_client.get_page_count_by_site_id(site_id, include_chunks=True)
@@ -78,22 +111,51 @@ async def crawl(
     try:
         crawler = WebCrawler()
         
+        # Check if the site already exists
+        existing_site = crawler.db_client.get_site_by_url(crawl_data.url)
+        site_id = None
+        
+        if existing_site:
+            print(f"Site already exists with ID: {existing_site['id']}. Updating existing site.")
+            site_id = existing_site['id']
+            
+            # Update the site description if provided
+            if crawl_data.site_description:
+                crawler.db_client.update_site_description(site_id, crawl_data.site_description)
+            elif not existing_site.get('description'):
+                # Set a placeholder indicating an AI description is coming
+                crawler.db_client.update_site_description(site_id, "AI is generating a description... (refresh in a moment)")
+        else:
+            # Create the site with the provided description or a placeholder
+            description = crawl_data.site_description
+            if not description:
+                # Set a placeholder indicating an AI description is coming
+                description = "AI is generating a description... (refresh in a moment)"
+                
+            site_id = crawler.db_client.add_site(
+                crawl_data.site_name or crawler.generate_site_name(crawl_data.url),
+                crawl_data.url,
+                description
+            )
+        
         # Start the crawl process
         if crawl_data.is_sitemap:
-            site_id = crawler.crawl_sitemap(
-                crawl_data.url, 
-                crawl_data.site_name, 
-                crawl_data.site_description, 
-                max_urls=crawl_data.max_urls,
-                start_only=True  # Only start the crawl, don't wait for completion
-            )
+            if not site_id:
+                site_id = crawler.crawl_sitemap(
+                    crawl_data.url, 
+                    crawl_data.site_name, 
+                    crawl_data.site_description, 
+                    max_urls=crawl_data.max_urls,
+                    start_only=True  # Only start the crawl, don't wait for completion
+                )
         else:
-            site_id = crawler.crawl_site(
-                crawl_data.url, 
-                crawl_data.site_name, 
-                crawl_data.site_description,
-                start_only=True  # Only start the crawl, don't wait for completion
-            )
+            if not site_id:
+                site_id = crawler.crawl_site(
+                    crawl_data.url, 
+                    crawl_data.site_name, 
+                    crawl_data.site_description,
+                    start_only=True  # Only start the crawl, don't wait for completion
+                )
         
         # Add the full crawl to background tasks
         background_tasks.add_task(

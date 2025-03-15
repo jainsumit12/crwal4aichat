@@ -559,7 +559,8 @@ class WebCrawler:
         return all_pages
     
     def crawl_site(self, url: str, site_name: Optional[str] = None, 
-                  description: Optional[str] = None, start_only: bool = False) -> int:
+                  description: Optional[str] = None, start_only: bool = False,
+                  needs_description: bool = False) -> int:
         """Crawl a site, generate embeddings, and store in the database.
         
         Args:
@@ -567,6 +568,7 @@ class WebCrawler:
             site_name: Optional name for the site. If not provided, one will be generated.
             description: Optional description of the site.
             start_only: If True, only start the crawl and return the site ID without waiting for completion.
+            needs_description: If True, force generation of a description even if one exists.
             
         Returns:
             The site ID in the database.
@@ -587,11 +589,16 @@ class WebCrawler:
                 print_warning(f"Site already exists with ID: {existing_site['id']}. Updating existing site.")
                 site_id = existing_site['id']
                 
-                # If the existing site doesn't have a description, we'll generate one later
-                if not description and not existing_site.get('description'):
+                # If a description was provided, update it
+                if description:
+                    self.db_client.update_site_description(site_id, description)
+                    print_success(f"Updated site description: {description[:100]}...")
+                # If needs_description is True or no description exists, we'll generate one later
+                elif needs_description or not existing_site.get('description'):
                     description = None  # Mark for generation
                 else:
-                    description = description or existing_site.get('description')
+                    # Use the existing description
+                    description = existing_site.get('description')
             else:
                 # Add the site to the database (description might be None, we'll update it later)
                 site_id = self.db_client.add_site(site_name, url, description)
@@ -627,9 +634,9 @@ class WebCrawler:
             
             print_info(f"Found {len(pages)} pages.")
             
-            # If no description was provided, generate one from the homepage content
-            if not description and pages:
-                print_info("Generating site description...")
+            # If no description was provided or needs_description is True, generate one from the homepage content
+            if (not description or needs_description) and pages:
+                print_info("Generating site description using OpenAI...")
                 homepage = next((p for p in pages if p['url'] == url or p['url'] == f"{url}/"), pages[0])
                 
                 # Use the content enhancer to generate a description
@@ -642,7 +649,7 @@ class WebCrawler:
                 
                 # Update the site with the generated description
                 self.db_client.update_site_description(site_id, description)
-                print_success(f"Generated site description: {description[:100]}...")
+                print_success(f"Generated site description with {self.content_enhancer.model}: {description[:100]}...")
             
             # Enhance pages with titles, summaries, and embeddings
             enhanced_pages = asyncio.run(self.enhance_pages(pages))
@@ -661,7 +668,7 @@ class WebCrawler:
     
     def crawl_sitemap(self, sitemap_url: str, site_name: Optional[str] = None,
                      description: Optional[str] = None, max_urls: Optional[int] = None,
-                     start_only: bool = False) -> int:
+                     start_only: bool = False, needs_description: bool = False) -> int:
         """Crawl a sitemap, generate embeddings, and store in the database.
         
         Args:
@@ -670,6 +677,7 @@ class WebCrawler:
             description: Optional description of the site.
             max_urls: Maximum number of URLs to crawl from the sitemap. If None, uses the MAX_URLS env var.
             start_only: If True, only start the crawl and return the site ID without waiting for completion.
+            needs_description: If True, force generation of a description even if one exists.
             
         Returns:
             The site ID in the database.
@@ -699,11 +707,16 @@ class WebCrawler:
                 print_warning(f"Site already exists with ID: {existing_site['id']}. Updating existing site.")
                 site_id = existing_site['id']
                 
-                # If the existing site doesn't have a description, we'll generate one later
-                if not description and not existing_site.get('description'):
+                # If a description was provided, update it
+                if description:
+                    self.db_client.update_site_description(site_id, description)
+                    print_success(f"Updated site description: {description[:100]}...")
+                # If needs_description is True or no description exists, we'll generate one later
+                elif needs_description or not existing_site.get('description'):
                     description = None  # Mark for generation
                 else:
-                    description = description or existing_site.get('description')
+                    # Use the existing description
+                    description = existing_site.get('description')
             else:
                 # Add the site to the database (description might be None, we'll update it later)
                 site_id = self.db_client.add_site(site_name, sitemap_url, description)
@@ -780,9 +793,9 @@ class WebCrawler:
             
             print_info(f"Successfully crawled {len(all_pages)} pages from sitemap.")
             
-            # If no description was provided, generate one from the first page content
-            if not description and all_pages:
-                print_info("Generating site description...")
+            # If no description was provided or needs_description is True, generate one from the first page content
+            if (not description or needs_description) and all_pages:
+                print_info("Generating site description using OpenAI...")
                 # Try to find the main page or use the first page
                 main_domain = self.extract_domain(sitemap_url)
                 main_page = next(
@@ -800,7 +813,7 @@ class WebCrawler:
                 
                 # Update the site with the generated description
                 self.db_client.update_site_description(site_id, description)
-                print_success(f"Generated site description: {description[:100]}...")
+                print_success(f"Generated site description with {self.content_enhancer.model}: {description[:100]}...")
             
             # Enhance pages with titles, summaries, and embeddings
             enhanced_pages = asyncio.run(self.enhance_pages(all_pages))

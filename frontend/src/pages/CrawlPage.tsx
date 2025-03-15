@@ -39,6 +39,7 @@ const CrawlPage = () => {
   const navigate = useNavigate();
   const [url, setUrl] = useState('');
   const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
   const [depth, setDepth] = useState(2);
   const [maxPages, setMaxPages] = useState(25);
   const [followExternalLinks, setFollowExternalLinks] = useState(false);
@@ -179,10 +180,11 @@ const CrawlPage = () => {
     setIsSubmitting(true);
     
     try {
-      // Prepare the crawl parameters
-      const crawlParams = {
+      // Prepare the frontend crawl parameters
+      const frontendParams = {
         url,
         name: name || url,
+        description,
         depth,
         max_pages: maxPages,
         follow_external_links: followExternalLinks,
@@ -190,12 +192,26 @@ const CrawlPage = () => {
         exclude_patterns: excludePatterns ? excludePatterns.split(',').map(p => p.trim()) : []
       };
       
-      // Log the parameters for debugging
-      console.log('Starting crawl with params:', crawlParams);
-      setDebugData(crawlParams);
+      // Log the frontend parameters for debugging
+      console.log('Frontend crawl params:', frontendParams);
+      setDebugData(frontendParams);
       
-      // Start the crawl
-      const result = await api.startCrawl(crawlParams);
+      // Transform frontend parameters to API parameters
+      const apiParams = {
+        url,
+        site_name: name || url,
+        site_description: description || null,
+        is_sitemap: depth === 3, // Map depth=3 (Deep Crawl) to is_sitemap=true
+        max_urls: maxPages,
+        follow_external_links: followExternalLinks,
+        include_patterns: includePatterns ? includePatterns.split(',').map(p => p.trim()) : [],
+        exclude_patterns: excludePatterns ? excludePatterns.split(',').map(p => p.trim()) : []
+      };
+      
+      console.log('Transformed API params:', apiParams);
+      
+      // Start the crawl with the transformed parameters
+      const result = await api.startCrawl(apiParams);
       console.log('Crawl started:', result);
       
       // Reset the form
@@ -215,6 +231,7 @@ const CrawlPage = () => {
   const resetForm = () => {
     setUrl('');
     setName('');
+    setDescription('');
     setDepth(2);
     setMaxPages(25);
     setFollowExternalLinks(false);
@@ -338,6 +355,23 @@ const CrawlPage = () => {
                 />
               </div>
               
+              <div>
+                <label htmlFor="description" className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">
+                  Site Description (Optional)
+                </label>
+                <textarea
+                  id="description"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Enter a description for this site"
+                  rows={2}
+                  className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                />
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  If left empty, a description will be automatically generated using AI.
+                </p>
+              </div>
+              
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label htmlFor="depth" className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">
@@ -351,8 +385,13 @@ const CrawlPage = () => {
                   >
                     <option value="1">URL Only</option>
                     <option value="2">URL + Linked Pages</option>
-                    <option value="3">Deep Crawl</option>
+                    <option value="3">Deep Crawl (Sitemap Mode)</option>
                   </select>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    URL Only: Crawls just the specified URL<br/>
+                    URL + Linked Pages: Crawls the URL and pages it links to<br/>
+                    Deep Crawl: Uses sitemap.xml to find and crawl all pages
+                  </p>
                 </div>
                 
                 <div>

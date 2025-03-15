@@ -962,6 +962,11 @@ const SiteDetailPage = () => {
               <div className="mb-4">
                 <h3 className="text-lg font-medium mb-2">Description</h3>
                 <p className="bg-gray-50 dark:bg-gray-800 p-3 rounded">{site.description}</p>
+                {site.description === "AI is generating a description... (refresh in a moment)" && (
+                  <p className="text-xs text-blue-600 dark:text-blue-400 mt-2">
+                    The AI is currently generating a description. Click the "Refresh Data" button below to check if it's ready.
+                  </p>
+                )}
               </div>
             )}
             
