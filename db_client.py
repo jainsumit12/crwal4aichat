@@ -6,6 +6,7 @@ from psycopg2.extras import execute_values, Json
 from dotenv import load_dotenv
 from utils import print_info, print_warning, print_error, print_success
 from db_setup import db_params  # Import the db_params from db_setup.py
+import re
 
 # Load environment variables
 load_dotenv()
@@ -285,7 +286,6 @@ class SupabaseClient:
             print_info(f"Performing text search for: '{query}'")
             
             # Extract domain names from the query
-            import re
             domain_pattern = re.compile(r'([a-zA-Z0-9][-a-zA-Z0-9]*\.)+[a-zA-Z0-9][-a-zA-Z0-9]*')
             domains = domain_pattern.findall(query.lower())
             
@@ -740,7 +740,9 @@ class SupabaseClient:
             
             # First try vector search with a lower threshold to get more results
             print_info(f"Performing vector search with threshold {threshold}...")
-            vector_results = self.search_by_embedding(embedding, threshold * 0.8, limit * 2, site_id)
+            vector_threshold = max(threshold * 0.7, 0.2)  # Lower threshold for vector search, but not below 0.2
+            print_info(f"Adjusted vector threshold to {vector_threshold}")
+            vector_results = self.search_by_embedding(embedding, vector_threshold, limit * 2, site_id)
             
             if vector_results:
                 print_info(f"Vector search found {len(vector_results)} results")
@@ -764,9 +766,9 @@ class SupabaseClient:
                 
                 # Add similarity scores to text results
                 for result in text_results:
-                    result['similarity'] = 0.5  # Default similarity score for text results
+                    result['similarity'] = 0.65  # Increased default similarity for text results
                     result['vector_score'] = 0.0
-                    result['text_score'] = 0.5
+                    result['text_score'] = 0.65  # Increased text score
                 
                 # If we have no vector results, return text results
                 if not vector_results:
@@ -798,15 +800,16 @@ class SupabaseClient:
                 if url:
                     if url in combined_results:
                         # Update existing result with text score
-                        combined_results[url]['text_score'] = 0.5
-                        # Recalculate combined similarity score (weighted average)
+                        combined_results[url]['text_score'] = 0.65  # Increased text score
+                        # Recalculate combined similarity score (weighted average with higher weight for text)
                         vector_score = combined_results[url].get('vector_score', 0)
-                        combined_results[url]['similarity'] = max(vector_score, 0.5)
+                        # Give text matches more weight in the combined score
+                        combined_results[url]['similarity'] = max(vector_score, 0.65)  # Use max instead of average to prioritize matches
                     else:
                         # Add new result
                         result['vector_score'] = 0.0
-                        result['text_score'] = 0.5
-                        result['similarity'] = 0.5
+                        result['text_score'] = 0.65  # Increased text score
+                        result['similarity'] = 0.65
                         combined_results[url] = result
             
             # Convert dictionary to list and sort by similarity
@@ -1871,4 +1874,200 @@ class SupabaseClient:
             return False
         finally:
             if conn:
+                conn.close()
+    
+    def direct_keyword_search(self, query, limit=5, site_patterns=None):
+        """
+        Performs a direct keyword search focused on finding specific technical terms or project names.
+        This is optimized for finding exact matches to specific terms in titles and content.
+        
+        Args:
+            query: The search query (specific term, project name, etc.)
+            limit: Maximum number of results to return
+            site_patterns: List of site name patterns to filter by
+            
+        Returns:
+            List of matching results
+        """
+        try:
+            # Get a new connection for this operation
+            conn = self._get_connection()
+            
+            # Create a cursor from the connection
+            with conn.cursor() as cur:
+                # Clean the query for SQL safety - replace quote characters and escape special chars
+                clean_query = query.strip().lower().replace("'", "''")
+                
+                # Create site filter if provided
+                site_filter = ""
+                site_params = []
+                
+                if site_patterns and len(site_patterns) > 0:
+                    site_conditions = []
+                    for i, pattern in enumerate(site_patterns):
+                        site_conditions.append(f"s.name ILIKE %s")
+                        site_params.append(f"%{pattern}%")
+                    site_filter = f"AND ({' OR '.join(site_conditions)})"
+                
+                # Check if the query looks like a domain name
+                is_domain_name = bool(re.search(r'([a-zA-Z0-9][-a-zA-Z0-9]*\.)+[a-zA-Z]{2,}', clean_query))
+                
+                # Different query approach for domain names vs. regular terms
+                if is_domain_name:
+                    print_info(f"Query appears to be a domain name: {clean_query}")
+                    
+                    # Try to match against site names in the database
+                    site_query = f"""
+                    SELECT 
+                        id, name, url, description 
+                    FROM crawl_sites 
+                    WHERE 
+                        name ILIKE %s OR 
+                        url ILIKE %s
+                    LIMIT 5
+                    """
+                    
+                    cur.execute(site_query, [f"%{clean_query}%", f"%{clean_query}%"])
+                    site_matches = cur.fetchall()
+                    print_info(f"Found {len(site_matches)} matching sites")
+                    
+                    if site_matches:
+                        # Get site IDs for found sites
+                        site_ids = [site[0] for site in site_matches]
+                        site_names = {site[0]: site[1] for site in site_matches}
+                        
+                        # Build a query to get pages from these sites
+                        pages_query = f"""
+                        SELECT 
+                            p.id, 
+                            p.url, 
+                            p.title,
+                            p.site_id,
+                            p.content,
+                            s.name as site_name,
+                            p.summary,
+                            1.0 as similarity,
+                            'site_match' as match_type
+                        FROM crawl_pages p
+                        JOIN crawl_sites s ON p.site_id = s.id
+                        WHERE 
+                            p.site_id IN ({','.join([str(id) for id in site_ids])})
+                        ORDER BY p.id DESC
+                        LIMIT {limit}
+                        """
+                        
+                        cur.execute(pages_query)
+                        result = cur.fetchall()
+                        print_info(f"Found {len(result)} pages from matching sites")
+                        
+                        # Convert to list of dictionaries
+                        results = []
+                        columns = [desc[0] for desc in cur.description]
+                        
+                        for row in result:
+                            item = dict(zip(columns, row))
+                            
+                            # Mark as a direct keyword result
+                            item["is_keyword_result"] = True
+                            item["is_site_result"] = True
+                            
+                            # Ensure all required keys are present
+                            for key in ["url", "title", "content", "site_name", "similarity"]:
+                                if key not in item or item[key] is None:
+                                    item[key] = "" if key != "similarity" else 0.0
+                            
+                            # Add site information
+                            site_id = item.get("site_id")
+                            if site_id and site_id in site_names:
+                                item["site_name"] = site_names[site_id]
+                            
+                            results.append(item)
+                        
+                        return results
+                
+                # Build parameter list for regular search
+                params = [f"%{clean_query}%", f"%{clean_query}%"]
+                params.extend(site_params)
+                params.extend(site_params)  # Add again for the second query
+                
+                # Use parameterized query to prevent SQL injection
+                sql = f"""
+                WITH page_matches AS (
+                    -- Search for exact title matches first (highest priority)
+                    SELECT 
+                        p.id, 
+                        p.url, 
+                        p.title,
+                        p.site_id,
+                        p.content,
+                        s.name as site_name,
+                        p.summary,
+                        1.0 as similarity,
+                        'title_exact' as match_type
+                    FROM crawl_pages p
+                    JOIN crawl_sites s ON p.site_id = s.id
+                    WHERE 
+                        LOWER(p.title) LIKE %s
+                        {site_filter}
+                    
+                    UNION
+                    
+                    -- Then search for exact content matches
+                    SELECT 
+                        p.id, 
+                        p.url, 
+                        p.title,
+                        p.site_id,
+                        p.content,
+                        s.name as site_name,
+                        p.summary,
+                        0.9 as similarity,
+                        'content_exact' as match_type
+                    FROM crawl_pages p
+                    JOIN crawl_sites s ON p.site_id = s.id
+                    WHERE 
+                        LOWER(p.content) LIKE %s
+                        {site_filter}
+                )
+                
+                SELECT * FROM page_matches
+                ORDER BY similarity DESC, id DESC
+                LIMIT {limit};
+                """
+                
+                print_info(f"Executing direct keyword search for: {clean_query}")
+                
+                # Execute the query with parameters
+                cur.execute(sql, params)
+                result = cur.fetchall()
+                print_info(f"Found {len(result)} direct keyword matches")
+                
+                # Convert to list of dictionaries
+                results = []
+                columns = [desc[0] for desc in cur.description]
+                
+                for row in result:
+                    item = dict(zip(columns, row))
+                    
+                    # Mark as a direct keyword result
+                    item["is_keyword_result"] = True
+                    
+                    # Ensure all required keys are present
+                    for key in ["url", "title", "content", "site_name", "similarity"]:
+                        if key not in item or item[key] is None:
+                            item[key] = "" if key != "similarity" else 0.0
+                    
+                    results.append(item)
+                
+                return results
+                
+        except Exception as e:
+            print_error(f"Error in direct_keyword_search: {e}")
+            import traceback
+            print_error(traceback.format_exc())
+            return []
+            
+        finally:
+            # Close the connection properly
+            if 'conn' in locals() and conn:
                 conn.close() 

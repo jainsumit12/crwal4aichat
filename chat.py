@@ -8,7 +8,8 @@ import uuid
 import json
 import yaml
 import glob
-from typing import List, Dict, Any, Optional
+import re
+from typing import List, Dict, Any, Optional, Tuple, Union, Callable
 from dotenv import load_dotenv
 from openai import OpenAI
 from crawler import WebCrawler
@@ -22,7 +23,6 @@ import datetime
 import sys
 from rich.progress import Progress, SpinnerColumn, TextColumn
 import time
-import re
 
 from utils import print_success, print_error, print_warning, print_info
 
@@ -404,38 +404,97 @@ class ChatBot:
         # Base metadata with profile information
         metadata = {"profile": self.profile_name}
         
-        # Extract preferences using LLM if we have a user_id
-        if self.user_id and len(self.conversation_history) >= 2:
+        # Check for preference keywords - EXPANDED list
+        preference_keywords = [
+            # Explicit preferences
+            "like", "love", "prefer", "favorite", "enjoy", "hate", "dislike", 
+            # Additional markers
+            "interested in", "fond of", "care about", "passionate about", 
+            "can't stand", "don't like", "don't care for", "avoid"
+        ]
+        
+        # Enhanced preference detection
+        has_preference = False
+        for keyword in preference_keywords:
+            if keyword in content.lower():
+                has_preference = True
+                break
+        
+        # If the message might contain a preference, use the LLM to extract it properly
+        if has_preference or len(content.split()) >= 10:  # Check longer messages too
             try:
-                # Get recent conversation context
-                recent_messages = self.conversation_history[-5:] if len(self.conversation_history) > 5 else self.conversation_history
-                context = []
-                for msg in recent_messages:
-                    if msg["role"] != "system":  # Skip system messages
-                        context.append(f"{msg['role'].capitalize()}: {msg['content']}")
+                # Create a more nuanced prompt for the LLM to extract preferences
+                prompt = f"""Extract any user preferences from this message: "{content}"
+
+Look for:
+1. Direct preferences (like, love, prefer, favorite, enjoy, hate, dislike)
+2. Implied preferences (interested in, fond of, passionate about)
+3. Important personal details that should be remembered for future conversation
+4. Attitudes or opinions expressed about topics
+
+If you find any preferences or important details, format each as "TYPE VALUE" (e.g., "like Python", "hate brussels sprouts", "interested AI", "from Seattle")
+
+For TYPE, use one of: like, love, hate, dislike, prefer, interest, trait, background
+
+If there are no clear preferences or important details, respond with "NONE".
+Extract up to 3 key preferences or details, prioritizing the most salient ones.
+"""
                 
-                # Extract preferences using LLM
-                preferences = self.analyze_for_preferences(content, "\n".join(context))
+                # Use a smaller model for this extraction
+                extraction_model = os.getenv("CHAT_MODEL", "gpt-4o-mini")
                 
-                # If preferences were found, add them to metadata and save to database
-                if preferences:
-                    for pref in preferences:
-                        # Add to metadata
-                        metadata["preference"] = f"{pref['preference_type']} {pref['preference_value']}"
-                        console.print(f"[dim blue]Extracted preference: {pref['preference_type']} {pref['preference_value']} (confidence: {pref['confidence']:.2f})[/dim blue]")
-                        
-                        # Save to user preferences database
-                        self.crawler.db_client.save_user_preference(
-                            user_id=self.user_id,
-                            preference_type=pref["preference_type"],
-                            preference_value=pref["preference_value"],
-                            context=pref["context"],
-                            confidence=pref["confidence"],
-                            source_session=self.session_id,
-                            metadata={"message_content": content}
-                        )
+                response = self.client.chat.completions.create(
+                    model=extraction_model,
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=0.3,
+                    max_tokens=100
+                )
+                
+                # Extract the preferences
+                extraction_result = response.choices[0].message.content.strip()
+                
+                # Only save if it's a valid preference
+                if extraction_result and extraction_result != "NONE":
+                    # Split multiple preferences (one per line)
+                    preferences = [pref.strip() for pref in extraction_result.split('\n') if pref.strip() and pref.strip() != "NONE"]
+                    
+                    # Store the most important preference in message metadata
+                    if preferences:
+                        metadata["preference"] = preferences[0]
+                        console.print(f"[blue]Extracted primary preference: {preferences[0]}[/blue]")
+                    
+                    # If we have a user ID, save all preferences to the user_preferences table
+                    if self.user_id:
+                        for preference in preferences:
+                            try:
+                                # Get a confidence score based on the clarity of the preference
+                                # Direct preferences get higher confidence
+                                direct_preference = any(f"{keyword} " in content.lower() for keyword in ["like ", "love ", "hate ", "prefer ", "favorite "])
+                                confidence = 0.9 if direct_preference else 0.75
+                                
+                                # Extract preference type and value
+                                parts = preference.split(" ", 1)
+                                if len(parts) == 2:
+                                    pref_type = parts[0]  # e.g., "like", "hate"
+                                    pref_value = parts[1]  # e.g., "corvettes", "brussels sprouts"
+                                    
+                                    # Save the preference to the database
+                                    self.crawler.db_client.save_user_preference(
+                                        user_id=self.user_id,
+                                        preference_type=pref_type,
+                                        preference_value=pref_value,
+                                        context=content,
+                                        confidence=confidence,
+                                        source_session=self.session_id
+                                    )
+                                    
+                                    console.print(f"[green]Saved preference to database: {pref_type} {pref_value} (confidence: {confidence:.2f})[/green]")
+                                else:
+                                    console.print(f"[yellow]Could not split preference into type and value: {preference}[/yellow]")
+                            except Exception as e:
+                                console.print(f"[red]Error saving preference to database: {e}[/red]")
             except Exception as e:
-                console.print(f"[dim red]Error extracting preferences: {e}[/dim red]")
+                console.print(f"[dim red]Error extracting preference: {e}[/dim red]")
         
         # Save to database
         try:
@@ -448,149 +507,6 @@ class ChatBot:
             )
         except Exception as e:
             console.print(f"[red]Error saving user message to database: {e}[/red]")
-    
-    def analyze_for_preferences(self, message_content: str, context: str) -> List[Dict[str, Any]]:
-        """Analyze message for meaningful preferences using LLM.
-        
-        Args:
-            message_content: The message content to analyze.
-            context: Recent conversation context.
-            
-        Returns:
-            List of extracted preferences with confidence scores.
-        """
-        # Create a prompt for the LLM to extract preferences
-        prompt = f"""Analyze this message for meaningful user information, preferences, traits, or characteristics:
-
-Message: "{message_content}"
-
-Recent Context:
-{context}
-
-Extract meaningful information about the user that would be helpful to remember for future conversations.
-Consider a wide range of information types:
-- Preferences (likes, dislikes)
-- Expertise areas or skills
-- Experience levels
-- Background information
-- Goals or aspirations
-- Challenges or pain points
-- Work context or industry
-- Tools or technologies used
-- Learning interests
-- Personal traits or characteristics
-
-Format as a JSON object with a 'preferences' array containing objects with these fields:
-- preference_type: (more specific than just like/dislike - use categories like expertise, experience, background, goal, challenge, tool, interest, trait, etc.)
-- preference_value: (the specific information)
-- confidence: (0.0-1.0)
-- context: (brief explanation of why this was extracted)
-
-Only extract information that would be genuinely useful to remember for future conversations.
-Return empty preferences array if no meaningful information found.
-
-Example valid response:
-{{
-  "preferences": [
-    {{
-      "preference_type": "expertise",
-      "preference_value": "Python programming",
-      "confidence": 0.95,
-      "context": "User mentioned having 5 years of experience with Python"
-    }},
-    {{
-      "preference_type": "challenge",
-      "preference_value": "Learning Ruby syntax",
-      "confidence": 0.85,
-      "context": "User expressed finding Ruby syntax confusing and difficult to learn"
-    }},
-    {{
-      "preference_type": "goal",
-      "preference_value": "Building web applications",
-      "confidence": 0.8,
-      "context": "User mentioned wanting to build web applications as their primary goal"
-    }}
-  ]
-}}
-"""
-        
-        # Use a smaller model for this extraction
-        extraction_model = os.getenv("CHAT_MODEL", "gpt-4o-mini")
-        
-        try:
-            console.print(f"[blue]Analyzing message for preferences using {extraction_model}...[/blue]")
-            console.print(f"[dim]Prompt: {prompt}[/dim]")
-            
-            # Create a wrapper for the prompt to ensure we get a JSON array
-            response = self.client.chat.completions.create(
-                model=extraction_model,
-                messages=[
-                    {"role": "system", "content": "You are a preference extraction assistant. Always return a JSON object with a 'preferences' array."},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.3,
-                max_tokens=500,
-                response_format={"type": "json_object"}
-            )
-            
-            # Extract the response
-            response_text = response.choices[0].message.content.strip()
-            console.print(f"[dim]Raw response: {response_text}[/dim]")
-            
-            # Parse the JSON response
-            try:
-                parsed_response = json.loads(response_text)
-                console.print(f"[dim]Parsed response: {json.dumps(parsed_response, indent=2)}[/dim]")
-                
-                # Handle different response formats
-                if isinstance(parsed_response, dict) and 'preferences' in parsed_response:
-                    # Standard format with preferences key
-                    preferences = parsed_response['preferences']
-                    console.print(f"[dim]Response has 'preferences' key with {len(preferences)} items[/dim]")
-                elif isinstance(parsed_response, list):
-                    # Direct array format
-                    preferences = parsed_response
-                    console.print(f"[dim]Response is a list with {len(preferences)} items[/dim]")
-                elif isinstance(parsed_response, dict) and 'preference_type' in parsed_response and 'preference_value' in parsed_response:
-                    # Single preference object
-                    preferences = [parsed_response]
-                    console.print(f"[dim]Response is a single preference object[/dim]")
-                else:
-                    # No recognizable format
-                    console.print(f"[dim]Response is not in a recognized format[/dim]")
-                    preferences = []
-                
-                # Validate each preference
-                valid_preferences = []
-                for pref in preferences:
-                    if (
-                        isinstance(pref, dict) and
-                        'preference_type' in pref and
-                        'preference_value' in pref
-                    ):
-                        # Ensure confidence is a float between 0 and 1
-                        if 'confidence' not in pref:
-                            pref['confidence'] = 0.8  # Default confidence
-                        else:
-                            pref['confidence'] = float(pref['confidence'])
-                            if pref['confidence'] < 0:
-                                pref['confidence'] = 0.0
-                            elif pref['confidence'] > 1:
-                                pref['confidence'] = 1.0
-                        
-                        # Add context if missing
-                        if 'context' not in pref:
-                            pref['context'] = f"Extracted from: {message_content}"
-                        
-                        valid_preferences.append(pref)
-                
-                return valid_preferences
-            except json.JSONDecodeError:
-                console.print(f"[dim red]Error parsing preference JSON: {response_text}[/dim red]")
-                return []
-        except Exception as e:
-            console.print(f"[dim red]Error in preference extraction: {e}[/dim red]")
-            return []
     
     def add_assistant_message(self, content: str):
         """Add an assistant message to the conversation history.
@@ -651,152 +567,308 @@ Example valid response:
             query: The user's query.
             
         Returns:
-            A list of relevant documents.
+            A list of search results.
         """
-        # If the crawler is not available, return an empty list
-        if not self.crawler:
-            console.print("[yellow]No database connection, search functionality is disabled[/yellow]")
-            return []
+        # Clean and prepare the query
+        clean_query = query.strip().lower()
+        search_terms = clean_query.split()
         
-        # For website domain queries, use a more direct approach
-        if ".com" in query or ".org" in query or ".net" in query or ".io" in query:
-            console.print("[blue]Domain name detected in query, searching directly...[/blue]")
-            # Extract the domain part
-            domain_parts = re.findall(r'[\w\.-]+\.\w+', query)
-            if domain_parts:
-                domain = domain_parts[0]
-                console.print(f"[blue]Searching for domain: {domain}[/blue]")
-                
-                # First try to find sites with this domain in the name or URL
-                all_sites = self.crawler.db_client.get_all_sites()
-                site_ids = []
-                site_names = []
-                
-                for site in all_sites:
-                    site_name = site.get("name", "").lower()
-                    site_url = site.get("url", "").lower()
-                    
-                    if domain.lower() in site_name or domain.lower() in site_url:
-                        site_ids.append(site["id"])
-                        site_names.append(site_name)
-                
-                if site_ids:
-                    console.print(f"[blue]Found {len(site_ids)} sites matching domain: {', '.join(site_names)}[/blue]")
-                    
-                    all_results = []
-                    for i, site_id in enumerate(site_ids):
-                        try:
-                            # Get pages for this site
-                            pages = self.crawler.db_client.get_pages_by_site_id(
-                                site_id=site_id,
-                                limit=self.result_limit,
-                                include_chunks=True
-                            )
-                            
-                            # Add site information to each page
-                            for page in pages:
-                                page["site_name"] = site_names[i]
-                                page["similarity"] = 0.9  # High similarity for direct matches
-                                all_results.append(page)
-                        except Exception as e:
-                            console.print(f"[red]Error getting pages for site {site_names[i]}: {e}[/red]")
-                    
-                    if all_results:
-                        console.print(f"[green]Found {len(all_results)} pages from sites matching domain[/green]")
-                        return all_results[:self.result_limit]
+        # Check if the query is very specific (contains hyphens, underscores, or other technical patterns)
+        contains_technical_pattern = False
+        if '-' in clean_query or '_' in clean_query:
+            contains_technical_pattern = True
+        elif len(search_terms) <= 3 and not any(q in clean_query for q in ["what", "how", "why", "when", "who", "which"]):
+            # Short, non-question query might be a specific entity
+            contains_technical_pattern = True
+            
+        # Check if the query directly mentions a website by domain name
+        contains_domain = False
+        domain_name = None
         
-        # For website name queries without domain extensions
-        # Check if the query might be a website name
-        if len(query.split()) <= 3 and not query.startswith("what") and not query.startswith("how") and not query.startswith("why"):
-            console.print("[blue]Short query detected, checking for site name matches...[/blue]")
+        # Common domain patterns: website.com, website.org, etc.
+        domain_pattern = re.compile(r'([a-zA-Z0-9][-a-zA-Z0-9]*\.)+[a-zA-Z]{2,}')
+        domain_matches = domain_pattern.findall(clean_query)
+        
+        if domain_matches:
+            contains_domain = True
+            domain_name = domain_matches[0]
+            console.print(f"[blue]Detected domain name: {domain_name}[/blue]")
+        
+        # Check if query directly asks about a website or site
+        site_query_patterns = [
+            r'about (the )?(\w+) (website|site)',
+            r'what is (the )?(\w+) (website|site)',
+            r'tell me about (the )?(\w+) (website|site)',
+            r'information (about|on) (the )?(\w+) (website|site)'
+        ]
+        
+        site_name = None
+        for pattern in site_query_patterns:
+            match = re.search(pattern, clean_query)
+            if match:
+                # Extract the site name from the appropriate group
+                for group in match.groups():
+                    if group and not any(word in group for word in ['the', 'website', 'site', 'about', 'on']):
+                        site_name = group
+                        break
+                
+                if site_name:
+                    console.print(f"[blue]Detected site name: {site_name}[/blue]")
+                    break
+        
+        # Check if the query contains a URL or GitHub repository reference
+        contains_url = 'http://' in clean_query or 'https://' in clean_query
+        contains_github = 'github.com' in clean_query
+        contains_repo_pattern = bool(re.search(r'[\w\-]+/[\w\-]+', clean_query))  # Pattern like username/repo
+        
+        # Extract project names from the query - regardless of whether they're GitHub repos or not
+        project_names = []
+        
+        # Look for hyphenated terms that might be project names
+        hyphenated_terms = re.findall(r'(\w+(?:-\w+)+)', clean_query)
+        for term in hyphenated_terms:
+            if term not in project_names and len(term) > 3:
+                project_names.append(term)
+                # Also add the space-separated version
+                project_names.append(term.replace('-', ' '))
+        
+        # For specific URL or repository queries, try extra search variations
+        if contains_url or contains_github or contains_repo_pattern or domain_name or site_name:
+            console.print("[yellow]Detected URL or website reference - specializing search...[/yellow]")
+            
+            # Try to find direct URL matches
+            url_results = self._search_for_urls(query)
+            if url_results:
+                console.print(f"[green]Found {len(url_results)} URL results[/green]")
+                return url_results
+            
+            # If no URL results, try a broader search for content
+            content_results = self._search_for_best_content(query)
+            if content_results:
+                console.print(f"[green]Found {len(content_results)} content results for URL/repo query[/green]")
+                return content_results
+            
+            # If direct queries didn't work, try direct keyword search with site name/domain
+            try:
+                if domain_name or site_name:
+                    site_query = site_name or domain_name
+                    console.print(f"[yellow]Trying direct keyword search for site: {site_query}[/yellow]")
+                    
+                    # Search for the site name in the database
+                    keyword_results = self.crawler.db_client.direct_keyword_search(
+                        query=site_query,
+                        limit=self.search_limit
+                    )
+                    
+                    if keyword_results:
+                        console.print(f"[green]Found {len(keyword_results)} results for site: {site_query}[/green]")
+                        return keyword_results
+            except Exception as e:
+                console.print(f"[red]Error in site keyword search: {e}[/red]")
+        
+        # If this is likely a query about a specific technical term, try direct keyword search
+        if contains_technical_pattern:
+            try:
+                # Direct search for technical terms
+                console.print(f"[yellow]Trying direct keyword search for technical term: {clean_query}[/yellow]")
+                
+                # Get site patterns from profile if available
+                site_patterns = None
+                if self.profile and "site_patterns" in self.profile:
+                    site_patterns = self.profile["site_patterns"]
+                elif self.profile and "search_settings" in self.profile and "site_patterns" in self.profile["search_settings"]:
+                    site_patterns = self.profile["search_settings"]["site_patterns"]
+                
+                # Log the site patterns for debugging
+                if site_patterns:
+                    console.print(f"[blue]Using site patterns from profile: {site_patterns}[/blue]")
+                
+                # Try searching with the profile's site patterns first
+                if site_patterns:
+                    keyword_results = self.crawler.db_client.direct_keyword_search(
+                        query=clean_query,
+                        limit=self.search_limit,
+                        site_patterns=site_patterns
+                    )
+                    
+                    if keyword_results and len(keyword_results) > 0:
+                        console.print(f"[green]Found {len(keyword_results)} direct keyword matches with site patterns[/green]")
+                        return keyword_results
+                
+                # If no results with site patterns, try without
+                keyword_results = self.crawler.db_client.direct_keyword_search(
+                    query=clean_query,
+                    limit=self.search_limit
+                )
+                
+                if keyword_results and len(keyword_results) > 0:
+                    console.print(f"[green]Found {len(keyword_results)} direct keyword matches[/green]")
+                    return keyword_results
+            except Exception as e:
+                console.print(f"[red]Error in direct keyword search: {e}[/red]")
+        
+        # Normal search case - try a regular search
+        try:
+            # Use the main search method
+            console.print(f"[yellow]Performing regular search for: {query}[/yellow]")
+            
+            # Regular search with the query
+            results = self._regular_search(query)
+            
+            if results:
+                console.print(f"[green]Found {len(results)} results with regular search[/green]")
+                return results
+        except Exception as e:
+            console.print(f"[red]Error in regular search: {e}[/red]")
+        
+        # If we got here, no results were found
+        console.print("[red]No results found for query[/red]")
+        return []
+    
+    def _regular_search(self, query: str) -> List[Dict[str, Any]]:
+        """Perform a regular search using hybrid vector and text search.
+        
+        Args:
+            query: The user's query.
+            
+        Returns:
+            A list of search results.
+        """
+        # If the profile specifies specific sites to search, filter by site name
+        if self.search_sites:
+            console.print(f"[blue]Filtering search to {len(self.search_sites)} sites...[/blue]")
             
             # Get all sites
             all_sites = self.crawler.db_client.get_all_sites()
+            
+            # Filter sites based on the patterns in the profile
             site_ids = []
             site_names = []
-            
-            # Clean the query for matching
-            clean_query = query.lower().replace("about ", "").replace("tell me about ", "").strip()
-            
             for site in all_sites:
                 site_name = site.get("name", "").lower()
-                
-                # Check if the site name contains the query or vice versa
-                if clean_query in site_name or any(word in site_name for word in clean_query.split()):
-                    site_ids.append(site["id"])
-                    site_names.append(site.get("name", ""))
+                for pattern in self.search_sites:
+                    pattern = pattern.lower()
+                    if pattern in site_name or site_name in pattern:
+                        site_ids.append(site["id"])
+                        site_names.append(site_name)
+                        break
             
+            console.print(f"[blue]Found {len(site_ids)} matching sites: {', '.join(site_names)}[/blue]")
+            
+            # If we have matching sites, search each one
             if site_ids:
-                console.print(f"[blue]Found {len(site_ids)} sites matching name: {', '.join(site_names)}[/blue]")
-                
                 all_results = []
-                for i, site_id in enumerate(site_ids):
+                
+                for site_id in site_ids:
+                    console.print(f"[blue]Searching site ID: {site_id}[/blue]")
+                    
+                    # Try both vector and keyword search
                     try:
-                        # Get pages for this site
-                        pages = self.crawler.db_client.get_pages_by_site_id(
-                            site_id=site_id,
-                            limit=self.result_limit,
-                            include_chunks=True
+                        # First try vector search with the profile threshold
+                        results = self.crawler.search(
+                            query=query,
+                            use_embedding=True,
+                            threshold=self.search_threshold,
+                            limit=self.search_limit,
+                            site_id=site_id
                         )
                         
-                        # Add site information to each page
-                        for page in pages:
-                            page["site_name"] = site_names[i]
-                            page["similarity"] = 0.85  # High similarity for name matches
-                            all_results.append(page)
+                        if results:
+                            all_results.extend(results)
+                            console.print(f"[green]Found {len(results)} results from site ID: {site_id}[/green]")
+                        
                     except Exception as e:
-                        console.print(f"[red]Error getting pages for site {site_names[i]}: {e}[/red]")
+                        console.print(f"[red]Error searching site ID {site_id}: {e}[/red]")
                 
-                if all_results:
-                    console.print(f"[green]Found {len(all_results)} pages from sites matching name[/green]")
-                    return all_results[:self.result_limit]
+                # Sort the results by similarity
+                all_results.sort(key=lambda x: x.get("similarity", 0), reverse=True)
+                
+                # Return the top results
+                console.print(f"[green]Found {len(all_results)} results across all matching sites[/green]")
+                return all_results[:self.search_limit]
+            
+            # If no matching sites, fall back to searching all sites
+            console.print("[yellow]No matching sites found, falling back to searching all sites[/yellow]")
         
-        # Use the LLM to understand the query intent for more complex queries
+        # Search all sites using standard hybrid search
+        console.print(f"[blue]Searching all sites with query: '{query}'[/blue]")
+        
         try:
-            # Only use this for more complex queries
-            if len(query.split()) > 3 and any(word in query.lower() for word in ["best", "top", "recommend", "favorite", "good", "great", "url", "link", "site"]):
-                console.print("[blue]Analyzing query intent with LLM...[/blue]")
-                
-                # Create a prompt for the LLM
-                prompt = f"""Analyze this search query and determine the best search strategy:
-
-Query: "{query}"
-
-Choose ONE of these search strategies:
-1. REGULAR_SEARCH - Standard semantic search for information
-2. URL_SEARCH - The user is specifically asking for URLs or links
-3. BEST_CONTENT - The user is asking for the best/top/recommended content
-
-Respond with ONLY the strategy name (e.g., "REGULAR_SEARCH").
-"""
-                
-                # Use a smaller model for this analysis
-                analysis_model = os.getenv("CHAT_MODEL", "gpt-4o-mini")
-                
-                response = self.client.chat.completions.create(
-                    model=analysis_model,
-                    messages=[{"role": "user", "content": prompt}],
-                    temperature=0.1,
-                    max_tokens=20
-                )
-                
-                # Extract the strategy
-                strategy = response.choices[0].message.content.strip()
-                console.print(f"[blue]Query intent: {strategy}[/blue]")
+            # Try to run two parallel searches:
+            # 1. A vector search with the standard threshold
+            # 2. A text-only search for exact matches
+            
+            # First, try vector search
+            vector_results = self.crawler.search(
+                query=query,
+                use_embedding=True,
+                threshold=self.search_threshold,
+                limit=self.search_limit * 2
+            )
+            
+            if vector_results:
+                console.print(f"[green]Vector search found {len(vector_results)} results[/green]")
             else:
-                # For simple queries, use regular search
-                strategy = "REGULAR_SEARCH"
+                console.print("[yellow]Vector search found no results[/yellow]")
+            
+            # Also run a text-only search
+            text_results = self.crawler.search(
+                query=query,
+                use_embedding=False,  # Text-only search
+                threshold=0,  # No threshold for text search
+                limit=self.search_limit * 2
+            )
+            
+            if text_results:
+                console.print(f"[green]Text search found {len(text_results)} results[/green]")
+            else:
+                console.print("[yellow]Text search found no results[/yellow]")
+            
+            # Combine results, prioritizing those that appear in both searches
+            combined_results = {}
+            
+            # Process vector results
+            for result in vector_results:
+                result_id = result.get("id")
+                if result_id:
+                    combined_results[result_id] = result
+                    # Mark this as coming from vector search
+                    result["found_in_vector"] = True
+                    result["found_in_text"] = False
+            
+            # Process text results
+            for result in text_results:
+                result_id = result.get("id")
+                if not result_id:
+                    continue
+                    
+                if result_id in combined_results:
+                    # This result was found in both searches - boost its similarity
+                    combined_results[result_id]["found_in_text"] = True
+                    # Boost similarity for results found in both searches
+                    current_similarity = combined_results[result_id].get("similarity", 0)
+                    combined_results[result_id]["similarity"] = min(current_similarity + 0.2, 1.0)
+                else:
+                    # This is only from text search
+                    result["found_in_vector"] = False
+                    result["found_in_text"] = True
+                    # Give it a base similarity score
+                    if "similarity" not in result or result["similarity"] is None:
+                        result["similarity"] = 0.65
+                    combined_results[result_id] = result
+            
+            # Convert to list and sort by similarity
+            results = list(combined_results.values())
+            results.sort(key=lambda x: x.get("similarity", 0), reverse=True)
+            
+            console.print(f"[green]Combined search found {len(results)} unique results[/green]")
+            
+            # Return top results
+            return results[:self.search_limit]
+            
         except Exception as e:
-            console.print(f"[red]Error analyzing query intent: {e}[/red]")
-            strategy = "REGULAR_SEARCH"
-        
-        # Execute the appropriate search strategy
-        if strategy == "URL_SEARCH":
-            return self._search_for_urls(query)
-        elif strategy == "BEST_CONTENT":
-            return self._search_for_best_content(query)
-        else:  # REGULAR_SEARCH
-            return self._regular_search(query)
+            console.print(f"[red]Error in search: {e}[/red]")
+            return []
     
     def _search_for_urls(self, query: str) -> List[Dict[str, Any]]:
         """Search for URLs based on the query.
@@ -921,100 +993,22 @@ Respond with ONLY the strategy name (e.g., "REGULAR_SEARCH").
             console.print(f"[red]Error retrieving quality pages: {e}[/red]")
             return self._regular_search(query)
     
-    def _regular_search(self, query: str) -> List[Dict[str, Any]]:
-        """Perform a regular search based on the query.
-        
-        Args:
-            query: The user's query.
-            
-        Returns:
-            A list of search results.
-        """
-        # If the profile specifies specific sites to search, filter by site name
-        if self.search_sites:
-            console.print(f"[blue]Filtering search to {len(self.search_sites)} sites...[/blue]")
-            
-            # Get all sites
-            all_sites = self.crawler.db_client.get_all_sites()
-            
-            # Filter sites based on the patterns in the profile
-            site_ids = []
-            site_names = []
-            for site in all_sites:
-                site_name = site.get("name", "").lower()
-                for pattern in self.search_sites:
-                    pattern = pattern.lower()
-                    if pattern in site_name or site_name in pattern:
-                        site_ids.append(site["id"])
-                        site_names.append(site_name)
-                        break
-            
-            console.print(f"[blue]Found {len(site_ids)} matching sites: {', '.join(site_names)}[/blue]")
-            
-            # If we have site IDs, search each site separately
-            if site_ids:
-                console.print(f"[blue]Searching {len(site_ids)} sites...[/blue]")
-                
-                all_results = []
-                for i, site_id in enumerate(site_ids):
-                    try:
-                        console.print(f"[blue]Searching site: {site_names[i]} (ID: {site_id})[/blue]")
-                        
-                        # Use the crawler's search method for each site
-                        site_results = self.crawler.search(
-                            query, 
-                            limit=self.result_limit,
-                            threshold=self.similarity_threshold,
-                            site_id=site_id
-                        )
-                        
-                        all_results.extend(site_results)
-                    except Exception as e:
-                        console.print(f"[red]Error searching site {site_names[i]} (ID: {site_id}): {e}[/red]")
-                
-                # Sort by similarity score and limit to result_limit
-                all_results.sort(key=lambda x: x.get("similarity", 0), reverse=True)
-                all_results = all_results[:self.result_limit]
-                
-                if all_results:
-                    console.print(f"[green]Found {len(all_results)} results across {len(site_ids)} sites[/green]")
-                    return all_results
-                else:
-                    console.print("[yellow]No results found across specified sites, searching all sites[/yellow]")
-        
-        # If no site IDs or no results from site-specific search, do a general search
-        console.print("[blue]Searching all sites...[/blue]")
-        
-        # Use the crawler's search method for all sites
-        results = self.crawler.search(
-            query, 
-            limit=self.result_limit,
-            threshold=self.similarity_threshold
-        )
-        
-        if results:
-            console.print(f"[green]Found {len(results)} results[/green]")
-        else:
-            console.print("[red]No results found[/red]")
-            
-        return results
-    
     def format_context(self, results: List[Dict[str, Any]]) -> str:
-        """Format search results into a context string for the LLM.
+        """Format the context for the LLM.
         
         Args:
-            results: The search results.
+            results: The search results to format.
             
         Returns:
-            A formatted context string.
+            The formatted context.
         """
         if not results:
-            return "No relevant information found."
+            return "===== NO RELEVANT DATABASE RESULTS FOUND =====\n\nNo information available in the database for this query. The response will be based on general knowledge."
             
         # Check if the first result is a URL result
         if results and results[0].get("is_url_result", False):
             # Format URL results
-            context = "Here are some URLs that might be relevant to your query:\n\n"
+            context = "===== DATABASE SEARCH RESULTS: RELEVANT URLS =====\n\n"
             
             for i, result in enumerate(results, 1):
                 title = result.get("title", "Untitled")
@@ -1022,19 +1016,26 @@ Respond with ONLY the strategy name (e.g., "REGULAR_SEARCH").
                 site_name = result.get("site_name", "Unknown site")
                 summary = result.get("summary", "")
                 
-                context += f"{i}. {title}\n"
-                context += f"   URL: {url}\n"
-                context += f"   Site: {site_name}\n"
+                # Clean up the URL by removing chunk fragments
+                if "#chunk-" in url:
+                    url = url.split("#chunk-")[0]
+                
+                context += f"RESULT {i}: {title}\n"
+                context += f"URL: {url}\n"
+                context += f"SOURCE: {site_name}\n"
                 if summary:
-                    context += f"   Summary: {summary}\n"
+                    context += f"SUMMARY: {summary}\n"
                 context += "\n"
+            
+            # Add a reminder to include URLs in the response when appropriate
+            context += "IMPORTANT: When referencing specific information from these results, include the relevant URLs as formatted links using markdown syntax: [link text](URL).\n\n"
             
             return context
             
         # Check if these are "best" results
         if results and results[0].get("is_best_result", False):
             # Format best results
-            context = "Here are some of the best articles from the database:\n\n"
+            context = "===== VERIFIED DATABASE SEARCH RESULTS =====\n\n"
             
             for i, result in enumerate(results, 1):
                 title = result.get("title", "Untitled")
@@ -1047,50 +1048,60 @@ Respond with ONLY the strategy name (e.g., "REGULAR_SEARCH").
                 if "#chunk-" in url:
                     url = url.split("#chunk-")[0]
                 
-                context += f"{i}. {title}\n"
-                context += f"   URL: {url}\n"
-                context += f"   Site: {site_name}\n"
+                context += f"RESULT {i}: {title}\n"
+                context += f"URL: {url}\n"
+                context += f"SOURCE: {site_name}\n"
                 
                 if summary:
-                    context += f"   Summary: {summary}\n"
+                    context += f"SUMMARY: {summary}\n\n"
                 elif content:
                     # Create a brief summary from the content if no summary exists
-                    brief_content = content[:300] + "..." if len(content) > 300 else content
-                    context += f"   Content preview: {brief_content}\n"
+                    brief_content = content[:500] + "..." if len(content) > 500 else content
+                    context += f"CONTENT: {brief_content}\n\n"
+                else:
+                    context += "\n"
+            
+            # Add a reminder to include URLs in the response when appropriate
+            context += "IMPORTANT: When referencing specific information from these results, include the relevant URLs as formatted links using markdown syntax: [link text](URL).\n\n"
+            
+            return context
+
+        # For direct keyword search results, give them special formatting
+        if results and any(r.get("match_type") in ["title_exact", "content_exact"] or r.get("is_keyword_result", False) for r in results):
+            context = "===== EXACT KEYWORD MATCHES IN DATABASE =====\n\n"
+            
+            for i, result in enumerate(results, 1):
+                title = result.get("title", "Untitled")
+                url = result.get("url", "")
+                site_name = result.get("site_name", "Unknown site")
+                content = result.get("content", "")
+                match_type = result.get("match_type", "keyword_match")
+                similarity = result.get("similarity", 0)
                 
-                context += "\n"
+                # Clean up the URL by removing chunk fragments
+                if "#chunk-" in url:
+                    url = url.split("#chunk-")[0]
+                
+                context += f"RESULT {i}: {title}\n"
+                context += f"URL: {url}\n"
+                context += f"SOURCE: {site_name}\n"
+                context += f"MATCH TYPE: {match_type} (relevance: {similarity:.2f})\n\n"
+                
+                # Include a reasonable amount of content
+                if content:
+                    # Limit content length but ensure we get enough context
+                    max_length = 1000 if i == 1 else 500  # Give more space to the top result
+                    formatted_content = content[:max_length] + "..." if len(content) > max_length else content
+                    context += f"CONTENT:\n{formatted_content}\n\n"
+                
+                context += "---\n\n"
+            
+            # Add a reminder to include URLs in the response when appropriate
+            context += "IMPORTANT: When referencing specific information from these results, include the relevant URLs as formatted links using markdown syntax: [link text](URL).\n\n"
             
             return context
         
-        # Check if we have site information in the results
-        site_info = {}
-        for result in results:
-            site_id = result.get("site_id")
-            site_name = result.get("site_name", "Unknown")
-            
-            if site_id and site_id not in site_info:
-                site_info[site_id] = {
-                    "name": site_name,
-                    "url": result.get("url", "").split("/")[0] + "//" + result.get("url", "").split("/")[2] if "/" in result.get("url", "") else "",
-                    "description": ""
-                }
-        
-        # If we have site information, add it to the context
-        if site_info:
-            context = "Site Information:\n\n"
-            for site_data in site_info.values():
-                context += f"Site: {site_data['name']}\n"
-                if site_data['url']:
-                    context += f"URL: {site_data['url']}\n"
-                if site_data['description']:
-                    context += f"Description: {site_data['description']}\n"
-                context += "\n"
-            
-            context += "Content from these sites:\n\n"
-        else:
-            context = ""
-        
-        # Group results by site
+        # Group results by site for regular semantic search results
         results_by_site = {}
         for result in results:
             site_name = result.get("site_name", "Unknown")
@@ -1098,36 +1109,41 @@ Respond with ONLY the strategy name (e.g., "REGULAR_SEARCH").
                 results_by_site[site_name] = []
             results_by_site[site_name].append(result)
         
-        # Format the context
+        context = "===== DATABASE SEARCH RESULTS: RELEVANT INFORMATION =====\n\n"
+        
+        result_counter = 0
         for site_name, site_results in results_by_site.items():
             # Sort by similarity score
             site_results.sort(key=lambda x: x.get("similarity", 0), reverse=True)
             
-            context += f"Information from {site_name}:\n\n"
-            
             for result in site_results:
+                result_counter += 1
                 title = result.get("title", "Untitled")
                 url = result.get("url", "")
                 content = result.get("content", "")
-                summary = result.get("summary", "")
+                similarity = result.get("similarity", 0)
                 
                 # Clean up the URL by removing chunk fragments
                 if "#chunk-" in url:
                     url = url.split("#chunk-")[0]
                 
-                context += f"Document: {title}\n"
+                # Format the header for each result
+                context += f"RESULT {result_counter}: {title}\n"
                 context += f"URL: {url}\n"
+                context += f"SOURCE: {site_name}\n"
+                context += f"RELEVANCE: {similarity:.2f}\n\n"
                 
-                # Use summary if available, otherwise use content
-                if summary:
-                    context += f"Summary: {summary}\n"
-                    # If we have both summary and content, include the content too
-                    if content:
-                        context += f"Content: {content}\n"
-                else:
-                    context += f"Content: {content}\n"
+                # Include the content with reasonable length limits
+                if content:
+                    max_length = 800 if result_counter <= 3 else 400  # More content for top results
+                    formatted_content = content[:max_length] + "..." if len(content) > max_length else content
+                    context += f"CONTENT:\n{formatted_content}\n\n"
                 
-                context += "\n"
+                # Always add a clear separation between results
+                context += "---\n\n"
+        
+        # Add a reminder to include URLs in the response when appropriate
+        context += "IMPORTANT: When referencing specific information from these results, include the relevant URLs as formatted links using markdown syntax: [link text](URL).\n\n"
         
         return context
     
@@ -1140,20 +1156,33 @@ Respond with ONLY the strategy name (e.g., "REGULAR_SEARCH").
         Returns:
             The LLM's response.
         """
+        # Clean the query for processing
+        clean_query = query.strip().lower()
+        
         # Check for user-specific queries
         user_queries = ["my name", "who am i", "what's my name", "what is my name"]
-        is_user_query = any(user_query in query.lower() for user_query in user_queries)
+        is_user_query = any(user_query in clean_query for user_query in user_queries)
         
-        # Check for time-related queries
-        time_queries = ["time", "date", "day", "month", "year", "today", "current time", "current date", "what time", "what day"]
-        is_time_query = any(time_query in query.lower() for time_query in time_queries)
+        # Check for time-related queries - make this more precise
+        time_queries = ["what time", "what is the time", "current time", "tell me the time", 
+                      "what date", "what is the date", "current date", "tell me the date",
+                      "what day is it", "what day of the week", "today's date"]
+        # Use more precise matching to avoid false positives
+        is_time_query = any(time_query in clean_query for time_query in time_queries) or \
+                       (clean_query in ["time", "date", "day", "today"]) or \
+                       (clean_query.startswith("what") and clean_query.split()[1:2] == ["time"]) or \
+                       (clean_query.startswith("what") and clean_query.split()[1:2] == ["date"])
         
         # Check for memory-related queries
         memory_queries = ["remember", "said", "told", "mentioned", "earlier", "before", "previous", "last time"]
         preference_queries = ["like", "love", "prefer", "favorite", "enjoy", "hate", "dislike", "my favorite"]
         
-        is_memory_query = any(memory_query in query.lower() for memory_query in memory_queries)
-        is_preference_query = any(pref_query in query.lower() for pref_query in preference_queries)
+        is_memory_query = any(memory_query in clean_query for memory_query in memory_queries)
+        is_preference_query = any(pref_query in clean_query for pref_query in preference_queries)
+        
+        # Check for technical patterns like hyphens that might indicate specific terms
+        is_technical_pattern = ('-' in clean_query or '_' in clean_query or 
+                          (len(clean_query.split()) <= 3 and not any(q in clean_query for q in ["what", "how", "why", "when", "who", "which"])))
         
         # Add the user message to the conversation history
         self.add_user_message(query)
@@ -1191,77 +1220,163 @@ Respond with ONLY the strategy name (e.g., "REGULAR_SEARCH").
             if last_assistant_message and last_user_message:
                 break
         
-        # If we have both messages, check if this is a follow-up
-        if last_assistant_message and last_user_message:
-            try:
-                # Use the LLM to determine if this is a follow-up question about something mentioned in the assistant's previous response
-                followup_prompt = f"""Determine if this user query is a follow-up question about something mentioned in the assistant's previous response.
-
-Previous assistant response: 
-{last_assistant_message}
-
-User's current query: 
-{query}
-
-Respond with ONLY "YES" if it's a follow-up question about something the assistant just mentioned, or "NO" if it's a new topic.
-"""
-                
-                # Use a smaller model for this analysis
-                analysis_model = os.getenv("CHAT_MODEL", "gpt-4o-mini")
-                
-                response = self.client.chat.completions.create(
-                    model=analysis_model,
-                    messages=[{"role": "user", "content": followup_prompt}],
-                    temperature=0.1,
-                    max_tokens=10
-                )
-                
-                # Extract the response
-                is_followup = "YES" in response.choices[0].message.content.strip().upper()
-                
-                if is_followup:
-                    console.print("[blue]Detected follow-up question about previous response[/blue]")
-            except Exception as e:
-                console.print(f"[red]Error analyzing follow-up question: {e}[/red]")
+        # Use a more sophisticated follow-up detection technique based on pronouns, etc.
+        if last_assistant_message:
+            follow_up_indicators = [
+                "it", "that", "this", "those", "they", "them", "their", "he", "she", 
+                "more", "about", "tell me more", "what about", "how about",
+                "explain", "elaborate", "why is", "how does", "can you"
+            ]
+            is_followup = any(indicator in clean_query.lower() for indicator in follow_up_indicators)
         
-        # If it's a follow-up question, prioritize searching for content related to what was just discussed
-        if is_followup and last_assistant_message:
-            # Extract key entities from the last assistant message to use as search terms
+        # Determine if this is likely a query about a technical term or project name
+        if is_technical_pattern:
+            console.print(f"[yellow]Detected potential technical term or project name: '{clean_query}'[/yellow]")
+            console.print(f"[yellow]Attempting direct keyword search...[/yellow]")
+            
+            # Try the direct keyword search first for technical terms
             try:
-                entity_prompt = f"""Extract the key entities (names, products, technologies, concepts) mentioned in this text:
-
-{last_assistant_message}
-
-List ONLY the 3-5 most important entities, separated by commas. No explanations.
-"""
+                # Get site patterns from profile if available
+                site_patterns = None
+                if self.profile and "site_patterns" in self.profile:
+                    site_patterns = self.profile["site_patterns"]
+                elif self.profile and "search_settings" in self.profile and "site_patterns" in self.profile["search_settings"]:
+                    site_patterns = self.profile["search_settings"]["site_patterns"]
                 
-                entity_response = self.client.chat.completions.create(
-                    model=analysis_model,
-                    messages=[{"role": "user", "content": entity_prompt}],
-                    temperature=0.1,
-                    max_tokens=50
+                # Log the site patterns for debugging
+                if site_patterns:
+                    console.print(f"[blue]Using site patterns from profile: {site_patterns}[/blue]")
+                
+                # Perform direct keyword search
+                direct_results = self.crawler.db_client.direct_keyword_search(
+                    query=query, 
+                    limit=5,
+                    site_patterns=site_patterns
                 )
                 
-                # Extract the entities
-                entities = entity_response.choices[0].message.content.strip()
-                console.print(f"[blue]Extracted entities from previous response: {entities}[/blue]")
-                
-                # Create an enhanced query combining the original query with the entities
-                enhanced_query = f"{query} {entities}"
-                console.print(f"[blue]Enhanced query: {enhanced_query}[/blue]")
-                
-                # Search with the enhanced query
-                results = self.search_for_context(enhanced_query)
+                if direct_results and len(direct_results) > 0:
+                    console.print(f"[green]Found {len(direct_results)} direct keyword matches[/green]")
+                    # Use these results directly
+                    results = direct_results
+                else:
+                    console.print(f"[yellow]No direct keyword matches found, trying semantic search...[/yellow]")
+                    # Fall back to regular search
+                    results = self.search_for_context(query)
             except Exception as e:
-                console.print(f"[red]Error enhancing query with entities: {e}[/red]")
+                console.print(f"[red]Error in direct keyword search: {e}[/red]")
                 # Fall back to regular search
                 results = self.search_for_context(query)
         else:
-            # Regular search for non-follow-up questions
-            results = self.search_for_context(query)
+            # If this is a follow-up question, try to extract relevant entities from the assistant's last response
+            if is_followup and last_assistant_message:
+                try:
+                    # Extract key entities from the last response
+                    entity_prompt = f"""Extract the most important entities (names, technical terms, concepts) from this text: "{last_assistant_message}"
+    
+    Return only the entities as a comma-separated list. Limit to 3-5 most important entities."""
+                    
+                    entity_response = self.client.chat.completions.create(
+                        model=self.model,
+                        messages=[{"role": "user", "content": entity_prompt}],
+                        temperature=0.3,
+                        max_tokens=100
+                    )
+                    
+                    entities = entity_response.choices[0].message.content.strip()
+                    console.print(f"[blue]Extracted entities from previous response: {entities}[/blue]")
+                    
+                    # Create an enhanced query combining the original query with the entities
+                    enhanced_query = f"{query} {entities}"
+                    console.print(f"[blue]Enhanced query: {enhanced_query}[/blue]")
+                    
+                    # Search with the enhanced query
+                    results = self.search_for_context(enhanced_query)
+                except Exception as e:
+                    console.print(f"[red]Error enhancing query with entities: {e}[/red]")
+                    # Fall back to regular search
+                    results = self.search_for_context(query)
+            else:
+                # Regular search for non-follow-up questions
+                results = self.search_for_context(query)
+                
+            # If we still don't have good results for technical terms, try variations
+            if is_technical_pattern and (not results or len(results) < 2):
+                console.print(f"[yellow]Few or no results for technical term, trying variations...[/yellow]")
+                
+                # Try different variations
+                variations = [
+                    query,
+                    f"what is {query}",
+                    f"{query} definition",
+                    f"{query} overview",
+                    f"{query} features"
+                ]
+                
+                # Try each variation and collect results
+                all_results = []
+                for variation in variations:
+                    var_results = self.search_for_context(variation)
+                    if var_results:
+                        console.print(f"[green]Found {len(var_results)} results for '{variation}'[/green]")
+                        # Add this variation as metadata
+                        for result in var_results:
+                            result["query_variation"] = variation
+                        all_results.extend(var_results)
+                
+                # If we have results from variations, use those
+                if all_results:
+                    # Deduplicate by URL
+                    deduplicated = {}
+                    for result in all_results:
+                        url = result.get("url", "")
+                        if url and url not in deduplicated:
+                            deduplicated[url] = result
+                    
+                    # Sort by similarity
+                    results = list(deduplicated.values())
+                    results.sort(key=lambda x: x.get("similarity", 0), reverse=True)
+                    
+                    # Limit to search limit
+                    results = results[:self.search_limit]
+                    console.print(f"[green]Found {len(results)} total results after trying variations[/green]")
+                else:
+                    console.print(f"[yellow]No results found for variations, falling back to regular search[/yellow]")
+                    # If still no results, fall back to the original query
+                    results = self.search_for_context(query)
         
         # Format the context
         context = self.format_context(results)
+        
+        # Add more detailed logging about search results
+        if VERBOSE_OUTPUT:
+            result_count = len(results)
+            console.print(f"[bold blue]Search returned {result_count} results[/bold blue]")
+            
+            # Log the first few results for debugging
+            if result_count > 0:
+                console.print("[bold blue]Top search results:[/bold blue]")
+                for i, result in enumerate(results[:3]):
+                    title = result.get("title", "Untitled")
+                    url = result.get("url", "No URL")
+                    site_name = result.get("site_name", "Unknown site")
+                    similarity = result.get("similarity", 0)
+                    match_type = result.get("match_type", "semantic")
+                    content_preview = result.get("content", "")[:100] + "..." if result.get("content") and len(result.get("content", "")) > 100 else result.get("content", "")
+                    console.print(f"[dim blue]Result {i+1}: {title}[/dim blue]")
+                    console.print(f"[dim blue]Site: {site_name}[/dim blue]")
+                    console.print(f"[dim blue]URL: {url}[/dim blue]")
+                    console.print(f"[dim blue]Match type: {match_type}[/dim blue]")
+                    console.print(f"[dim blue]Similarity: {similarity:.4f}[/dim blue]")
+                    console.print(f"[dim blue]Content preview: {content_preview}[/dim blue]")
+                    console.print("---")
+            else:
+                console.print("[bold red]No search results found![/bold red]")
+                
+            # Print context size information
+            context_length = len(context.split())
+            console.print(f"[dim blue]Search context: {context_length} words[/dim blue]")
+            if context_length < 50:
+                console.print(f"[dim yellow]WARNING: Search context is very small ({context_length} words). This may affect response quality.[/dim yellow]")
         
         # Analyze conversation history for relevant information
         conversation_analysis = ""
@@ -1285,10 +1400,10 @@ List ONLY the 3-5 most important entities, separated by commas. No explanations.
         user_preferences = []
         if self.user_id:
             try:
-                # Get preferences from the database with a minimum confidence of 0.7
+                # Get preferences from the database with a lower minimum confidence
                 db_preferences = self.crawler.db_client.get_user_preferences(
                     user_id=self.user_id,
-                    min_confidence=0.7,
+                    min_confidence=0.65,  # Lowered threshold to capture more preferences
                     active_only=True
                 )
                 
@@ -1314,7 +1429,7 @@ List ONLY the 3-5 most important entities, separated by commas. No explanations.
         
         # Add user preferences to the system prompt if available
         if user_preferences:
-            system_prompt += "\n\nUser information from previous conversations:"
+            system_prompt += "\n\nUser Information:"
             
             # Group preferences by type for better organization
             preference_by_type = {}
@@ -1324,24 +1439,65 @@ List ONLY the 3-5 most important entities, separated by commas. No explanations.
                     preference_by_type[pref_type] = []
                 preference_by_type[pref_type].append(pref)
             
-            # Add preferences by type
+            # Limit the total number of preferences to prevent overwhelming the context
+            MAX_PREFERENCES_PER_TYPE = 3
+            MAX_TOTAL_PREFERENCES = 8
+            total_prefs_added = 0
+            
+            # Add preferences by type, limiting the number per type
             for pref_type, prefs in preference_by_type.items():
-                system_prompt += f"\n\n{pref_type.capitalize()}:"
-                for pref in prefs:
-                    system_prompt += f"\n- {pref['value']} (confidence: {pref['confidence']:.2f})"
-                    if pref.get('context'):
-                        system_prompt += f" - {pref['context']}"
+                # Create a more natural language representation of the preference type
+                type_label = pref_type.capitalize()
+                if pref_type in ["like", "love"]:
+                    system_prompt += f"\n\nThings the user likes:"
+                elif pref_type in ["hate", "dislike"]:
+                    system_prompt += f"\n\nThings the user dislikes:"
+                elif pref_type == "interest":
+                    system_prompt += f"\n\nThe user is interested in:"
+                elif pref_type == "trait":
+                    system_prompt += f"\n\nUser traits:"
+                elif pref_type == "background":
+                    system_prompt += f"\n\nUser background:"
+                else:
+                    system_prompt += f"\n\n{type_label}:"
+                
+                # Sort by confidence (highest first) and limit per type
+                sorted_prefs = sorted(prefs, key=lambda p: p.get('confidence', 0), reverse=True)
+                prefs_to_add = sorted_prefs[:MAX_PREFERENCES_PER_TYPE]
+                
+                for pref in prefs_to_add:
+                    # Create a simple bullet point rather than showing confidence scores
+                    system_prompt += f"\n- {pref['value']}"
+                    
+                    total_prefs_added += 1
+                    if total_prefs_added >= MAX_TOTAL_PREFERENCES:
+                        break
+                
+                if total_prefs_added >= MAX_TOTAL_PREFERENCES:
+                    break
+            
+            # Add instructions for using preferences
+            system_prompt += "\n\nWhen appropriate, reference the user's preferences and background to personalize your responses. Don't force mentioning preferences, but use them to add context and relevance. Balance between addressing their query directly and personalizing based on what you know about them."
         
         # Create a system message that guides the LLM's behavior
         system_message = f"""You are acting according to this profile: {self.profile_name}
 
+CRITICAL INSTRUCTION: The "DATABASE SEARCH RESULTS" section contains verified information from a database. This is your PRIMARY source of information. Use this information FIRST before relying on other sources, but aim for a conversational, human-like tone in your responses.
+
 {system_prompt}
 
-When answering, use the provided context and conversation history. 
-If the answer is in the context, respond based on that information.
-If the answer is not in the context but you can infer it from the conversation history, use that information.
-If the answer is not in either, acknowledge that you don't have specific information about that topic,
-but you can provide general information if relevant.
+GUIDELINES FOR RESPONDING:
+1. Balance information delivery with conversational tone - be informative but natural
+2. For technical terms and project names, always include relevant details from the search results
+3. When referencing information from search results, include the full URL as a link: [Title or description](URL)
+4. Structure your response with a clear summary first, followed by details
+5. If the search included multiple results, synthesize the information rather than listing each source separately
+
+FORMATTING GUIDELINES:
+- For technical content or code, use appropriate markdown formatting (```code blocks```)
+- Use bullet points or numbered lists for multi-step processes or feature lists
+- Bold important terms or concepts using **bold text**
+- Include the source URL when providing specific information: [Read more about this](URL)
 
 IMPORTANT: Pay close attention to the conversation history. If the user refers to something they mentioned earlier,
 make sure to reference that information in your response. Remember user preferences, likes, dislikes, and any
@@ -1350,9 +1506,6 @@ personal information they've shared during the conversation.
 CRITICAL: If the user asks a follow-up question about something you just mentioned in your previous response,
 make sure to provide detailed information about that topic. Never claim ignorance about something you just discussed.
 Always maintain continuity in the conversation.
-
-When presenting URLs to users, make sure to remove any '#chunk-X' fragments from the URLs to make them cleaner.
-For example, change 'https://example.com/page/#chunk-0' to 'https://example.com/page/'.
 """
         
         # Create a new list of messages for this specific query
@@ -1690,10 +1843,10 @@ For example, change 'https://example.com/page/#chunk-0' to 'https://example.com/
                         else:
                             if Confirm.ask("[bold red]Are you sure you want to clear ALL preferences for this user?[/bold red]"):
                                 try:
-                                    success = self.crawler.db_client.clear_user_preferences(self.user_id)
+                                    success = self.crawler.db_client.clear_user_preferences(chat_bot.user_id)
                                     
                                     if success:
-                                        console.print(f"[green]All preferences cleared for user {self.user_id}[/green]")
+                                        console.print(f"[green]All preferences cleared for user {chat_bot.user_id}[/green]")
                                     else:
                                         console.print("[red]Failed to clear preferences[/red]")
                                 except Exception as e:
@@ -2010,125 +2163,125 @@ def main():
                             console.print(table)
                     except Exception as e:
                         console.print(f"[red]Error getting preferences: {e}[/red]")
-                continue
-            
-            # Check for add preference command
-            if user_input.lower().startswith("add preference "):
-                if not chat_bot.user_id:
-                    console.print("[yellow]No user ID provided. Preferences are only stored for identified users.[/yellow]")
-                    console.print("[yellow]Restart with --user <name> to use preferences.[/yellow]")
-                else:
-                    # Parse the preference
-                    try:
-                        # Format: add preference <type> <value> [confidence]
-                        parts = user_input[14:].strip().split(" ", 2)
-                        if len(parts) < 2:
-                            console.print("[yellow]Invalid format. Use: add preference <type> <value> [confidence][/yellow]")
-                            console.print("[yellow]Example: add preference like Python 0.9[/yellow]")
-                        else:
-                            pref_type = parts[0]
-                            
-                            # Check if confidence is provided
-                            if len(parts) == 3 and parts[2].replace(".", "", 1).isdigit():
-                                pref_value = parts[1]
-                                confidence = float(parts[2])
-                            else:
-                                # If no confidence or not a valid number, combine the rest as the value
-                                pref_value = " ".join(parts[1:])
-                                confidence = 0.9  # Default confidence
-                            
-                            # Add the preference
-                            pref_id = chat_bot.crawler.db_client.save_user_preference(
-                                user_id=chat_bot.user_id,
-                                preference_type=pref_type,
-                                preference_value=pref_value,
-                                context="Manually added via CLI",
-                                confidence=confidence,
-                                source_session=chat_bot.session_id,
-                                metadata={"source": "cli_manual_entry"}
-                            )
-                            
-                            if pref_id > 0:
-                                console.print(f"[green]Preference added with ID: {pref_id}[/green]")
-                            else:
-                                console.print("[red]Failed to add preference[/red]")
-                    except Exception as e:
-                        console.print(f"[red]Error adding preference: {e}[/red]")
-                continue
-            
-            # Check for delete preference command
-            if user_input.lower().startswith("delete preference "):
-                if not chat_bot.user_id:
-                    console.print("[yellow]No user ID provided. Preferences are only stored for identified users.[/yellow]")
-                    console.print("[yellow]Restart with --user <name> to use preferences.[/yellow]")
-                else:
-                    # Parse the preference ID
-                    try:
-                        pref_id = int(user_input[17:].strip())
-                        
-                        # Delete the preference
-                        success = chat_bot.crawler.db_client.delete_user_preference(pref_id)
-                        
-                        if success:
-                            console.print(f"[green]Preference with ID {pref_id} deleted[/green]")
-                        else:
-                            console.print(f"[red]Failed to delete preference with ID {pref_id}[/red]")
-                    except ValueError:
-                        console.print("[yellow]Invalid preference ID. Use: delete preference <id>[/yellow]")
-                    except Exception as e:
-                        console.print(f"[red]Error deleting preference: {e}[/red]")
-                continue
-            
-            # Check for clear preferences command
-            if user_input.lower() == "clear preferences":
-                if not chat_bot.user_id:
-                    console.print("[yellow]No user ID provided. Preferences are only stored for identified users.[/yellow]")
-                    console.print("[yellow]Restart with --user <name> to use preferences.[/yellow]")
-                else:
-                    if Confirm.ask("[bold red]Are you sure you want to clear ALL preferences for this user?[/bold red]"):
+                    continue
+                
+                # Check for add preference command
+                if user_input.lower().startswith("add preference "):
+                    if not chat_bot.user_id:
+                        console.print("[yellow]No user ID provided. Preferences are only stored for identified users.[/yellow]")
+                        console.print("[yellow]Restart with --user <name> to use preferences.[/yellow]")
+                    else:
+                        # Parse the preference
                         try:
-                            success = chat_bot.crawler.db_client.clear_user_preferences(chat_bot.user_id)
+                            # Format: add preference <type> <value> [confidence]
+                            parts = user_input[14:].strip().split(" ", 2)
+                            if len(parts) < 2:
+                                console.print("[yellow]Invalid format. Use: add preference <type> <value> [confidence][/yellow]")
+                                console.print("[yellow]Example: add preference like Python 0.9[/yellow]")
+                            else:
+                                pref_type = parts[0]
+                                
+                                # Check if confidence is provided
+                                if len(parts) == 3 and parts[2].replace(".", "", 1).isdigit():
+                                    pref_value = parts[1]
+                                    confidence = float(parts[2])
+                                else:
+                                    # If no confidence or not a valid number, combine the rest as the value
+                                    pref_value = " ".join(parts[1:])
+                                    confidence = 0.9  # Default confidence
+                                
+                                # Add the preference
+                                pref_id = chat_bot.crawler.db_client.save_user_preference(
+                                    user_id=chat_bot.user_id,
+                                    preference_type=pref_type,
+                                    preference_value=pref_value,
+                                    context="Manually added via CLI",
+                                    confidence=confidence,
+                                    source_session=chat_bot.session_id,
+                                    metadata={"source": "cli_manual_entry"}
+                                )
+                                
+                                if pref_id > 0:
+                                    console.print(f"[green]Preference added with ID: {pref_id}[/green]")
+                                else:
+                                    console.print("[red]Failed to add preference[/red]")
+                        except Exception as e:
+                            console.print(f"[red]Error adding preference: {e}[/red]")
+                    continue
+                
+                # Check for delete preference command
+                if user_input.lower().startswith("delete preference "):
+                    if not chat_bot.user_id:
+                        console.print("[yellow]No user ID provided. Preferences are only stored for identified users.[/yellow]")
+                        console.print("[yellow]Restart with --user <name> to use preferences.[/yellow]")
+                    else:
+                        # Parse the preference ID
+                        try:
+                            pref_id = int(user_input[17:].strip())
+                            
+                            # Delete the preference
+                            success = chat_bot.crawler.db_client.delete_user_preference(pref_id)
                             
                             if success:
-                                console.print(f"[green]All preferences cleared for user {chat_bot.user_id}[/green]")
+                                console.print(f"[green]Preference with ID {pref_id} deleted[/green]")
                             else:
-                                console.print("[red]Failed to clear preferences[/red]")
+                                console.print(f"[red]Failed to delete preference with ID {pref_id}[/red]")
+                        except ValueError:
+                            console.print("[yellow]Invalid preference ID. Use: delete preference <id>[/yellow]")
                         except Exception as e:
-                            console.print(f"[red]Error clearing preferences: {e}[/red]")
-                continue
-            
-            # Check for help command
-            if user_input.lower() in ["help", "?"]:
-                console.print("\n[bold]Available Commands:[/bold]")
-                console.print("  [cyan]exit, quit, bye, goodbye, q[/cyan] - Exit the chat")
-                console.print("  [cyan]clear[/cyan] - Clear conversation history for this session")
-                console.print("  [cyan]clear all[/cyan] - Clear ALL conversation history")
-                console.print("  [cyan]history[/cyan] - View conversation history")
-                console.print("  [cyan]profiles[/cyan] - List available profiles")
-                console.print("  [cyan]profile <name>[/cyan] - Change to a different profile")
-                console.print("  [cyan]preferences[/cyan] - List your preferences")
-                console.print("  [cyan]add preference <type> <value> [confidence][/cyan] - Add a new preference")
-                console.print("  [cyan]delete preference <id>[/cyan] - Delete a preference")
-                console.print("  [cyan]clear preferences[/cyan] - Clear all your preferences")
-                console.print("  [cyan]help, ?[/cyan] - Show this help message")
-                continue
-            
-            # Process the user input
-            console.print("Searching all sites...")
-            
-            # Show a spinner while processing
-            with Progress(
-                SpinnerColumn(),
-                TextColumn("[bold blue]Thinking...[/bold blue]"),
-                transient=True,
-            ) as progress:
-                progress.add_task("thinking", total=None)
-                response = chat_bot.get_response(user_input)
-            
-            # Print the response
-            console.print("\nAssistant", style="bold")
-            console.print(Panel(Markdown(response), border_style="green"))
-            
+                            console.print(f"[red]Error deleting preference: {e}[/red]")
+                    continue
+                
+                # Check for clear preferences command
+                if user_input.lower() == "clear preferences":
+                    if not chat_bot.user_id:
+                        console.print("[yellow]No user ID provided. Preferences are only stored for identified users.[/yellow]")
+                        console.print("[yellow]Restart with --user <name> to use preferences.[/yellow]")
+                    else:
+                        if Confirm.ask("[bold red]Are you sure you want to clear ALL preferences for this user?[/bold red]"):
+                            try:
+                                success = chat_bot.crawler.db_client.clear_user_preferences(chat_bot.user_id)
+                                
+                                if success:
+                                    console.print(f"[green]All preferences cleared for user {chat_bot.user_id}[/green]")
+                                else:
+                                    console.print("[red]Failed to clear preferences[/red]")
+                            except Exception as e:
+                                console.print(f"[red]Error clearing preferences: {e}[/red]")
+                    continue
+                
+                # Check for help command
+                if user_input.lower() in ["help", "?"]:
+                    console.print("\n[bold]Available Commands:[/bold]")
+                    console.print("  [cyan]exit, quit, bye, goodbye, q[/cyan] - Exit the chat")
+                    console.print("  [cyan]clear[/cyan] - Clear conversation history for this session")
+                    console.print("  [cyan]clear all[/cyan] - Clear ALL conversation history")
+                    console.print("  [cyan]history[/cyan] - View conversation history")
+                    console.print("  [cyan]profiles[/cyan] - List available profiles")
+                    console.print("  [cyan]profile <name>[/cyan] - Change to a different profile")
+                    console.print("  [cyan]preferences[/cyan] - List your preferences")
+                    console.print("  [cyan]add preference <type> <value> [confidence][/cyan] - Add a new preference")
+                    console.print("  [cyan]delete preference <id>[/cyan] - Delete a preference")
+                    console.print("  [cyan]clear preferences[/cyan] - Clear all your preferences")
+                    console.print("  [cyan]help, ?[/cyan] - Show this help message")
+                    continue
+                
+                # Process the user input
+                console.print("Searching all sites...")
+                
+                # Show a spinner while processing
+                with Progress(
+                    SpinnerColumn(),
+                    TextColumn("[bold blue]Thinking...[/bold blue]"),
+                    transient=True,
+                ) as progress:
+                    progress.add_task("thinking", total=None)
+                    response = chat_bot.get_response(user_input)
+                
+                # Print the response
+                console.print("\nAssistant", style="bold")
+                console.print(Panel(Markdown(response), border_style="green"))
+                
     except KeyboardInterrupt:
         console.print("\n[yellow]Chat session interrupted[/yellow]")
     except Exception as e:

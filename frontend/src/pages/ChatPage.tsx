@@ -437,10 +437,43 @@ const ChatPage = () => {
   const formatLinks = (content: string) => {
     // Replace markdown links with HTML links
     const markdownLinkPattern = /\[([^\]]+)\]\(([^)]+)\)/g;
-    return content.replace(
+    
+    // First, handle markdown-style links
+    let formattedContent = content.replace(
       markdownLinkPattern,
       '<a href="$2" target="_blank" rel="noopener noreferrer" class="text-primary underline hover:no-underline">$1</a>'
     );
+    
+    // Then look for plain URLs and convert them to clickable links
+    // Match URLs that aren't already part of an HTML link
+    const urlPattern = /(?<!["'=])(https?:\/\/[^\s<>"']+)(?![^<]*>|[^<>]*<\/a>)/g;
+    formattedContent = formattedContent.replace(
+      urlPattern,
+      '<a href="$1" target="_blank" rel="noopener noreferrer" class="text-primary underline hover:no-underline">$1</a>'
+    );
+    
+    // Special case for "URL: " patterns in search results
+    const urlLabelPattern = /URL: (https?:\/\/[^\s<>"']+)/g;
+    formattedContent = formattedContent.replace(
+      urlLabelPattern,
+      'URL: <a href="$1" target="_blank" rel="noopener noreferrer" class="text-primary underline hover:no-underline">$1</a>'
+    );
+    
+    // Make domain names clickable - match standalone domain patterns like example.com
+    const domainPattern = /\b((?!https?:\/\/)([a-zA-Z0-9][-a-zA-Z0-9]*\.)+[a-zA-Z]{2,})\b/g;
+    formattedContent = formattedContent.replace(
+      domainPattern,
+      '<a href="https://$1" target="_blank" rel="noopener noreferrer" class="text-primary underline hover:no-underline">$1</a>'
+    );
+    
+    // Handle "website", "site", or domain name mentions
+    const siteReferencePattern = /(the |visit )?([a-zA-Z0-9][-a-zA-Z0-9]*) (website|site)/gi;
+    formattedContent = formattedContent.replace(
+      siteReferencePattern,
+      '$1<a href="https://$2.com" target="_blank" rel="noopener noreferrer" class="text-primary underline hover:no-underline">$2 $3</a>'
+    );
+    
+    return formattedContent;
   };
 
   // Function to get user avatar
