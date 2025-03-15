@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Body, Query, HTTPException, status, BackgroundTasks
 from typing import List, Dict, Any, Optional
-from pydantic import BaseModel, AnyHttpUrl, validator
+from pydantic import BaseModel, AnyHttpUrl, field_validator
 
 # Import from main project
 from crawler import WebCrawler
@@ -15,12 +15,52 @@ class CrawlRequest(BaseModel):
     site_description: Optional[str] = None
     is_sitemap: bool = False
     max_urls: Optional[int] = None
+    follow_external_links: Optional[bool] = None
+    include_patterns: Optional[List[str]] = None
+    exclude_patterns: Optional[List[str]] = None
     
-    @validator('url')
+    # Browser options
+    headless: Optional[bool] = None
+    browser_type: Optional[str] = None
+    proxy: Optional[str] = None
+    javascript_enabled: Optional[bool] = None
+    user_agent: Optional[str] = None
+    
+    # Page navigation options
+    timeout: Optional[int] = None
+    wait_for_selector: Optional[str] = None
+    wait_for_timeout: Optional[int] = None
+    
+    # Media handling options
+    download_images: Optional[bool] = None
+    download_videos: Optional[bool] = None
+    download_files: Optional[bool] = None
+    
+    # Link handling options
+    follow_redirects: Optional[bool] = None
+    max_depth: Optional[int] = None
+    
+    # Extraction options
+    extraction_type: Optional[str] = None
+    css_selector: Optional[str] = None
+    
+    @field_validator('url')
     def validate_url(cls, v):
         # Simple URL validation
         if not v.startswith(('http://', 'https://')):
             raise ValueError('URL must start with http:// or https://')
+        return v
+    
+    @field_validator('browser_type')
+    def validate_browser_type(cls, v):
+        if v and v not in ['chromium', 'firefox', 'webkit']:
+            raise ValueError('Browser type must be one of: chromium, firefox, webkit')
+        return v
+    
+    @field_validator('extraction_type')
+    def validate_extraction_type(cls, v):
+        if v and v not in ['basic', 'article', 'custom']:
+            raise ValueError('Extraction type must be one of: basic, article, custom')
         return v
 
 class CrawlResponse(BaseModel):
@@ -32,7 +72,31 @@ class CrawlResponse(BaseModel):
     next_steps: Dict[str, str]
 
 # Background task for crawling
-def crawl_in_background(url: str, site_name: Optional[str], site_description: Optional[str], is_sitemap: bool, max_urls: Optional[int]):
+def crawl_in_background(
+    url: str, 
+    site_name: Optional[str], 
+    site_description: Optional[str], 
+    is_sitemap: bool, 
+    max_urls: Optional[int],
+    follow_external_links: Optional[bool] = None,
+    include_patterns: Optional[List[str]] = None,
+    exclude_patterns: Optional[List[str]] = None,
+    headless: Optional[bool] = None,
+    browser_type: Optional[str] = None,
+    proxy: Optional[str] = None,
+    javascript_enabled: Optional[bool] = None,
+    user_agent: Optional[str] = None,
+    timeout: Optional[int] = None,
+    wait_for_selector: Optional[str] = None,
+    wait_for_timeout: Optional[int] = None,
+    download_images: Optional[bool] = None,
+    download_videos: Optional[bool] = None,
+    download_files: Optional[bool] = None,
+    follow_redirects: Optional[bool] = None,
+    max_depth: Optional[int] = None,
+    extraction_type: Optional[str] = None,
+    css_selector: Optional[str] = None
+):
     try:
         crawler = WebCrawler()
         
@@ -48,6 +112,31 @@ def crawl_in_background(url: str, site_name: Optional[str], site_description: Op
                  existing_site.get('description') == "AI is generating a description... (refresh in a moment)")
             )
             
+            # Prepare advanced options
+            advanced_options = {
+                "follow_external_links": follow_external_links,
+                "include_patterns": include_patterns,
+                "exclude_patterns": exclude_patterns,
+                "headless": headless,
+                "browser_type": browser_type,
+                "proxy": proxy,
+                "javascript_enabled": javascript_enabled,
+                "user_agent": user_agent,
+                "timeout": timeout,
+                "wait_for_selector": wait_for_selector,
+                "wait_for_timeout": wait_for_timeout,
+                "download_images": download_images,
+                "download_videos": download_videos,
+                "download_files": download_files,
+                "follow_redirects": follow_redirects,
+                "max_depth": max_depth,
+                "extraction_type": extraction_type,
+                "css_selector": css_selector
+            }
+            
+            # Remove None values
+            advanced_options = {k: v for k, v in advanced_options.items() if v is not None}
+            
             # Only proceed with crawling, the site already exists with the description
             if is_sitemap:
                 # Pass needs_description=True to force description generation
@@ -56,7 +145,8 @@ def crawl_in_background(url: str, site_name: Optional[str], site_description: Op
                     site_name, 
                     site_description, 
                     max_urls=max_urls,
-                    needs_description=needs_description
+                    needs_description=needs_description,
+                    **advanced_options
                 )
             else:
                 # Pass needs_description=True to force description generation
@@ -64,15 +154,53 @@ def crawl_in_background(url: str, site_name: Optional[str], site_description: Op
                     url, 
                     site_name, 
                     site_description,
-                    needs_description=needs_description
+                    needs_description=needs_description,
+                    **advanced_options
                 )
         else:
             # This shouldn't happen as we create the site before starting the background task,
             # but just in case, create the site and crawl
+            
+            # Prepare advanced options
+            advanced_options = {
+                "follow_external_links": follow_external_links,
+                "include_patterns": include_patterns,
+                "exclude_patterns": exclude_patterns,
+                "headless": headless,
+                "browser_type": browser_type,
+                "proxy": proxy,
+                "javascript_enabled": javascript_enabled,
+                "user_agent": user_agent,
+                "timeout": timeout,
+                "wait_for_selector": wait_for_selector,
+                "wait_for_timeout": wait_for_timeout,
+                "download_images": download_images,
+                "download_videos": download_videos,
+                "download_files": download_files,
+                "follow_redirects": follow_redirects,
+                "max_depth": max_depth,
+                "extraction_type": extraction_type,
+                "css_selector": css_selector
+            }
+            
+            # Remove None values
+            advanced_options = {k: v for k, v in advanced_options.items() if v is not None}
+            
             if is_sitemap:
-                site_id = crawler.crawl_sitemap(url, site_name, site_description, max_urls=max_urls)
+                site_id = crawler.crawl_sitemap(
+                    url, 
+                    site_name, 
+                    site_description, 
+                    max_urls=max_urls,
+                    **advanced_options
+                )
             else:
-                site_id = crawler.crawl_site(url, site_name, site_description)
+                site_id = crawler.crawl_site(
+                    url, 
+                    site_name, 
+                    site_description,
+                    **advanced_options
+                )
             
         # Get the final page count
         page_count = crawler.db_client.get_page_count_by_site_id(site_id, include_chunks=True)
@@ -105,6 +233,34 @@ async def crawl(
     - **site_description**: Optional description of the site
     - **is_sitemap**: Whether the URL is a sitemap
     - **max_urls**: Maximum number of URLs to crawl from a sitemap
+    - **follow_external_links**: Whether to follow external links
+    - **include_patterns**: List of URL patterns to include
+    - **exclude_patterns**: List of URL patterns to exclude
+    
+    Browser options:
+    - **headless**: Whether to run the browser in headless mode
+    - **browser_type**: Type of browser to use (chromium, firefox, webkit)
+    - **proxy**: Proxy server to use
+    - **javascript_enabled**: Whether to enable JavaScript
+    - **user_agent**: User agent string to use
+    
+    Page navigation options:
+    - **timeout**: Page load timeout in milliseconds
+    - **wait_for_selector**: CSS selector to wait for before considering page loaded
+    - **wait_for_timeout**: Time to wait after page load in milliseconds
+    
+    Media handling options:
+    - **download_images**: Whether to download images
+    - **download_videos**: Whether to download videos
+    - **download_files**: Whether to download files
+    
+    Link handling options:
+    - **follow_redirects**: Whether to follow redirects
+    - **max_depth**: Maximum depth for crawling
+    
+    Extraction options:
+    - **extraction_type**: Type of extraction to use (basic, article, custom)
+    - **css_selector**: CSS selector for content extraction
     
     The crawling process will be executed in the background.
     """
@@ -164,7 +320,25 @@ async def crawl(
             crawl_data.site_name,
             crawl_data.site_description,
             crawl_data.is_sitemap,
-            crawl_data.max_urls
+            crawl_data.max_urls,
+            crawl_data.follow_external_links,
+            crawl_data.include_patterns,
+            crawl_data.exclude_patterns,
+            crawl_data.headless,
+            crawl_data.browser_type,
+            crawl_data.proxy,
+            crawl_data.javascript_enabled,
+            crawl_data.user_agent,
+            crawl_data.timeout,
+            crawl_data.wait_for_selector,
+            crawl_data.wait_for_timeout,
+            crawl_data.download_images,
+            crawl_data.download_videos,
+            crawl_data.download_files,
+            crawl_data.follow_redirects,
+            crawl_data.max_depth,
+            crawl_data.extraction_type,
+            crawl_data.css_selector
         )
         
         # Get site details

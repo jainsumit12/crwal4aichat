@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { toast } from 'react-hot-toast';
 import axios from 'axios';
 import { Eye, Search, RefreshCw } from 'lucide-react';
+import AdvancedCrawlOptions from '@/components/AdvancedCrawlOptions';
 
 const DebugPanel = ({ isOpen, onClose, data }: { isOpen: boolean; onClose: () => void; data: any }) => {
   if (!isOpen) return null;
@@ -53,6 +54,21 @@ const CrawlPage = () => {
   const [showDebugPanel, setShowDebugPanel] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(null);
+  
+  // Advanced options
+  const [headless, setHeadless] = useState(true);
+  const [browserType, setBrowserType] = useState('chromium');
+  const [javascriptEnabled, setJavascriptEnabled] = useState(true);
+  const [userAgent, setUserAgent] = useState('');
+  const [timeout, setTimeout] = useState(30000);
+  const [waitForSelector, setWaitForSelector] = useState('');
+  const [downloadImages, setDownloadImages] = useState(false);
+  const [downloadVideos, setDownloadVideos] = useState(false);
+  const [downloadFiles, setDownloadFiles] = useState(false);
+  const [followRedirects, setFollowRedirects] = useState(true);
+  const [maxDepth, setMaxDepth] = useState(3);
+  const [extractionType, setExtractionType] = useState('basic');
+  const [cssSelector, setCssSelector] = useState('');
 
   useEffect(() => {
     // Initial load
@@ -197,7 +213,7 @@ const CrawlPage = () => {
       setDebugData(frontendParams);
       
       // Transform frontend parameters to API parameters
-      const apiParams = {
+      const apiParams: any = {
         url,
         site_name: name || url,
         site_description: description || null,
@@ -207,6 +223,32 @@ const CrawlPage = () => {
         include_patterns: includePatterns ? includePatterns.split(',').map(p => p.trim()) : [],
         exclude_patterns: excludePatterns ? excludePatterns.split(',').map(p => p.trim()) : []
       };
+      
+      // Add advanced options if they are set
+      if (showAdvanced) {
+        // Browser options
+        if (headless !== true) apiParams.headless = headless;
+        if (browserType !== 'chromium') apiParams.browser_type = browserType;
+        if (javascriptEnabled !== true) apiParams.javascript_enabled = javascriptEnabled;
+        if (userAgent) apiParams.user_agent = userAgent;
+        
+        // Navigation options
+        if (timeout !== 30000) apiParams.timeout = timeout;
+        if (waitForSelector) apiParams.wait_for_selector = waitForSelector;
+        
+        // Media options
+        if (downloadImages) apiParams.download_images = downloadImages;
+        if (downloadVideos) apiParams.download_videos = downloadVideos;
+        if (downloadFiles) apiParams.download_files = downloadFiles;
+        
+        // Link options
+        if (followRedirects !== true) apiParams.follow_redirects = followRedirects;
+        if (maxDepth !== 3) apiParams.max_depth = maxDepth;
+        
+        // Extraction options
+        if (extractionType !== 'basic') apiParams.extraction_type = extractionType;
+        if (extractionType === 'custom' && cssSelector) apiParams.css_selector = cssSelector;
+      }
       
       console.log('Transformed API params:', apiParams);
       
@@ -237,6 +279,21 @@ const CrawlPage = () => {
     setFollowExternalLinks(false);
     setIncludePatterns('');
     setExcludePatterns('');
+    
+    // Reset advanced options
+    setHeadless(true);
+    setBrowserType('chromium');
+    setJavascriptEnabled(true);
+    setUserAgent('');
+    setTimeout(30000);
+    setWaitForSelector('');
+    setDownloadImages(false);
+    setDownloadVideos(false);
+    setDownloadFiles(false);
+    setFollowRedirects(true);
+    setMaxDepth(3);
+    setExtractionType('basic');
+    setCssSelector('');
   };
 
   const handleViewSite = (siteId: number | string) => {
@@ -310,25 +367,17 @@ const CrawlPage = () => {
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-8">
-        <div className="xl:col-span-5">
-          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-semibold">Start a Crawl</h2>
-              <Button 
-                variant="ghost" 
-                size="sm"
-                onClick={() => setShowDebugPanel(!showDebugPanel)}
-                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-              >
-                {showDebugPanel ? 'Hide Debug' : 'Show Debug'}
-              </Button>
-            </div>
+      <h1 className="text-2xl font-bold mb-6">Crawl a Website</h1>
+      
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div>
+          <div className="card p-6 mb-6">
+            <h2 className="text-xl font-semibold mb-4">Start a New Crawl</h2>
             
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
+            <form onSubmit={handleSubmit}>
+              <div className="mb-4">
                 <label htmlFor="url" className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">
-                  Website URL
+                  URL to Crawl
                 </label>
                 <input
                   type="url"
@@ -343,7 +392,7 @@ const CrawlPage = () => {
               
               <div>
                 <label htmlFor="name" className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">
-                  Site Name (Optional)
+                  Site Name
                 </label>
                 <input
                   type="text"
@@ -415,192 +464,180 @@ const CrawlPage = () => {
                 </div>
               </div>
               
-              <div>
+              <div className="mt-4">
                 <button
                   type="button"
                   onClick={() => setShowAdvanced(!showAdvanced)}
                   className="text-sm text-blue-600 dark:text-blue-400 hover:underline flex items-center"
                 >
-                  {showAdvanced ? '− Hide' : '+ Show'} Advanced Options
+                  {showAdvanced ? 'Hide Advanced Options' : 'Show Advanced Options'}
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className={`h-4 w-4 ml-1 transition-transform ${showAdvanced ? 'rotate-180' : ''}`}
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
                 </button>
               </div>
               
               {showAdvanced && (
-                <div className="space-y-4 border-t border-gray-200 dark:border-gray-700 pt-4 mt-2">
-                  <div className="flex items-center">
-                    <input
-                      type="checkbox"
-                      id="followExternal"
-                      checked={followExternalLinks}
-                      onChange={(e) => setFollowExternalLinks(e.target.checked)}
-                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                    />
-                    <label htmlFor="followExternal" className="ml-2 block text-sm text-gray-700 dark:text-gray-300">
-                      Follow External Links
-                    </label>
-                  </div>
+                <div className="mt-4 p-4 border border-gray-200 dark:border-gray-700 rounded-md">
+                  <h3 className="text-md font-medium mb-3 text-gray-700 dark:text-gray-300">Advanced Crawl Options</h3>
                   
-                  <div>
-                    <label htmlFor="includePatterns" className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">
-                      Include URL Patterns (comma separated)
-                    </label>
-                    <input
-                      type="text"
-                      id="includePatterns"
-                      value={includePatterns}
-                      onChange={(e) => setIncludePatterns(e.target.value)}
-                      placeholder="blog/*, docs/*"
-                      className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-                    />
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                      Only crawl URLs matching these patterns
-                    </p>
-                  </div>
-                  
-                  <div>
-                    <label htmlFor="excludePatterns" className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">
-                      Exclude URL Patterns (comma separated)
-                    </label>
-                    <input
-                      type="text"
-                      id="excludePatterns"
-                      value={excludePatterns}
-                      onChange={(e) => setExcludePatterns(e.target.value)}
-                      placeholder="login/*, admin/*"
-                      className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-                    />
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                      Skip URLs matching these patterns
-                    </p>
-                  </div>
+                  <AdvancedCrawlOptions
+                    followExternalLinks={followExternalLinks}
+                    setFollowExternalLinks={setFollowExternalLinks}
+                    includePatterns={includePatterns}
+                    setIncludePatterns={setIncludePatterns}
+                    excludePatterns={excludePatterns}
+                    setExcludePatterns={setExcludePatterns}
+                    headless={headless}
+                    setHeadless={setHeadless}
+                    browserType={browserType}
+                    setBrowserType={setBrowserType}
+                    javascriptEnabled={javascriptEnabled}
+                    setJavascriptEnabled={setJavascriptEnabled}
+                    userAgent={userAgent}
+                    setUserAgent={setUserAgent}
+                    timeout={timeout}
+                    setTimeout={setTimeout}
+                    waitForSelector={waitForSelector}
+                    setWaitForSelector={setWaitForSelector}
+                    downloadImages={downloadImages}
+                    setDownloadImages={setDownloadImages}
+                    downloadVideos={downloadVideos}
+                    setDownloadVideos={setDownloadVideos}
+                    downloadFiles={downloadFiles}
+                    setDownloadFiles={setDownloadFiles}
+                    followRedirects={followRedirects}
+                    setFollowRedirects={setFollowRedirects}
+                    maxDepth={maxDepth}
+                    setMaxDepth={setMaxDepth}
+                    extractionType={extractionType}
+                    setExtractionType={setExtractionType}
+                    cssSelector={cssSelector}
+                    setCssSelector={setCssSelector}
+                  />
                 </div>
               )}
               
-              <Button 
-                type="submit" 
-                disabled={isSubmitting || !url}
-                className="w-full"
-              >
-                {isSubmitting ? (
-                  <div className="flex items-center justify-center">
-                    <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent mr-2"></div>
-                    <span>Starting Crawl...</span>
-                  </div>
-                ) : (
-                  'Start Crawl'
-                )}
-              </Button>
+              <div className="mt-6 flex justify-end">
+                <Button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md flex items-center"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Starting Crawl...
+                    </>
+                  ) : (
+                    <>
+                      <Search className="mr-2 h-4 w-4" />
+                      Start Crawl
+                    </>
+                  )}
+                </Button>
+              </div>
             </form>
           </div>
+          
+          {debugData && (
+            <div className="card p-4 mb-6">
+              <div className="flex justify-between items-center mb-2">
+                <h3 className="text-md font-medium text-gray-700 dark:text-gray-300">Debug Information</h3>
+                <button
+                  onClick={() => setShowDebugPanel(true)}
+                  className="text-xs bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 px-2 py-1 rounded-md"
+                >
+                  View Details
+                </button>
+              </div>
+              <div className="text-xs text-gray-600 dark:text-gray-400">
+                <p>URL: {debugData.url}</p>
+                <p>Crawl Type: {depth === 1 ? 'URL Only' : depth === 2 ? 'URL + Linked Pages' : 'Deep Crawl (Sitemap)'}</p>
+                <p>Max Pages: {debugData.max_pages}</p>
+              </div>
+            </div>
+          )}
         </div>
         
-        <div className="xl:col-span-7">
-          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+        <div>
+          <div className="card p-6">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-semibold">Recent Crawls</h2>
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={manualRefresh}
+              <h2 className="text-xl font-semibold">Active Crawls</h2>
+              <button
+                onClick={() => loadActiveCrawls(true)}
+                className="text-xs bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 p-2 rounded-full flex items-center"
                 disabled={refreshing}
-                className="flex items-center gap-2"
+                title="Refresh crawl list"
               >
-                {refreshing ? (
-                  <>
-                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-gray-500 border-t-transparent"></div>
-                    <span>Refreshing...</span>
-                  </>
-                ) : (
-                  <>
-                    <RefreshCw className="h-4 w-4" />
-                    <span>Refresh Crawls</span>
-                  </>
-                )}
-              </Button>
+                <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+              </button>
             </div>
             
-            <div className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-              <p>Click "Refresh Crawls" to update the list with the latest crawl data.</p>
-            </div>
-            
-            {activeCrawls.length > 0 ? (
+            {isLoading ? (
+              <div className="flex justify-center items-center h-32">
+                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
+              </div>
+            ) : activeCrawls.length === 0 ? (
+              <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 mx-auto mb-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <p className="text-lg font-medium">No active crawls</p>
+                <p className="mt-1">Start a new crawl to see it here</p>
+              </div>
+            ) : (
               <div className="space-y-4">
-                {activeCrawls.map((crawl, index) => (
-                  <div
-                    key={index}
-                    className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700"
-                  >
-                    <div className="flex flex-col md:flex-row md:items-center justify-between">
-                      <div className="flex-1">
-                        <h3 className="text-lg font-medium">
-                          {crawl.name || crawl.site_name || "Unnamed Site"}
-                        </h3>
-                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                          {crawl.url || "No URL"}
-                        </p>
-                        <div className="flex items-center mt-2 text-sm">
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                            crawl.status === 'completed' 
-                              ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' 
-                              : crawl.status === 'in_progress' 
-                              ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
-                              : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
-                          }`}>
-                            {crawl.status === 'completed' ? 'Completed' : 
-                             crawl.status === 'in_progress' ? 'In Progress' : 
-                             crawl.status || 'Unknown'}
-                          </span>
-                          <span className="mx-2">•</span>
-                          <span className="text-gray-500 dark:text-gray-400">
-                            {formatDate(crawl.created_at)}
-                          </span>
-                        </div>
-                        <div className="mt-2 text-sm">
-                          <span className="text-gray-600 dark:text-gray-300">
-                            Pages: {crawl.page_count || 0}
-                          </span>
-                        </div>
+                {activeCrawls.map((crawl) => (
+                  <div key={crawl.site_id} className="border border-gray-200 dark:border-gray-700 rounded-md p-4">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h3 className="font-medium text-gray-900 dark:text-gray-100">{crawl.site_name}</h3>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 break-all">{crawl.url}</p>
                       </div>
-                      <div className="mt-4 md:mt-0 flex flex-col sm:flex-row gap-2">
-                        {crawl.next_steps && crawl.next_steps.view_pages && (
-                          <Link
-                            to={crawl.next_steps.view_pages}
-                            className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                          >
-                            <Eye className="w-4 h-4 mr-2" />
-                            View Site
-                          </Link>
-                        )}
-                        {crawl.next_steps && crawl.next_steps.search_content && (
-                          <Link
-                            to={crawl.next_steps.search_content}
-                            className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-600"
-                          >
-                            <Search className="w-4 h-4 mr-2" />
-                            Search
-                          </Link>
-                        )}
+                      <div className="flex items-center">
+                        <span className={`text-xs px-2 py-1 rounded-full ${getStatusColor(crawl.status)}`}>
+                          {crawl.status || 'Unknown'}
+                        </span>
                       </div>
+                    </div>
+                    
+                    <div className="mt-2 text-xs text-gray-600 dark:text-gray-400">
+                      <p>Created: {formatDate(crawl.created_at)}</p>
+                      <p>Pages: {crawl.page_count || 0}</p>
+                      {crawl.depth && <p>Crawled with depth={crawl.depth}, follow_external={crawl.follow_external_links?.toString() || 'false'}</p>}
+                    </div>
+                    
+                    <div className="mt-3 flex justify-end">
+                      <button
+                        onClick={() => handleViewSite(crawl.site_id)}
+                        className="text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-800/50 px-3 py-1 rounded-md flex items-center"
+                      >
+                        <Eye className="mr-1 h-3 w-3" />
+                        View Site
+                      </button>
                     </div>
                   </div>
                 ))}
-              </div>
-            ) : (
-              <div className="text-center py-8">
-                <p className="text-gray-500 dark:text-gray-400">No recent crawls found.</p>
-                <p className="text-gray-500 dark:text-gray-400 mt-2">
-                  Start a new crawl using the form above.
-                </p>
               </div>
             )}
           </div>
         </div>
       </div>
       
-      <DebugPanel 
-        isOpen={showDebugPanel} 
-        onClose={() => setShowDebugPanel(false)} 
-        data={debugData} 
+      <DebugPanel
+        isOpen={showDebugPanel}
+        onClose={() => setShowDebugPanel(false)}
+        data={debugData}
       />
     </div>
   );

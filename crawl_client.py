@@ -37,7 +37,22 @@ class Crawl4AIClient:
                    extraction_config: Optional[Dict[str, Any]] = None,
                    js_code: Optional[List[str]] = None,
                    wait_for: Optional[str] = None,
-                   css_selector: Optional[str] = None) -> Dict[str, Any]:
+                   css_selector: Optional[str] = None,
+                   headless: Optional[bool] = None,
+                   browser_type: Optional[str] = None,
+                   proxy: Optional[str] = None,
+                   javascript_enabled: Optional[bool] = None,
+                   user_agent: Optional[str] = None,
+                   timeout: Optional[int] = None,
+                   wait_for_timeout: Optional[int] = None,
+                   download_images: Optional[bool] = None,
+                   download_videos: Optional[bool] = None,
+                   download_files: Optional[bool] = None,
+                   follow_redirects: Optional[bool] = None,
+                   max_depth: Optional[int] = None,
+                   follow_external_links: Optional[bool] = None,
+                   include_patterns: Optional[List[str]] = None,
+                   exclude_patterns: Optional[List[str]] = None) -> Dict[str, Any]:
         """Start a crawl task.
         
         Args:
@@ -47,6 +62,21 @@ class Crawl4AIClient:
             js_code: JavaScript code to execute on the page.
             wait_for: CSS selector to wait for before considering page loaded.
             css_selector: CSS selector for content extraction.
+            headless: Whether to run the browser in headless mode.
+            browser_type: Type of browser to use (chromium, firefox, webkit).
+            proxy: Proxy server to use.
+            javascript_enabled: Whether to enable JavaScript.
+            user_agent: User agent string to use.
+            timeout: Page load timeout in milliseconds.
+            wait_for_timeout: Time to wait after page load in milliseconds.
+            download_images: Whether to download images.
+            download_videos: Whether to download videos.
+            download_files: Whether to download files.
+            follow_redirects: Whether to follow redirects.
+            max_depth: Maximum depth for crawling.
+            follow_external_links: Whether to follow external links.
+            include_patterns: List of URL patterns to include.
+            exclude_patterns: List of URL patterns to exclude.
             
         Returns:
             Dict containing the task_id and other response data.
@@ -77,6 +107,60 @@ class Crawl4AIClient:
             payload["wait_for"] = wait_for
         if css_selector:
             payload["css_selector"] = css_selector
+        
+        # Add browser options
+        browser_options = {}
+        if headless is not None:
+            browser_options["headless"] = headless
+        if browser_type:
+            browser_options["browser_type"] = browser_type
+        if proxy:
+            browser_options["proxy"] = proxy
+        if javascript_enabled is not None:
+            browser_options["javascript_enabled"] = javascript_enabled
+        if user_agent:
+            browser_options["user_agent"] = user_agent
+        
+        if browser_options:
+            payload["browser_options"] = browser_options
+        
+        # Add page navigation options
+        navigation_options = {}
+        if timeout:
+            navigation_options["timeout"] = timeout
+        if wait_for_timeout:
+            navigation_options["wait_for_timeout"] = wait_for_timeout
+        
+        if navigation_options:
+            payload["navigation_options"] = navigation_options
+        
+        # Add media handling options
+        media_options = {}
+        if download_images is not None:
+            media_options["download_images"] = download_images
+        if download_videos is not None:
+            media_options["download_videos"] = download_videos
+        if download_files is not None:
+            media_options["download_files"] = download_files
+        
+        if media_options:
+            payload["media_options"] = media_options
+        
+        # Add link handling options
+        link_options = {}
+        if follow_redirects is not None:
+            link_options["follow_redirects"] = follow_redirects
+        if max_depth is not None:
+            link_options["max_depth"] = max_depth
+        if follow_external_links is not None:
+            link_options["follow_external_links"] = follow_external_links
+        if include_patterns:
+            link_options["include_patterns"] = include_patterns
+        if exclude_patterns:
+            link_options["exclude_patterns"] = exclude_patterns
+        
+        if link_options:
+            payload["link_options"] = link_options
         
         print(f"Starting crawl for URLs: {urls}")
         print(f"Extraction config: {extraction_config}")
@@ -202,6 +286,25 @@ class Crawl4AIClient:
         Args:
             urls: A single URL or list of URLs to crawl.
             **kwargs: Additional arguments to pass to start_crawl.
+                - extraction_config: Configuration for extraction strategy.
+                - js_code: JavaScript code to execute on the page.
+                - wait_for: CSS selector to wait for before considering page loaded.
+                - css_selector: CSS selector for content extraction.
+                - headless: Whether to run the browser in headless mode.
+                - browser_type: Type of browser to use (chromium, firefox, webkit).
+                - proxy: Proxy server to use.
+                - javascript_enabled: Whether to enable JavaScript.
+                - user_agent: User agent string to use.
+                - timeout: Page load timeout in milliseconds.
+                - wait_for_timeout: Time to wait after page load in milliseconds.
+                - download_images: Whether to download images.
+                - download_videos: Whether to download videos.
+                - download_files: Whether to download files.
+                - follow_redirects: Whether to follow redirects.
+                - max_depth: Maximum depth for crawling.
+                - follow_external_links: Whether to follow external links.
+                - include_patterns: List of URL patterns to include.
+                - exclude_patterns: List of URL patterns to exclude.
             
         Returns:
             Dict containing the final task status and results.

@@ -560,7 +560,7 @@ class WebCrawler:
     
     def crawl_site(self, url: str, site_name: Optional[str] = None, 
                   description: Optional[str] = None, start_only: bool = False,
-                  needs_description: bool = False) -> int:
+                  needs_description: bool = False, **advanced_options) -> int:
         """Crawl a site, generate embeddings, and store in the database.
         
         Args:
@@ -569,7 +569,26 @@ class WebCrawler:
             description: Optional description of the site.
             start_only: If True, only start the crawl and return the site ID without waiting for completion.
             needs_description: If True, force generation of a description even if one exists.
-            
+            **advanced_options: Additional options for the crawl.
+                - follow_external_links: Whether to follow external links.
+                - include_patterns: List of URL patterns to include.
+                - exclude_patterns: List of URL patterns to exclude.
+                - headless: Whether to run the browser in headless mode.
+                - browser_type: Type of browser to use (chromium, firefox, webkit).
+                - proxy: Proxy server to use.
+                - javascript_enabled: Whether to enable JavaScript.
+                - user_agent: User agent string to use.
+                - timeout: Page load timeout in milliseconds.
+                - wait_for_selector: CSS selector to wait for before considering page loaded.
+                - wait_for_timeout: Time to wait after page load in milliseconds.
+                - download_images: Whether to download images.
+                - download_videos: Whether to download videos.
+                - download_files: Whether to download files.
+                - follow_redirects: Whether to follow redirects.
+                - max_depth: Maximum depth for crawling.
+                - extraction_type: Type of extraction to use (basic, article, custom).
+                - css_selector: CSS selector for content extraction.
+        
         Returns:
             The site ID in the database.
         """
@@ -610,10 +629,57 @@ class WebCrawler:
             print_success(f"Added new site with ID: {site_id}")
         
         # Configure extraction based on Crawl4AI v0.5.0 documentation
-        # Keep it simple to maximize compatibility
+        extraction_type = advanced_options.get('extraction_type', 'basic')
         extraction_config = {
-            "type": "basic"
+            "type": extraction_type
         }
+        
+        # Add CSS selector if provided and extraction type is custom
+        if extraction_type == 'custom' and 'css_selector' in advanced_options:
+            extraction_config["css_selector"] = advanced_options['css_selector']
+        
+        # Prepare additional crawl options
+        crawl_options = {}
+        
+        # Browser options
+        if 'headless' in advanced_options:
+            crawl_options['headless'] = advanced_options['headless']
+        if 'browser_type' in advanced_options:
+            crawl_options['browser_type'] = advanced_options['browser_type']
+        if 'proxy' in advanced_options:
+            crawl_options['proxy'] = advanced_options['proxy']
+        if 'javascript_enabled' in advanced_options:
+            crawl_options['javascript_enabled'] = advanced_options['javascript_enabled']
+        if 'user_agent' in advanced_options:
+            crawl_options['user_agent'] = advanced_options['user_agent']
+        
+        # Page navigation options
+        if 'timeout' in advanced_options:
+            crawl_options['timeout'] = advanced_options['timeout']
+        if 'wait_for_selector' in advanced_options:
+            crawl_options['wait_for'] = advanced_options['wait_for_selector']
+        if 'wait_for_timeout' in advanced_options:
+            crawl_options['wait_for_timeout'] = advanced_options['wait_for_timeout']
+        
+        # Media handling options
+        if 'download_images' in advanced_options:
+            crawl_options['download_images'] = advanced_options['download_images']
+        if 'download_videos' in advanced_options:
+            crawl_options['download_videos'] = advanced_options['download_videos']
+        if 'download_files' in advanced_options:
+            crawl_options['download_files'] = advanced_options['download_files']
+        
+        # Link handling options
+        if 'follow_redirects' in advanced_options:
+            crawl_options['follow_redirects'] = advanced_options['follow_redirects']
+        if 'max_depth' in advanced_options:
+            crawl_options['max_depth'] = advanced_options['max_depth']
+        if 'follow_external_links' in advanced_options:
+            crawl_options['follow_external_links'] = advanced_options['follow_external_links']
+        if 'include_patterns' in advanced_options:
+            crawl_options['include_patterns'] = advanced_options['include_patterns']
+        if 'exclude_patterns' in advanced_options:
+            crawl_options['exclude_patterns'] = advanced_options['exclude_patterns']
         
         # Start the crawl
         try:
@@ -622,7 +688,8 @@ class WebCrawler:
             else:
                 crawl_results = self.crawl_client.crawl_and_wait(
                     url,
-                    extraction_config=extraction_config
+                    extraction_config=extraction_config,
+                    **crawl_options
                 )
             
             # Process the results
@@ -668,7 +735,7 @@ class WebCrawler:
     
     def crawl_sitemap(self, sitemap_url: str, site_name: Optional[str] = None,
                      description: Optional[str] = None, max_urls: Optional[int] = None,
-                     start_only: bool = False, needs_description: bool = False) -> int:
+                     start_only: bool = False, needs_description: bool = False, **advanced_options) -> int:
         """Crawl a sitemap, generate embeddings, and store in the database.
         
         Args:
@@ -678,7 +745,26 @@ class WebCrawler:
             max_urls: Maximum number of URLs to crawl from the sitemap. If None, uses the MAX_URLS env var.
             start_only: If True, only start the crawl and return the site ID without waiting for completion.
             needs_description: If True, force generation of a description even if one exists.
-            
+            **advanced_options: Additional options for the crawl.
+                - follow_external_links: Whether to follow external links.
+                - include_patterns: List of URL patterns to include.
+                - exclude_patterns: List of URL patterns to exclude.
+                - headless: Whether to run the browser in headless mode.
+                - browser_type: Type of browser to use (chromium, firefox, webkit).
+                - proxy: Proxy server to use.
+                - javascript_enabled: Whether to enable JavaScript.
+                - user_agent: User agent string to use.
+                - timeout: Page load timeout in milliseconds.
+                - wait_for_selector: CSS selector to wait for before considering page loaded.
+                - wait_for_timeout: Time to wait after page load in milliseconds.
+                - download_images: Whether to download images.
+                - download_videos: Whether to download videos.
+                - download_files: Whether to download files.
+                - follow_redirects: Whether to follow redirects.
+                - max_depth: Maximum depth for crawling.
+                - extraction_type: Type of extraction to use (basic, article, custom).
+                - css_selector: CSS selector for content extraction.
+        
         Returns:
             The site ID in the database.
         """
@@ -760,20 +846,69 @@ class WebCrawler:
                 print_warning(f"Limiting to {max_urls} URLs for processing (from {len(urls)} total)")
                 urls = urls[:max_urls]
             
+            # Configure extraction based on Crawl4AI v0.5.0 documentation
+            extraction_type = advanced_options.get('extraction_type', 'basic')
+            extraction_config = {
+                "type": extraction_type
+            }
+            
+            # Add CSS selector if provided and extraction type is custom
+            if extraction_type == 'custom' and 'css_selector' in advanced_options:
+                extraction_config["css_selector"] = advanced_options['css_selector']
+            
+            # Prepare additional crawl options
+            crawl_options = {}
+            
+            # Browser options
+            if 'headless' in advanced_options:
+                crawl_options['headless'] = advanced_options['headless']
+            if 'browser_type' in advanced_options:
+                crawl_options['browser_type'] = advanced_options['browser_type']
+            if 'proxy' in advanced_options:
+                crawl_options['proxy'] = advanced_options['proxy']
+            if 'javascript_enabled' in advanced_options:
+                crawl_options['javascript_enabled'] = advanced_options['javascript_enabled']
+            if 'user_agent' in advanced_options:
+                crawl_options['user_agent'] = advanced_options['user_agent']
+            
+            # Page navigation options
+            if 'timeout' in advanced_options:
+                crawl_options['timeout'] = advanced_options['timeout']
+            if 'wait_for_selector' in advanced_options:
+                crawl_options['wait_for'] = advanced_options['wait_for_selector']
+            if 'wait_for_timeout' in advanced_options:
+                crawl_options['wait_for_timeout'] = advanced_options['wait_for_timeout']
+            
+            # Media handling options
+            if 'download_images' in advanced_options:
+                crawl_options['download_images'] = advanced_options['download_images']
+            if 'download_videos' in advanced_options:
+                crawl_options['download_videos'] = advanced_options['download_videos']
+            if 'download_files' in advanced_options:
+                crawl_options['download_files'] = advanced_options['download_files']
+            
+            # Link handling options
+            if 'follow_redirects' in advanced_options:
+                crawl_options['follow_redirects'] = advanced_options['follow_redirects']
+            if 'max_depth' in advanced_options:
+                crawl_options['max_depth'] = advanced_options['max_depth']
+            if 'follow_external_links' in advanced_options:
+                crawl_options['follow_external_links'] = advanced_options['follow_external_links']
+            if 'include_patterns' in advanced_options:
+                crawl_options['include_patterns'] = advanced_options['include_patterns']
+            if 'exclude_patterns' in advanced_options:
+                crawl_options['exclude_patterns'] = advanced_options['exclude_patterns']
+            
             # Crawl each URL found in the sitemap
             all_pages = []
             for url in urls:
                 print_info(f"Crawling URL from sitemap: {url}")
                 try:
-                    # Configure extraction for basic content
-                    extraction_config = {
-                        "type": "basic"
-                    }
-                    
                     # Crawl the individual URL
                     crawl_results = self.crawl_client.crawl_and_wait(
                         url, 
-                        extraction_config=extraction_config
+                        extraction_config=extraction_config,
+                        **crawl_options
                     )
                     
                     # Process the results for this URL

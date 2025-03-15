@@ -208,6 +208,7 @@ export interface CrawlStatus {
   pages_found?: number;
   max_pages?: number;
   depth?: number;
+  follow_external_links?: boolean;
   error?: string;
   next_steps: {
     view_pages: string;
