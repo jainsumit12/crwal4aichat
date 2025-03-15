@@ -1013,30 +1013,16 @@ After adding your queries, restart the Streamlit app to load the new queries.
 
 
 
-## Docker Deployment
+## Docker Deployment - 3 different options! 
 
-
+- Use the docker compose file to start the app
 ![Image](https://github.com/user-attachments/assets/a56cf708-dfe5-4aa7-a854-0685867cee18)
 
-<details>
-<summary>Click to expand more images of the UI</summary>
 
-![Image](https://github.com/user-attachments/assets/86b26bf1-15e9-4cc9-9cba-6a666c2d0646)
----
-![Image](https://github.com/user-attachments/assets/4c1a0b52-953e-4dc8-b7a9-4a62ecb56c93)
----
-![Image](https://github.com/user-attachments/assets/9155d59e-303e-484f-96de-1a7a917eeefe)
----
-![Image](https://github.com/user-attachments/assets/4042e241-23ca-4009-b629-a362dac74f7a)
----
-![Image](https://github.com/user-attachments/assets/6b0defc7-d0c9-405b-bbf4-1c8045e6f206)
-
-
-</details>
-
+- If terminal is your thing then you can also just exec into the container
 ![Image](https://github.com/user-attachments/assets/be41b857-47ca-4804-97e2-98764a270748)
 
-You can run the app like normal once you exec into the container or use the Webui:
+
 
 ```bash
 # Build and start the container
