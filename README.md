@@ -808,9 +808,12 @@ You can also use the crawler programmatically in your own Python code. See `test
 - `db_client.py`: Client for interacting with the Supabase database
 - `db_setup.py`: Script for setting up the database
 - `chat.py`: Chat interface for interacting with crawled data using an LLM
+- `run_api.py`: Script to run the API
 - `run_crawl.py`: Script to run a crawl using the configuration from the `.env` file
 - `update_content.py`: Script to update existing pages with titles and summaries
 - `utils.py`: Utility functions for the CLI
+- `requirements.txt`: List of dependencies for the backend
+- `.env.example`: Example environment file for the backend
 - `api/`: Directory containing the FastAPI implementation
   - `main.py`: FastAPI application entry point
   - `routers/`: Directory containing API route definitions
@@ -818,6 +821,7 @@ You can also use the crawler programmatically in your own Python code. See `test
     - `search.py`: Endpoints for searching crawled content
     - `sites.py`: Endpoints for managing and retrieving site information
     - `chat.py`: Endpoints for interacting with the chat interface
+    - `pages.py`: Endpoints for managing and retrieving page information
   - `README.md`: Comprehensive API documentation
 - `docker/`: Directory containing Docker-related files
   - `Dockerfile`: Docker image definition for the backend application
@@ -875,6 +879,8 @@ You can also use the crawler programmatically in your own Python code. See `test
       - `SitesPage.tsx`: Site management
       - `SiteDetailPage.tsx`: Detailed view of a crawled site
       - `NotificationInfo.tsx`: Notification settings and information
+      - `UserProfileModal.tsx`: User profile management
+      - `UserPreferencesPage.tsx`: User preferences management
     - `styles/`: CSS and styling files
     - `utils/`: Utility functions
     - `App.tsx`: Main application component
