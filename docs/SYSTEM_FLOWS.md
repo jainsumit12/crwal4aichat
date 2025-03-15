@@ -178,12 +178,153 @@ The frontend communicates with the backend through a structured API layer:
    - Site description (optional)
    - Crawl type (URL or sitemap)
    - Maximum URLs (for sitemaps)
-4. User submits the form
-5. Frontend sends a request to `/api/crawl`
-6. Progress indicator is displayed
-7. Frontend polls `/api/crawl/status/{site_id}` for updates
-8. Upon completion, success notification is displayed
-9. User is redirected to the site detail page
+4. User can expand the Advanced Options section to configure:
+   - **General Options**:
+     - Follow external links
+     - Include/exclude URL patterns
+     - Follow redirects
+     - Maximum crawl depth
+   - **Browser Options**:
+     - Headless mode
+     - Browser type (Chromium, Firefox, WebKit)
+     - JavaScript enabled/disabled
+     - Custom user agent
+   - **Navigation Options**:
+     - Page load timeout
+     - Wait for selector
+   - **Media Options**:
+     - Download images
+     - Download videos
+     - Download files
+   - **Extraction Options**:
+     - Extraction type (basic, article, custom)
+     - CSS selector for custom extraction
+5. User submits the form
+6. Frontend sends a request to `/api/crawl` with all standard and advanced options
+7. Progress indicator is displayed
+8. Frontend polls `/api/crawl/status/{site_id}` for updates
+9. Upon completion, success notification is displayed
+10. User is redirected to the site detail page
+
+### Media Handling in Crawling
+
+The system provides options for handling various media types during the crawling process. This section explains how these options work and their impact on the crawled content.
+
+#### Media Options Overview
+
+1. **Download Images**: When enabled, the crawler processes images found on the pages.
+   - Images are not downloaded to the local file system
+   - Image URLs and metadata are stored in the page content
+   - This enhances the context available for vector embeddings and search
+
+2. **Download Videos**: When enabled, the crawler processes video content.
+   - Video URLs and metadata are captured
+   - This allows the chat interface to reference videos in responses
+   - Video content itself is not stored in the database
+
+3. **Download Files**: When enabled, the crawler processes downloadable files (PDFs, DOCs, etc.).
+   - File URLs and metadata are stored
+   - This allows the system to reference these resources in search results
+   - File contents may be extracted for certain file types
+
+#### Media Processing Flow
+
+1. User enables media options in the Advanced Options section
+2. Frontend sends these preferences to the API
+3. API passes the options to the Crawl4AI service
+4. Crawl4AI processes the media according to the specified options
+5. Media information is returned as part of the crawl results
+6. The system stores media references in the page content and metadata
+7. When searching, media references are included in the vector embeddings
+8. Chat responses can include references to relevant media
+
+#### Impact on Performance and Storage
+
+- Enabling media options may increase crawl time
+- Media references increase the context available for search
+- Vector embeddings include media information for more comprehensive results
+- Database storage requirements increase with media metadata
+- The system maintains references to media rather than storing the actual media files
+
+### Advanced Crawling Options
+
+The system provides a comprehensive set of advanced options for fine-tuning the crawling process. These options are organized into categories for easier navigation and configuration.
+
+#### General Options
+
+1. **Follow External Links**: Controls whether the crawler follows links to external domains.
+   - When enabled: Crawler will follow links to other websites
+   - When disabled (default): Crawler stays within the initial domain
+   - Impact: Significantly affects crawl scope and duration
+
+2. **Include/Exclude URL Patterns**: Allows filtering which URLs are crawled.
+   - Include patterns: Only URLs matching these patterns will be crawled
+   - Exclude patterns: URLs matching these patterns will be skipped
+   - Pattern format: Supports wildcards (e.g., `/blog/*`, `/docs/*`)
+   - Multiple patterns: Comma-separated list
+
+3. **Follow Redirects**: Controls whether HTTP redirects are followed.
+   - When enabled (default): Crawler follows HTTP 301/302 redirects
+   - When disabled: Crawler stops at redirect responses
+
+4. **Maximum Crawl Depth**: Limits how deep the crawler will go from the starting URL.
+   - Default: 3 levels deep
+   - Range: 1-10
+   - Impact: Higher values increase crawl time and result count
+
+#### Browser Options
+
+1. **Headless Mode**: Controls browser visibility during crawling.
+   - When enabled (default): Browser runs invisibly
+   - When disabled: Browser UI is visible (rarely needed)
+
+2. **Browser Type**: Selects which browser engine to use.
+   - Options: Chromium (default), Firefox, WebKit
+   - Each engine may render certain sites differently
+
+3. **JavaScript Enabled**: Controls JavaScript execution.
+   - When enabled (default): JavaScript on pages will execute
+   - When disabled: Only static HTML is processed
+   - Impact: Disabling may miss dynamically loaded content
+
+4. **Custom User Agent**: Sets the browser's user agent string.
+   - Default: Standard Chromium user agent
+   - Custom: Any valid user agent string
+   - Use case: Bypassing bot detection or testing mobile views
+
+#### Navigation Options
+
+1. **Page Load Timeout**: Maximum time to wait for a page to load.
+   - Default: 30000 ms (30 seconds)
+   - Range: 1000-60000 ms
+   - Impact: Lower values speed up crawling but may miss slow-loading content
+
+2. **Wait For Selector**: CSS selector to wait for before considering a page loaded.
+   - Example: `#content`, `.main-article`
+   - Use case: Ensuring dynamic content is loaded before processing
+
+#### Extraction Options
+
+1. **Extraction Type**: Controls how content is extracted from pages.
+   - Basic (default): Extracts all visible text
+   - Article: Focuses on main article content, ignoring navigation and sidebars
+   - Custom: Uses a custom CSS selector to extract specific content
+
+2. **CSS Selector**: Specifies which elements to extract when using custom extraction.
+   - Example: `article`, `.content`, `#main-text`
+   - Only used when extraction type is set to "custom"
+
+#### Implementation Details
+
+These advanced options are passed through multiple layers:
+
+1. **Frontend**: Options are collected via the AdvancedCrawlOptions component
+2. **API**: Options are validated using Pydantic field validators
+3. **WebCrawler**: Options are processed and prepared for the Crawl4AI client
+4. **Crawl4AI Client**: Options are formatted according to the Crawl4AI API requirements
+5. **Crawl4AI Service**: Options are applied during the actual crawling process
+
+The system uses sensible defaults for all options, so users only need to modify settings relevant to their specific crawling needs.
 
 #### Search Flow
 1. User navigates to the Search page
