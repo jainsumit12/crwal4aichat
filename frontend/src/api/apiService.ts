@@ -218,11 +218,11 @@ export interface CrawlStatus {
 
 // Chat interfaces
 export interface ChatMessage {
-  id?: string;
-  role: 'user' | 'assistant' | 'system';
+  id: string;
+  role: string;
   content: string;
   created_at?: string;
-  timestamp?: string;
+  context?: string;
 }
 
 export interface ChatRequest {
@@ -453,7 +453,14 @@ export const apiService = {
         payload.session_id = sessionId;
       }
       
-      const response = await apiClient.post('/chat/', payload);
+      // Add query parameters to always include context and search settings
+      const params = {
+        include_context: true,  // Always include search context
+        result_limit: 10,       // Reasonable default
+        similarity_threshold: 0.5 // Reasonable default
+      };
+      
+      const response = await apiClient.post('/chat/', payload, { params });
       
       console.log('Chat response:', response.data);
       
@@ -461,20 +468,34 @@ export const apiService = {
       if (response.data && typeof response.data === 'object') {
         if (response.data.response) {
           // Standard format: { response: string, session_id: string, ... }
-          return {
+          const assistantMessage: ChatMessage = {
             id: Date.now().toString(),
             role: 'assistant',
             content: response.data.response,
             created_at: new Date().toISOString()
           };
+          
+          // If context was included, add it to the message
+          if (response.data.context) {
+            assistantMessage.context = response.data.context;
+          }
+          
+          return assistantMessage;
         } else if (response.data.content) {
           // Message format: { role: string, content: string, ... }
-          return {
+          const message: ChatMessage = {
             id: Date.now().toString(),
             role: response.data.role || 'assistant',
             content: response.data.content,
             created_at: new Date().toISOString()
           };
+          
+          // If context was included, add it to the message
+          if (response.data.context) {
+            message.context = response.data.context;
+          }
+          
+          return message;
         }
       }
       
@@ -577,10 +598,8 @@ export const apiService = {
         }
       }
       
-      // Filter out system messages
-      const filteredMessages = messages.filter(message => message.role !== 'system');
-      
-      return filteredMessages;
+      // Don't filter out system messages that contain search context
+      return messages;
     } catch (error) {
       console.error('Error getting chat history:', error);
       // Return empty array instead of throwing to prevent UI errors

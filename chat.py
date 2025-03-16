@@ -573,6 +573,43 @@ Extract up to 3 key preferences or details, prioritizing the most salient ones.
         clean_query = query.strip().lower()
         search_terms = clean_query.split()
         
+        # Check if the query is about an app or application
+        is_app_query = False
+        if 'app' in clean_query or 'application' in clean_query:
+            is_app_query = True
+            # Extract the potential app name by removing "app" or "application"
+            app_name_parts = []
+            for term in search_terms:
+                if term not in ['app', 'application', 'the', 'about', 'what', 'is', 'can', 'you', 'tell', 'me']:
+                    app_name_parts.append(term)
+            
+            # If we found potential app name parts, create an alternative query
+            if app_name_parts:
+                alt_query = ' '.join(app_name_parts)
+                console.print(f"[blue]Detected app query. Also searching for: {alt_query}[/blue]")
+                
+                # Try searching with the alternative query first
+                try:
+                    # Use the crawler's search method with the correct parameters
+                    alt_results = self.crawler.search(
+                        query=alt_query,
+                        use_embedding=True,
+                        threshold=max(0.5, self.similarity_threshold - 0.2),  # Lower threshold for broader matches
+                        limit=self.result_limit,
+                        site_id=None  # Search all sites
+                    )
+                    
+                    if alt_results:
+                        console.print(f"[green]Found {len(alt_results)} results for alternative query[/green]")
+                        # Mark these as "best" results
+                        for result in alt_results:
+                            result["is_best_result"] = True
+                        return alt_results
+                except Exception as e:
+                    console.print(f"[red]Error searching for alternative query: {e}[/red]")
+                    import traceback
+                    traceback.print_exc()
+        
         # Check if the query is very specific (contains hyphens, underscores, or other technical patterns)
         contains_technical_pattern = False
         if '-' in clean_query or '_' in clean_query:
@@ -917,66 +954,47 @@ Extract up to 3 key preferences or details, prioritizing the most salient ones.
             
         return all_urls
     
-    def _search_for_best_content(self, query: str) -> List[Dict[str, Any]]:
+    def _search_for_best_content(self, query: str, lower_threshold: bool = False) -> List[Dict[str, Any]]:
         """Search for the best content based on the query.
         
         Args:
             query: The user's query.
+            lower_threshold: Whether to use a lower similarity threshold for broader matches.
             
         Returns:
-            A list of the best content results.
+            A list of search results.
         """
-        console.print(f"[blue]Best content query detected, retrieving quality content...[/blue]")
-        
-        # Get all sites or filter by profile
-        site_ids = []
-        if self.search_sites:
-            # Get all sites
-            all_sites = self.crawler.db_client.get_all_sites()
-            
-            # Filter sites based on the patterns in the profile
-            for site in all_sites:
-                site_name = site.get("name", "").lower()
-                for pattern in self.search_sites:
-                    pattern = pattern.lower()
-                    if pattern in site_name or site_name in pattern:
-                        site_ids.append(site["id"])
-                        break
-        
         try:
-            # Get pages with titles and summaries, sorted by quality indicators
-            quality_pages = []
+            # Set a lower threshold for broader matches if requested
+            similarity_threshold = self.similarity_threshold
+            if lower_threshold:
+                similarity_threshold = max(0.5, similarity_threshold - 0.2)  # Lower by 0.2 but not below 0.5
             
-            # For each site (or all sites if no filter)
-            if site_ids:
-                for site_id in site_ids:
-                    # Get pages for this site
-                    pages = self.crawler.db_client.get_pages_by_site_id(
-                        site_id=site_id, 
-                        limit=20,  # Get more pages to select from
-                        include_chunks=False  # Only get parent pages
-                    )
-                    quality_pages.extend(pages)
-            else:
-                # Get pages from all sites
-                all_sites = self.crawler.db_client.get_all_sites()
-                for site in all_sites:
-                    pages = self.crawler.db_client.get_pages_by_site_id(
-                        site_id=site["id"], 
-                        limit=10,  # Get more pages to select from
-                        include_chunks=False  # Only get parent pages
-                    )
-                    quality_pages.extend(pages)
+            # Get site ID if site patterns are specified
+            site_id = None
+            if self.profile and "site_patterns" in self.profile:
+                site_patterns = self.profile["site_patterns"]
+                # Try to find a matching site
+                if site_patterns:
+                    all_sites = self.crawler.db_client.get_all_sites()
+                    for site in all_sites:
+                        site_name = site.get("name", "").lower()
+                        for pattern in site_patterns:
+                            pattern = pattern.lower()
+                            if pattern in site_name or site_name in pattern:
+                                site_id = site["id"]
+                                break
+                        if site_id:
+                            break
             
-            # Filter pages that have titles and summaries
-            quality_pages = [p for p in quality_pages if p.get("title") and p.get("summary")]
-            
-            # Sort by a quality heuristic (here we're using content length as a simple proxy)
-            # In a real system, you might use more sophisticated metrics
-            quality_pages.sort(key=lambda x: len(x.get("content", "")), reverse=True)
-            
-            # Take the top results
-            top_results = quality_pages[:self.result_limit]
+            # Use the crawler's search method with the correct parameters
+            top_results = self.crawler.search(
+                query=query,
+                use_embedding=True,
+                threshold=similarity_threshold,
+                limit=self.result_limit,
+                site_id=site_id
+            )
             
             if top_results:
                 console.print(f"[green]Found {len(top_results)} quality pages[/green]")
@@ -1156,8 +1174,106 @@ Extract up to 3 key preferences or details, prioritizing the most salient ones.
         Returns:
             The LLM's response.
         """
+        console.print(f"[dim]DEBUG: get_response called with query: '{query}'[/dim]")
+        
         # Clean the query for processing
         clean_query = query.strip().lower()
+        
+        # Check for simple greetings first - use exact word matching to avoid false positives
+        greeting_patterns = [
+            "hi", "hello", "hey", "greetings", "howdy", "hola", 
+            "how are you", "how's it going", "what's up", "sup", 
+            "good morning", "good afternoon", "good evening"
+        ]
+        
+        is_greeting = False
+        for greeting in greeting_patterns:
+            # Use word boundary matching to avoid matching substrings
+            if re.search(r'\b' + greeting + r'\b', clean_query):
+                is_greeting = True
+                console.print(f"[dim]DEBUG: Detected greeting pattern: '{greeting}'[/dim]")
+                break
+        
+        # Add the user message to the conversation history
+        self.add_user_message(query)
+        
+        # Check if this is a follow-up question about something the assistant just mentioned
+        is_followup = False
+        last_assistant_message = None
+        last_user_message = None
+        
+        # Get the last few messages to check for follow-up context
+        recent_messages = self.conversation_history[-10:] if len(self.conversation_history) > 10 else self.conversation_history
+        
+        # Find the last assistant and user messages
+        for msg in reversed(recent_messages):
+            if msg["role"] == "assistant" and not last_assistant_message:
+                last_assistant_message = msg["content"]
+            elif msg["role"] == "user" and not last_user_message and msg["content"] != query:
+                last_user_message = msg["content"]
+            
+            if last_assistant_message and last_user_message:
+                break
+        
+        # Improved follow-up detection
+        if last_assistant_message:
+            # Check for common follow-up indicators
+            follow_up_indicators = [
+                "it", "that", "this", "those", "they", "them", "their", "he", "she", 
+                "more", "about", "tell me more", "what about", "how about",
+                "explain", "elaborate", "why is", "how does", "can you",
+                "else", "other", "another", "additional", "further", "anything else",
+                "great", "thanks", "thank you", "ok", "okay", "cool", "nice", "good"
+            ]
+            
+            # Check if the query contains any follow-up indicators
+            is_followup = any(indicator in clean_query for indicator in follow_up_indicators)
+            
+            # Short queries are likely follow-ups
+            if len(clean_query.split()) <= 5:
+                is_followup = True
+                
+            console.print(f"[dim]DEBUG: Follow-up detection: {is_followup}[/dim]")
+        
+        # For greetings, don't do complex processing or context search
+        if is_greeting and not is_followup:
+            console.print(f"[blue]Detected greeting: '{clean_query}'[/blue]")
+            
+            # For greetings, we don't need to search for context
+            # Just respond with a friendly greeting
+            system_prompt = self.profile.get('system_prompt', DEFAULT_PROFILES['default']['system_prompt'])
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": query}
+            ]
+            
+            console.print(f"[dim]DEBUG: Sending greeting to LLM with model: {self.model}[/dim]")
+            
+            try:
+                # Get response from LLM
+                response = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=messages,
+                    temperature=0.7,
+                    max_tokens=150
+                )
+                
+                response_text = response.choices[0].message.content.strip()
+                console.print(f"[dim]DEBUG: Got greeting response: '{response_text[:30]}...'[/dim]")
+                
+                # Add the assistant's response to the conversation history
+                self.add_assistant_message(response_text)
+                
+                return response_text
+            except Exception as e:
+                console.print(f"[red]Error getting greeting response: {e}[/red]")
+                import traceback
+                traceback.print_exc()
+                response_text = "Hello! How can I help you today?"
+                self.add_assistant_message(response_text)
+                return response_text
+        
+        # Continue with regular processing for non-greeting messages
         
         # Check for user-specific queries
         user_queries = ["my name", "who am i", "what's my name", "what is my name"]
@@ -1184,9 +1300,6 @@ Extract up to 3 key preferences or details, prioritizing the most salient ones.
         is_technical_pattern = ('-' in clean_query or '_' in clean_query or 
                           (len(clean_query.split()) <= 3 and not any(q in clean_query for q in ["what", "how", "why", "when", "who", "which"])))
         
-        # Add the user message to the conversation history
-        self.add_user_message(query)
-        
         # If it's a user-specific query and we have user information
         if is_user_query and self.user_id:
             response_text = f"Your name is {self.user_id}."
@@ -1202,35 +1315,8 @@ Extract up to 3 key preferences or details, prioritizing the most salient ones.
             self.add_assistant_message(response_text)
             return response_text
         
-        # Check if this is a follow-up question about something the assistant just mentioned
-        is_followup = False
-        last_assistant_message = None
-        last_user_message = None
-        
-        # Get the last few messages to check for follow-up context
-        recent_messages = self.conversation_history[-10:] if len(self.conversation_history) > 10 else self.conversation_history
-        
-        # Find the last assistant and user messages
-        for msg in reversed(recent_messages):
-            if msg["role"] == "assistant" and not last_assistant_message:
-                last_assistant_message = msg["content"]
-            elif msg["role"] == "user" and not last_user_message and msg["content"] != query:
-                last_user_message = msg["content"]
-            
-            if last_assistant_message and last_user_message:
-                break
-        
-        # Use a more sophisticated follow-up detection technique based on pronouns, etc.
-        if last_assistant_message:
-            follow_up_indicators = [
-                "it", "that", "this", "those", "they", "them", "their", "he", "she", 
-                "more", "about", "tell me more", "what about", "how about",
-                "explain", "elaborate", "why is", "how does", "can you"
-            ]
-            is_followup = any(indicator in clean_query.lower() for indicator in follow_up_indicators)
-        
         # Determine if this is likely a query about a technical term or project name
-        if is_technical_pattern:
+        if is_technical_pattern and not is_greeting:
             console.print(f"[yellow]Detected potential technical term or project name: '{clean_query}'[/yellow]")
             console.print(f"[yellow]Attempting direct keyword search...[/yellow]")
             
@@ -1248,101 +1334,113 @@ Extract up to 3 key preferences or details, prioritizing the most salient ones.
                     console.print(f"[blue]Using site patterns from profile: {site_patterns}[/blue]")
                 
                 # Perform direct keyword search
-                direct_results = self.crawler.db_client.direct_keyword_search(
-                    query=query, 
-                    limit=5,
-                    site_patterns=site_patterns
+                keyword_results = self.crawler.search(
+                    query=query,
+                    use_embedding=False,  # Use text search for keywords
+                    threshold=0.7,
+                    limit=self.result_limit,
+                    site_id=None  # Search all sites
                 )
                 
-                if direct_results and len(direct_results) > 0:
-                    console.print(f"[green]Found {len(direct_results)} direct keyword matches[/green]")
-                    # Use these results directly
-                    results = direct_results
-                else:
-                    console.print(f"[yellow]No direct keyword matches found, trying semantic search...[/yellow]")
-                    # Fall back to regular search
-                    results = self.search_for_context(query)
+                if keyword_results:
+                    console.print(f"[green]Found {len(keyword_results)} keyword results[/green]")
+                    
+                    # Mark these as keyword results
+                    for result in keyword_results:
+                        result["is_keyword_result"] = True
+                    
+                    # Format the context
+                    context_str = self.format_context(keyword_results)
+                    
+                    # Get response from LLM
+                    messages = self._prepare_messages_for_llm(query, context_str, is_followup)
+                    response_text = self._get_llm_response(messages)
+                    
+                    # Add the assistant's response to the conversation history
+                    self.add_assistant_message(response_text)
+                    
+                    return response_text
             except Exception as e:
-                console.print(f"[red]Error in direct keyword search: {e}[/red]")
+                console.print(f"[red]Error in keyword search: {e}[/red]")
+                import traceback
+                traceback.print_exc()
+                # Continue with regular search if keyword search fails
+        
+        # If this is a follow-up question, try to extract relevant entities from the assistant's last response
+        if is_followup and last_assistant_message:
+            try:
+                # Extract key entities from the last response
+                entity_prompt = f"""Extract the most important entities (names, technical terms, concepts) from this text: "{last_assistant_message}"
+    
+        Return only the entities as a comma-separated list. Limit to 3-5 most important entities."""
+                
+                entity_response = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=[{"role": "user", "content": entity_prompt}],
+                    temperature=0.3,
+                    max_tokens=100
+                )
+                
+                entities = entity_response.choices[0].message.content.strip()
+                console.print(f"[blue]Extracted entities from previous response: {entities}[/blue]")
+                
+                # Create an enhanced query combining the original query with the entities
+                enhanced_query = f"{query} {entities}"
+                console.print(f"[blue]Enhanced query: {enhanced_query}[/blue]")
+                
+                # Search with the enhanced query
+                results = self.search_for_context(enhanced_query)
+            except Exception as e:
+                console.print(f"[red]Error enhancing query with entities: {e}[/red]")
                 # Fall back to regular search
                 results = self.search_for_context(query)
         else:
-            # If this is a follow-up question, try to extract relevant entities from the assistant's last response
-            if is_followup and last_assistant_message:
-                try:
-                    # Extract key entities from the last response
-                    entity_prompt = f"""Extract the most important entities (names, technical terms, concepts) from this text: "{last_assistant_message}"
-    
-    Return only the entities as a comma-separated list. Limit to 3-5 most important entities."""
-                    
-                    entity_response = self.client.chat.completions.create(
-                        model=self.model,
-                        messages=[{"role": "user", "content": entity_prompt}],
-                        temperature=0.3,
-                        max_tokens=100
-                    )
-                    
-                    entities = entity_response.choices[0].message.content.strip()
-                    console.print(f"[blue]Extracted entities from previous response: {entities}[/blue]")
-                    
-                    # Create an enhanced query combining the original query with the entities
-                    enhanced_query = f"{query} {entities}"
-                    console.print(f"[blue]Enhanced query: {enhanced_query}[/blue]")
-                    
-                    # Search with the enhanced query
-                    results = self.search_for_context(enhanced_query)
-                except Exception as e:
-                    console.print(f"[red]Error enhancing query with entities: {e}[/red]")
-                    # Fall back to regular search
-                    results = self.search_for_context(query)
+            # Regular search for non-follow-up questions
+            results = self.search_for_context(query)
+        
+        # If we still don't have good results for technical terms, try variations
+        if is_technical_pattern and (not results or len(results) < 2):
+            console.print(f"[yellow]Few or no results for technical term, trying variations...[/yellow]")
+            # Try different variations
+            variations = [
+                query,
+                f"what is {query}",
+                f"{query} definition",
+                f"{query} overview", 
+                f"{query} features"
+            ]
+                
+            # Try each variation and collect results
+            all_results = []
+            for variation in variations:
+                var_results = self.search_for_context(variation)
+                if var_results:
+                    console.print(f"[green]Found {len(var_results)} results for '{variation}'[/green]")
+                    # Add this variation as metadata
+                    for result in var_results:
+                        result["query_variation"] = variation
+                    all_results.extend(var_results)
+            
+            # If we have results from variations, use those
+            if all_results:
+                # Deduplicate by URL
+                deduplicated = {}
+                for result in all_results:
+                    url = result.get("url", "")
+                    if url and url not in deduplicated:
+                        deduplicated[url] = result
+                
+                # Sort by similarity
+                results = list(deduplicated.values())
+                results.sort(key=lambda x: x.get("similarity", 0), reverse=True)
+                
+                # Limit to search limit
+                results = results[:self.search_limit]
+                console.print(f"[green]Found {len(results)} total results after trying variations[/green]")
             else:
-                # Regular search for non-follow-up questions
+                console.print(f"[yellow]No results found for variations, falling back to regular search[/yellow]")
+                # If still no results, fall back to the original query
                 results = self.search_for_context(query)
-                
-            # If we still don't have good results for technical terms, try variations
-            if is_technical_pattern and (not results or len(results) < 2):
-                console.print(f"[yellow]Few or no results for technical term, trying variations...[/yellow]")
-                
-                # Try different variations
-                variations = [
-                    query,
-                    f"what is {query}",
-                    f"{query} definition",
-                    f"{query} overview",
-                    f"{query} features"
-                ]
-                
-                # Try each variation and collect results
-                all_results = []
-                for variation in variations:
-                    var_results = self.search_for_context(variation)
-                    if var_results:
-                        console.print(f"[green]Found {len(var_results)} results for '{variation}'[/green]")
-                        # Add this variation as metadata
-                        for result in var_results:
-                            result["query_variation"] = variation
-                        all_results.extend(var_results)
-                
-                # If we have results from variations, use those
-                if all_results:
-                    # Deduplicate by URL
-                    deduplicated = {}
-                    for result in all_results:
-                        url = result.get("url", "")
-                        if url and url not in deduplicated:
-                            deduplicated[url] = result
-                    
-                    # Sort by similarity
-                    results = list(deduplicated.values())
-                    results.sort(key=lambda x: x.get("similarity", 0), reverse=True)
-                    
-                    # Limit to search limit
-                    results = results[:self.search_limit]
-                    console.print(f"[green]Found {len(results)} total results after trying variations[/green]")
-                else:
-                    console.print(f"[yellow]No results found for variations, falling back to regular search[/yellow]")
-                    # If still no results, fall back to the original query
-                    results = self.search_for_context(query)
         
         # Format the context
         context = self.format_context(results)
@@ -1843,10 +1941,10 @@ Always maintain continuity in the conversation.
                         else:
                             if Confirm.ask("[bold red]Are you sure you want to clear ALL preferences for this user?[/bold red]"):
                                 try:
-                                    success = self.crawler.db_client.clear_user_preferences(chat_bot.user_id)
+                                    success = self.crawler.db_client.clear_user_preferences(self.user_id)
                                     
                                     if success:
-                                        console.print(f"[green]All preferences cleared for user {chat_bot.user_id}[/green]")
+                                        console.print(f"[green]All preferences cleared for user {self.user_id}[/green]")
                                     else:
                                         console.print("[red]Failed to clear preferences[/red]")
                                 except Exception as e:
@@ -1874,8 +1972,11 @@ Always maintain continuity in the conversation.
                         # Get a response with a timeout
                         try:
                             response = self.get_response(query)
+                            console.print(f"[dim]Debug: Got response of length {len(response)}[/dim]")
                         except Exception as e:
                             console.print(f"[red]Error getting response: {e}[/red]")
+                            import traceback
+                            traceback.print_exc()
                             response = "I'm sorry, I encountered an error while processing your request. Please try again."
                     
                     # Print the response
@@ -2028,6 +2129,141 @@ If there is no relevant information, respond with "No relevant information found
         """
         return self.profile_name
 
+    def _prepare_messages_for_llm(self, query: str, context_str: str, is_followup: bool = False) -> List[Dict[str, str]]:
+        """Prepare messages for the LLM.
+        
+        Args:
+            query: The user's query.
+            context_str: The context string from search results.
+            is_followup: Whether this is a follow-up question.
+            
+        Returns:
+            A list of messages for the LLM.
+        """
+        # Get the system prompt from the profile
+        system_prompt = self.profile.get('system_prompt', DEFAULT_PROFILES['default']['system_prompt'])
+        
+        # Add user information to the system prompt if available
+        if self.user_id:
+            system_prompt += f"\n\nThe user's name is {self.user_id}."
+        
+        # Add current date and time to the system prompt
+        now = datetime.datetime.now()
+        date_str = now.strftime("%A, %B %d, %Y")
+        time_str = now.strftime("%I:%M %p")
+        system_prompt += f"\n\nThe current date is {date_str} and the time is {time_str}."
+        
+        # Create a system message that guides the LLM's behavior
+        system_message = f"""You are acting according to this profile: {self.profile_name}
+
+{system_prompt}
+
+When answering, use the provided context and conversation history. 
+If the answer is in the context, respond based on that information.
+If the answer is not in the context but you can infer it from the conversation history, use that information.
+If the answer is not in either, acknowledge that you don't have specific information about that topic,
+but you can provide general information if relevant.
+
+IMPORTANT: Pay close attention to the conversation history. If the user refers to something they mentioned earlier,
+make sure to reference that information in your response. Remember user preferences, likes, dislikes, and any
+personal information they've shared during the conversation.
+
+CRITICAL: If the user asks a follow-up question about something you just mentioned in your previous response,
+make sure to provide detailed information about that topic. Never claim ignorance about something you just discussed.
+Always maintain continuity in the conversation.
+
+When presenting URLs to users, make sure to remove any '#chunk-X' fragments from the URLs to make them cleaner.
+For example, change 'https://example.com/page/#chunk-0' to 'https://example.com/page/'.
+"""
+        
+        # Create a new list of messages for this specific query
+        messages = [
+            {"role": "system", "content": system_message},
+        ]
+        
+        # Add the conversation history (excluding the system message)
+        # Use a sliding window approach to avoid token limit issues
+        MAX_HISTORY_MESSAGES = 20  # Adjust this value based on your needs
+        
+        # Get user and assistant messages, excluding the current query
+        history_messages = [
+            msg for msg in self.conversation_history 
+            if msg["role"] != "system" and msg["content"] != query
+        ]
+        
+        # If we have more messages than the limit, keep only the most recent ones
+        if len(history_messages) > MAX_HISTORY_MESSAGES:
+            # Always include the first few messages for context
+            first_messages = history_messages[:2]
+            # And the most recent messages
+            recent_messages = history_messages[-(MAX_HISTORY_MESSAGES-2):]
+            history_messages = first_messages + recent_messages
+            console.print(f"[dim blue]Using {len(history_messages)} messages from conversation history (truncated)[/dim blue]")
+        else:
+            console.print(f"[dim blue]Using {len(history_messages)} messages from conversation history[/dim blue]")
+        
+        # Add the selected history messages
+        for message in history_messages:
+            messages.append({
+                "role": message["role"],
+                "content": message["content"]
+            })
+        
+        # Add the current query
+        messages.append({"role": "user", "content": query})
+        
+        # If this is a follow-up question, add a special reminder about the previous response
+        last_assistant_message = None
+        if is_followup and len(history_messages) > 0:
+            for msg in reversed(history_messages):
+                if msg["role"] == "assistant":
+                    last_assistant_message = msg["content"]
+                    break
+                    
+            if last_assistant_message:
+                messages.append({
+                    "role": "system", 
+                    "content": f"IMPORTANT: This is a follow-up question about something you mentioned in your previous response. Your previous response was:\n\n{last_assistant_message}\n\nMake sure to provide detailed information about the topic the user is asking about."
+                })
+        
+        # Add the context from the database search
+        messages.append({"role": "system", "content": f"DATABASE SEARCH RESULTS:\n{context_str}"})
+        
+        return messages
+    
+    def _get_llm_response(self, messages: List[Dict[str, str]]) -> str:
+        """Get a response from the LLM.
+        
+        Args:
+            messages: The messages to send to the LLM.
+            
+        Returns:
+            The LLM's response.
+        """
+        console.print(f"[dim]DEBUG: _get_llm_response called with {len(messages)} messages[/dim]")
+        
+        try:
+            # Get a response from the LLM
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=messages,
+                temperature=0.7,
+                max_tokens=1000
+            )
+            
+            # Extract the response text
+            response_text = response.choices[0].message.content
+            console.print(f"[dim]DEBUG: Got LLM response: '{response_text[:30]}...'[/dim]")
+            
+            return response_text
+        except Exception as e:
+            console.print(f"[red]Error getting LLM response: {e}[/red]")
+            import traceback
+            traceback.print_exc()
+            
+            # Provide a fallback response
+            return "I'm sorry, I encountered an error while processing your request. Please try again or check your API key configuration."
+
 def main():
     """Main function for the chat interface."""
     parser = argparse.ArgumentParser(description="Chat with crawled data using an LLM")
@@ -2040,129 +2276,140 @@ def main():
     parser.add_argument("--profiles-dir", help="Directory containing profile YAML files")
     parser.add_argument("--new-session", action="store_true", help="Start a new session (ignore saved session ID)")
     parser.add_argument("--verbose", action="store_true", help="Show verbose debug output")
+    parser.add_argument("--debug", action="store_true", help="Show extra debug information")
     args = parser.parse_args()
     
     # If new-session is specified, ignore any saved session ID
     session_id = None if args.new_session else args.session
     
     # Get verbose flag from .env if not provided in args
-    verbose = args.verbose
+    verbose = args.verbose or args.debug
     if not verbose and os.getenv("CHAT_VERBOSE", "").lower() == "true":
         verbose = True
     
-    # Create the chat bot
-    chat_bot = ChatBot(
-        model=args.model,
-        result_limit=args.limit,
-        similarity_threshold=args.threshold,
-        session_id=session_id,
-        user_id=args.user,
-        profile=args.profile,
-        profiles_dir=args.profiles_dir,
-        verbose=verbose
-    )
+    # Set global verbose flag
+    global VERBOSE_OUTPUT
+    VERBOSE_OUTPUT = verbose
     
-    # Print welcome message
-    console.print(Panel(
-        "[bold green]Welcome to the Supa Chat Interface![/bold green]\n"
-        "Ask questions about the crawled data or use these commands:\n"
-            "[bold red]'exit'[/bold red] to quit\n"
-            "[bold red]'clear'[/bold red] to clear the current session's conversation history\n"
-            "[bold red]'clear all'[/bold red] to clear ALL conversation history from the database\n"
-            "[bold red]'history'[/bold red] to view the conversation history\n"
-            "[bold red]'profile <name>'[/bold red] to change the chat profile\n"
-            "[bold red]'profiles'[/bold red] to list available profiles",
-            border_style="blue"
-    ))
-    
-    # Print session ID
-    console.print(f"Session ID: {chat_bot.session_id}")
-    
-    # Print user ID or instructions to set one
-    if chat_bot.user_id:
-        console.print(f"User: {chat_bot.user_id}")
-    else:
-        console.print("To save your name for future sessions, use --user parameter (e.g., python chat.py --user YourName)")
-    
-    # Start the chat loop
     try:
-        while True:
-            # Get user input
-            user_input = Prompt.ask("\nYou")
-            
-            # Check for exit commands
-            if user_input.lower() in ["exit", "quit", "bye", "goodbye", "q"]:
-                console.print("[green]Exiting chat. Goodbye![/green]")
-                break
-            
-            # Check for clear command
-            if user_input.lower() == "clear":
-                chat_bot.clear_conversation_history()
-                console.print("[green]Conversation history cleared for this session[/green]")
-                continue
-            
-            # Check for clear all command
-            if user_input.lower() == "clear all":
-                if Confirm.ask("[bold red]Are you sure you want to clear ALL conversation history?[/bold red]"):
-                    chat_bot.clear_all_conversation_history()
-                    console.print("[green]All conversation history cleared[/green]")
-                continue
-            
-            # Check for history command
-            if user_input.lower() == "history":
-                chat_bot.show_conversation_history()
-                continue
-            
-            # Check for profiles command
-            if user_input.lower() == "profiles":
-                chat_bot.show_profiles()
-                continue
-            
-            # Check for profile command
-            if user_input.lower().startswith("profile "):
-                profile_name = user_input.split(" ", 1)[1].strip()
-                chat_bot.change_profile(profile_name)
-                continue
-            
-            # Check for preferences command
-            if user_input.lower() == "preferences":
-                if not chat_bot.user_id:
-                    console.print("[yellow]No user ID provided. Preferences are only stored for identified users.[/yellow]")
-                    console.print("[yellow]Restart with --user <name> to use preferences.[/yellow]")
-                else:
-                    # Get preferences from the database
-                    try:
-                        preferences = chat_bot.crawler.db_client.get_user_preferences(
-                            user_id=chat_bot.user_id,
-                            min_confidence=0.0,
-                            active_only=True
-                        )
-                        
-                        if not preferences:
-                            console.print("[yellow]No preferences found for this user.[/yellow]")
-                        else:
-                            # Create a table for the preferences
-                            table = Table(title=f"Preferences for {chat_bot.user_id}")
-                            table.add_column("ID", style="cyan")
-                            table.add_column("Type", style="green")
-                            table.add_column("Value", style="blue")
-                            table.add_column("Confidence", style="yellow")
-                            table.add_column("Context", style="magenta")
-                            table.add_column("Last Used", style="dim")
+        # Create the chat bot
+        chat_bot = ChatBot(
+            model=args.model,
+            result_limit=args.limit,
+            similarity_threshold=args.threshold,
+            session_id=session_id,
+            user_id=args.user,
+            profile=args.profile,
+            profiles_dir=args.profiles_dir,
+            verbose=verbose
+        )
+        
+        # Print welcome message
+        console.print(Panel.fit(
+            "[bold green]Welcome to the Supa Chat Interface![/bold green]\n"
+            "Ask questions about the crawled data or use these commands:\n"
+                "[bold red]'exit'[/bold red] to quit\n"
+                "[bold red]'clear'[/bold red] to clear the current session's conversation history\n"
+                "[bold red]'clear all'[/bold red] to clear ALL conversation history from the database\n"
+                "[bold red]'history'[/bold red] to view the conversation history\n"
+                "[bold red]'profile <name>'[/bold red] to change the chat profile\n"
+                "[bold red]'profiles'[/bold red] to list available profiles",
+                border_style="blue"
+        ))
+        
+        # Print session ID
+        console.print(f"Session ID: {chat_bot.session_id}")
+        
+        # Print user ID or instructions to set one
+        if chat_bot.user_id:
+            console.print(f"User: {chat_bot.user_id}")
+        else:
+            console.print("To save your name for future sessions, use --user parameter (e.g., python chat.py --user YourName)")
+        
+        # Start the chat loop
+        try:
+            while True:
+                # Get user input
+                user_input = Prompt.ask("\nYou")
+                
+                # Skip empty queries
+                if not user_input.strip():
+                    console.print("[yellow]Please enter a question or command.[/yellow]")
+                    continue
+                
+                # Check for exit commands
+                if user_input.lower() in ["exit", "quit", "bye", "goodbye", "q"]:
+                    console.print("[green]Exiting chat. Goodbye![/green]")
+                    break
+                
+                # Check for clear command
+                if user_input.lower() == "clear":
+                    chat_bot.clear_conversation_history()
+                    console.print("[green]Conversation history cleared for this session[/green]")
+                    continue
+                
+                # Check for clear all command
+                if user_input.lower() == "clear all":
+                    if Confirm.ask("[bold red]Are you sure you want to clear ALL conversation history?[/bold red]"):
+                        chat_bot.clear_all_conversation_history()
+                        console.print("[green]All conversation history cleared[/green]")
+                    continue
+                
+                # Check for history command
+                if user_input.lower() == "history":
+                    chat_bot.show_conversation_history()
+                    continue
+                
+                # Check for profiles command
+                if user_input.lower() == "profiles":
+                    chat_bot.show_profiles()
+                    continue
+                
+                # Check for profile command
+                if user_input.lower().startswith("profile "):
+                    profile_name = user_input.split(" ", 1)[1].strip()
+                    chat_bot.change_profile(profile_name)
+                    continue
+                
+                # Check for preferences command
+                if user_input.lower() == "preferences":
+                    if not chat_bot.user_id:
+                        console.print("[yellow]No user ID provided. Preferences are only stored for identified users.[/yellow]")
+                        console.print("[yellow]Restart with --user <name> to use preferences.[/yellow]")
+                    else:
+                        # Get preferences from the database
+                        try:
+                            preferences = chat_bot.crawler.db_client.get_user_preferences(
+                                user_id=chat_bot.user_id,
+                                min_confidence=0.0,
+                                active_only=True
+                            )
                             
-                            for pref in preferences:
-                                table.add_row(
-                                    str(pref.get("id", "")),
-                                    pref.get("preference_type", ""),
-                                    pref.get("preference_value", ""),
-                                    f"{pref.get('confidence', 0.0):.2f}",
-                                    pref.get("context", "")[:50] + ("..." if len(pref.get("context", "")) > 50 else ""),
-                                    str(pref.get("last_used", ""))
-                                )
-                            
-                            console.print(table)
-                    except Exception as e:
-                        console.print(f"[red]Error getting preferences: {e}[/red]")
+                            if not preferences:
+                                console.print("[yellow]No preferences found for this user.[/yellow]")
+                            else:
+                                # Create a table for the preferences
+                                table = Table(title=f"Preferences for {chat_bot.user_id}")
+                                table.add_column("ID", style="cyan")
+                                table.add_column("Type", style="green")
+                                table.add_column("Value", style="blue")
+                                table.add_column("Confidence", style="yellow")
+                                table.add_column("Context", style="magenta")
+                                table.add_column("Last Used", style="dim")
+                                
+                                for pref in preferences:
+                                    table.add_row(
+                                        str(pref.get("id", "")),
+                                        pref.get("preference_type", ""),
+                                        pref.get("preference_value", ""),
+                                        f"{pref.get('confidence', 0.0):.2f}",
+                                        pref.get("context", "")[:50] + ("..." if len(pref.get("context", "")) > 50 else ""),
+                                        str(pref.get("last_used", ""))
+                                    )
+                                
+                                console.print(table)
+                        except Exception as e:
+                            console.print(f"[red]Error getting preferences: {e}[/red]")
                     continue
                 
                 # Check for add preference command
@@ -2276,16 +2523,33 @@ def main():
                     transient=True,
                 ) as progress:
                     progress.add_task("thinking", total=None)
-                    response = chat_bot.get_response(user_input)
+                    try:
+                        if args.debug:
+                            console.print(f"[dim]DEBUG: Sending query to get_response: '{user_input}'[/dim]")
+                        response = chat_bot.get_response(user_input)
+                        if args.debug:
+                            console.print(f"[dim]DEBUG: Got response of length {len(response)}[/dim]")
+                    except Exception as e:
+                        console.print(f"[red]Error getting response: {e}[/red]")
+                        if args.debug:
+                            import traceback
+                            traceback.print_exc()
+                        response = "I'm sorry, I encountered an error while processing your request. Please try again."
                 
                 # Print the response
                 console.print("\nAssistant", style="bold")
                 console.print(Panel(Markdown(response), border_style="green"))
                 
+        except KeyboardInterrupt:
+            # Handle Ctrl+C gracefully
+            console.print("\n[yellow]Interrupted by user. Type 'exit' to quit or continue with your next question.[/yellow]")
     except KeyboardInterrupt:
         console.print("\n[yellow]Chat session interrupted[/yellow]")
     except Exception as e:
         console.print(f"\n[red]Error: {e}[/red]")
+        if args.debug:
+            import traceback
+            traceback.print_exc()
     
     console.print("[green]Chat session ended[/green]")
 

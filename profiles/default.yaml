@@ -15,5 +15,5 @@ system_prompt: |
 
 search_settings:
   sites: []  # Empty list means search all sites
-  threshold: 0.3
+  threshold: 0.5
   limit: 8 

@@ -130,11 +130,9 @@ async def chat(
     Send a message to the chat bot and get a response.
     
     - **message**: The user's message
-    - **session_id**: Optional session ID for persistent conversations
-    - **user_id**: Optional user ID
-    - **profile**: Optional profile to use
-    - **model**: Optional model to use
-    - **result_limit**: Optional maximum number of search results
+    - **session_id**: Session ID for persistent conversations
+    - **user_id**: User ID for tracking conversations
+    - **profile**: Profile to use
     """
     try:
         # Generate a session ID if not provided
@@ -150,8 +148,100 @@ async def chat(
             profile=chat_request.profile or "default"
         )
         
+        # First message in a session should be about crawled sites, not random topics
+        is_first_message = False
+        try:
+            chat_bot.load_conversation_history()
+            is_first_message = len(chat_bot.conversation_history) <= 1  # Only the system message or empty
+        except Exception as history_error:
+            print(f"Error loading conversation history: {history_error}")
+            is_first_message = True
+            
+        # Get search context first
+        try:
+            context = chat_bot.search_for_context(chat_request.message)
+        except Exception as search_error:
+            print(f"Error in search_for_context: {search_error}")
+            import traceback
+            traceback.print_exc()
+            context = None
+        
+        # Check if this is a simple greeting
+        greeting_patterns = [
+            "hi", "hello", "hey", "greetings", "howdy", "hola", 
+            "how are you", "how's it going", "what's up", "sup", 
+            "good morning", "good afternoon", "good evening"
+        ]
+        
+        is_greeting = False
+        clean_message = chat_request.message.strip().lower()
+        for greeting in greeting_patterns:
+            if greeting in clean_message:
+                is_greeting = True
+                break
+        
+        # For greetings, don't add context or special instructions
+        if is_greeting:
+            # Skip context for greetings to avoid irrelevant information
+            context = None
+        
+        # Modify the system prompt for the first message to focus on crawled sites
+        if is_first_message:
+            # Get all available sites to mention in the greeting
+            try:
+                sites = chat_bot.crawler.db_client.get_all_sites()
+                site_names = [site.get("name", "Unknown") for site in sites]
+                
+                if site_names:
+                    sites_str = ", ".join(site_names)
+                    chat_bot.add_system_message(
+                        f"This is the first message in the conversation. You are a helpful assistant that specializes in providing information about the user's crawled sites: {sites_str}. "
+                        f"Your primary purpose is to help the user find and understand information from their crawled content. "
+                        f"In your greeting, focus on the user's crawled sites and how you can help them find information. "
+                        f"Do not mention unrelated topics like gardening, cooking, or ancient civilizations unless the user asks about them. "
+                        f"Suggest that the user can ask specific questions about their crawled sites."
+                    )
+            except:
+                # If we can't get sites, still avoid random topics
+                chat_bot.add_system_message(
+                    "This is the first message in the conversation. You are a helpful assistant that specializes in providing information about the user's crawled sites. "
+                    "Your primary purpose is to help the user find and understand information from their crawled content. "
+                    "In your greeting, focus on the user's crawled sites and how you can help them find information. "
+                    "Do not mention unrelated topics unless the user asks about them."
+                )
+        
+        # Add a system message with instructions on how to use the context
+        if context and not is_greeting:
+            chat_bot.add_system_message(
+                "IMPORTANT: You have access to information from the user's crawled sites. "
+                "When answering questions, prioritize information from these sources. "
+                "Integrate the information naturally into your responses rather than just listing sources. "
+                "If the user asks about a topic covered in their crawled sites, use that information to provide a detailed, "
+                "accurate response. Only mention that information comes from their crawled sites if it adds value to the response. "
+                "When referencing specific information, include relevant URLs as formatted links using markdown syntax: [link text](URL)."
+            )
+            
+            # Check if this is a query about an app or specific product
+            if any(term in chat_request.message.lower() for term in ['app', 'application', 'tool', 'software', 'program']):
+                # Add special instructions for app-related queries
+                chat_bot.add_system_message(
+                    "The user is asking about a specific application or software tool. "
+                    "If information about this app is found in the context, provide a comprehensive summary that includes: "
+                    "1. What the app does and its main purpose "
+                    "2. Key features and capabilities "
+                    "3. Technical details if available "
+                    "4. How to get or access the app "
+                    "Make sure to use the information from the context rather than general knowledge."
+                )
+        
         # Get response
-        response = chat_bot.get_response(chat_request.message)
+        try:
+            response = chat_bot.get_response(chat_request.message)
+        except Exception as response_error:
+            print(f"Error in get_response: {response_error}")
+            import traceback
+            traceback.print_exc()
+            response = f"I'm sorry, but I encountered an error processing your request. Error details: {str(response_error)}"
         
         # Prepare the response
         chat_response = {
@@ -160,10 +250,8 @@ async def chat(
             "user_id": chat_request.user_id
         }
         
-        # Include context if requested
-        if include_context:
-            # Get the most recent search context
-            context = chat_bot.search_for_context(chat_request.message)
+        # Include context in the response only if it's not a greeting
+        if context and not is_greeting:
             chat_response["context"] = context
         
         # Include conversation history if requested

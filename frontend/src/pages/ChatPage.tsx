@@ -16,6 +16,7 @@ import { Separator } from '@/components/ui/separator';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { MessageSquare, Plus, Trash2, Edit, RefreshCw, Bot, Send, Copy, Check } from 'lucide-react';
 import { createNotification } from '@/utils/notifications';
+import ReactMarkdown from 'react-markdown';
 
 // Define the session interface
 interface ChatSession {
@@ -25,8 +26,10 @@ interface ChatSession {
   lastActivity: string;
 }
 
-// Define Message type to match ChatMessage
-type Message = ChatMessage;
+// Update the ChatMessage interface to include context
+interface Message extends ChatMessage {
+  context?: string;
+}
 
 const ChatPage = () => {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -38,7 +41,7 @@ const ChatPage = () => {
   const [error, setError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { userProfile } = useUser();
-  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
+  const [chatHistory, setChatHistory] = useState<Message[]>([]);
   const [isLoadingProfiles, setIsLoadingProfiles] = useState(false);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [chatInitialized, setChatInitialized] = useState(false);
@@ -246,106 +249,95 @@ const ChatPage = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  const handleSendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
+  const handleSendMessage = async () => {
+    if (!message.trim()) return;
     
-    if (!message.trim()) {
-      toast.error('Please enter a message');
-      return;
-    }
-
-    if (!activeProfile) {
-      toast.error('Please select a profile');
-      return;
-    }
-
-    if (!sessionId) {
-      toast.error('No session ID available');
-      return;
-    }
+    // Check if this is a simple greeting
+    const greeting_patterns = [
+      "hi", "hello", "hey", "greetings", "howdy", "hola", 
+      "how are you", "how's it going", "what's up", "sup", 
+      "good morning", "good afternoon", "good evening"
+    ];
     
-    // Mark chat as initialized if this is the first message
-    if (!chatInitialized) {
-      setChatInitialized(true);
-      localStorage.setItem('chat_initialized', 'true');
-    }
+    const clean_message = message.trim().toLowerCase();
+    const is_greeting = greeting_patterns.some(greeting => clean_message.includes(greeting));
     
-    // Check for preferences in the message - safely handle if function doesn't exist
-    try {
-      if (extractPreferencesFromText) {
-        const extractedPreferences = extractPreferencesFromText(message);
-        if (extractedPreferences && extractedPreferences.length > 0) {
-          // Add the preferences
-          extractedPreferences.forEach((pref: string) => {
-            if (addPreference) {
-              addPreference(pref);
-            }
-          });
-          
-          // Notify the user if preferences were found
-          if (extractedPreferences.length === 1) {
-            createNotification('Success', `Added "${extractedPreferences[0]}" to your preferences`, 'success', true);
-          } else if (extractedPreferences.length > 1) {
-            createNotification('Success', `Added ${extractedPreferences.length} new preferences`, 'success', true);
-          }
-        }
-      }
-    } catch (err) {
-      console.error('Error processing preferences:', err);
-      // Continue with the chat even if preference extraction fails
-    }
+    setIsLoading(true);
     
-    // Add user message to chat
-    const userMessage: ChatMessage = {
+    // Add user message to chat history
+    const userMessage: Message = {
       id: Date.now().toString(),
       role: 'user',
       content: message,
-      created_at: new Date().toISOString(),
+      created_at: new Date().toISOString()
     };
     
-    setChatHistory((prev) => [...prev, userMessage]);
+    setChatHistory(prev => [...prev, userMessage]);
     setMessage('');
-    setIsLoading(true);
     
     try {
-      // Show typing indicator
-      scrollToBottom();
-      
-      // Send message to API with sessionId and user's name
+      // Send message to API
       const response = await api.sendMessage(
-        message, 
-        activeProfile.name, 
-        sessionId,
-        userProfile?.name // Pass the user's name as the user_id
+        message,
+        activeProfile?.name || undefined,
+        sessionId || undefined,
+        userProfile?.name
       );
       
-      // Filter out system messages to prevent duplicates
-      if (response) {
-        // Only add the response if it's not a system message or if we don't already have it
-        if (response.role !== 'system' || !chatHistory.some(msg => 
-          msg.role === 'system' && msg.content === response.content
-        )) {
-          setChatHistory((prev) => [...prev, response]);
+      // Add assistant response to chat history
+      const assistantMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        content: response.response,
+        created_at: new Date().toISOString()
+      };
+      
+      setChatHistory(prev => [...prev, assistantMessage]);
+      
+      // If there's context in the response and it's not a greeting, add it as a system message
+      if (!is_greeting && response.context && Array.isArray(response.context) && response.context.length > 0) {
+        // The context is already formatted in the apiWrapper
+        // Just check if it's in the conversation_history
+        if (!response.conversation_history) {
+          // If not in conversation_history, create a system message
+          const contextMessage: Message = {
+            id: (Date.now() + 2).toString(),
+            role: 'system',
+            content: "===== INFORMATION FROM YOUR CRAWLED SITES =====\n\n" + 
+              response.context.map((item: any) => 
+                `SOURCE: ${item.site_name || 'Unknown'}\n` +
+                `TITLE: ${item.title || 'Untitled'}\n` +
+                `URL: ${item.url || ''}\n` +
+                `${item.summary ? `SUMMARY: ${item.summary}\n\n` : 
+                  item.content ? `CONTENT: ${item.content.substring(0, 300)}...\n\n` : '\n'}`
+              ).join(''),
+            created_at: new Date().toISOString()
+          };
+          
+          setChatHistory(prev => [...prev, contextMessage]);
         }
       }
       
-      // Scroll to bottom again after response
-      setTimeout(scrollToBottom, 100);
+      // Scroll to bottom after response is added
+      setTimeout(() => {
+        if (chatContainerRef.current) {
+          chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+        }
+      }, 100);
+      
     } catch (error) {
       console.error('Error sending message:', error);
-      setError('Failed to send message. Please try again.');
-      toast.error('Failed to send message');
+      toast.error('Failed to send message. Please try again.');
       
       // Add error message to chat
-      const errorMessage: ChatMessage = {
-        id: Date.now().toString(),
-        role: 'assistant',
-        content: 'Sorry, I encountered an error processing your request. Please try again.',
-        created_at: new Date().toISOString(),
+      const errorMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        role: 'system',
+        content: 'Failed to send message. Please try again.',
+        created_at: new Date().toISOString()
       };
       
-      setChatHistory((prev) => [...prev, errorMessage]);
+      setChatHistory(prev => [...prev, errorMessage]);
     } finally {
       setIsLoading(false);
     }
@@ -430,196 +422,101 @@ const ChatPage = () => {
     }
   };
 
-  // Filter out system messages completely when rendering
-  const filteredChatHistory = chatHistory.filter(message => message.role !== 'system');
+  // Filter chat history to show system messages with context
+  const filteredChatHistory = chatHistory.filter(message => 
+    message.role !== 'system' || 
+    (message.content && (
+      message.content.includes("DATABASE SEARCH RESULTS") || 
+      message.content.includes("RELEVANT INFORMATION") ||
+      message.content.includes("EXACT KEYWORD MATCHES") ||
+      message.content.includes("VERIFIED DATABASE SEARCH RESULTS") ||
+      message.content.includes("RELEVANT URLS") ||
+      message.content.includes("===== ")
+    ))
+  );
 
-  // Function to format links
-  const formatLinks = (content: string) => {
-    // Replace markdown links with HTML links
-    const markdownLinkPattern = /\[([^\]]+)\]\(([^)]+)\)/g;
-    
-    // First, handle markdown-style links
-    let formattedContent = content.replace(
-      markdownLinkPattern,
-      '<a href="$2" target="_blank" rel="noopener noreferrer" class="text-primary underline hover:no-underline">$1</a>'
-    );
-    
-    // Then look for plain URLs and convert them to clickable links
-    // Match URLs that aren't already part of an HTML link
-    const urlPattern = /(?<!["'=])(https?:\/\/[^\s<>"']+)(?![^<]*>|[^<>]*<\/a>)/g;
-    formattedContent = formattedContent.replace(
-      urlPattern,
-      '<a href="$1" target="_blank" rel="noopener noreferrer" class="text-primary underline hover:no-underline">$1</a>'
-    );
-    
-    // Special case for "URL: " patterns in search results
-    const urlLabelPattern = /URL: (https?:\/\/[^\s<>"']+)/g;
-    formattedContent = formattedContent.replace(
-      urlLabelPattern,
-      'URL: <a href="$1" target="_blank" rel="noopener noreferrer" class="text-primary underline hover:no-underline">$1</a>'
-    );
-    
-    // Make domain names clickable - match standalone domain patterns like example.com
-    const domainPattern = /\b((?!https?:\/\/)([a-zA-Z0-9][-a-zA-Z0-9]*\.)+[a-zA-Z]{2,})\b/g;
-    formattedContent = formattedContent.replace(
-      domainPattern,
-      '<a href="https://$1" target="_blank" rel="noopener noreferrer" class="text-primary underline hover:no-underline">$1</a>'
-    );
-    
-    // Handle "website", "site", or domain name mentions
-    const siteReferencePattern = /(the |visit )?([a-zA-Z0-9][-a-zA-Z0-9]*) (website|site)/gi;
-    formattedContent = formattedContent.replace(
-      siteReferencePattern,
-      '$1<a href="https://$2.com" target="_blank" rel="noopener noreferrer" class="text-primary underline hover:no-underline">$2 $3</a>'
-    );
-    
-    return formattedContent;
-  };
-
-  // Function to get user avatar
-  const getUserAvatar = () => {
-    if (userProfile && userProfile.avatar) {
-      return (
-        <div className="chat-avatar chat-avatar-user overflow-hidden">
-          <img src={userProfile.avatar} alt="User" className="w-full h-full object-cover" />
-        </div>
-      );
+  // Render system messages with context differently
+  const renderMessage = (message: Message) => {
+    if (message.role === 'system' && message.content) {
+      // Check if this is a search results message
+      const isSearchResults = 
+        message.content.includes("DATABASE SEARCH RESULTS") || 
+        message.content.includes("RELEVANT INFORMATION") ||
+        message.content.includes("EXACT KEYWORD MATCHES") ||
+        message.content.includes("VERIFIED DATABASE SEARCH RESULTS") ||
+        message.content.includes("RELEVANT URLS") ||
+        message.content.includes("===== ");
+      
+      if (isSearchResults) {
+        // Extract the first URL from the message to highlight as the main source
+        let mainUrl = "";
+        let mainTitle = "";
+        const urlMatch = message.content.match(/URL: (https?:\/\/[^\s]+)/);
+        if (urlMatch && urlMatch[1]) {
+          mainUrl = urlMatch[1];
+          
+          // Try to find the title for this URL
+          const titleRegex = new RegExp(`TITLE: ([^\\n]+)(?:\\n|\\r\\n)URL: ${mainUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`);
+          const titleMatch = message.content.match(titleRegex);
+          if (titleMatch && titleMatch[1]) {
+            mainTitle = titleMatch[1];
+          }
+        }
+        
+        // Render system message with context in a collapsible panel
+        return (
+          <div className="mb-4 px-4">
+            <details className="bg-muted/50 rounded-lg p-2">
+              <summary className="cursor-pointer font-medium text-sm text-muted-foreground flex items-center">
+                <MessageSquare className="inline-block mr-2 h-4 w-4" />
+                <span>Information from Crawled Sites</span>
+                {mainUrl && (
+                  <span className="ml-2 text-xs opacity-70">
+                    (Main source: {mainTitle || mainUrl})
+                  </span>
+                )}
+                <span className="ml-2 text-xs opacity-70">(Click to expand)</span>
+              </summary>
+              <div className="mt-2 text-xs whitespace-pre-wrap overflow-auto max-h-96 p-2">
+                {message.content}
+              </div>
+            </details>
+          </div>
+        );
+      }
     }
     
+    // Regular user or assistant message
     return (
-      <div className="chat-avatar chat-avatar-user">
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path>
-          <circle cx="12" cy="7" r="4"></circle>
-        </svg>
-      </div>
-    );
-  };
-
-  const renderMessage = (message: ChatMessage) => {
-    // Function to format code blocks
-    const formatCodeBlocks = (content: string) => {
-      // Replace code blocks with properly styled elements that include a copy button
-      return content.replace(/```([\s\S]*?)```/g, (match, code) => {
-        const language = code.split('\n')[0].trim();
-        const codeContent = language ? code.substring(language.length).trim() : code.trim();
-        
-        const uniqueId = `code-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-        
-        // Use a completely different HTML structure with minimal styling
-        return `
-          <div class="code-block-container">
-            <pre class="code-block-pre">
-              <code id="${uniqueId}" class="code-block-code">${codeContent}</code>
-              <button class="code-block-button" data-clipboard-target="${uniqueId}">Copy</button>
-            </pre>
-          </div>
-        `;
-      });
-    };
-    
-    // Function to format lists
-    const formatLists = (content: string) => {
-      // Process the content line by line to handle lists properly
-      const lines = content.split('\n');
-      let inOrderedList = false;
-      let inUnorderedList = false;
-      let formattedLines = [];
-      
-      for (let i = 0; i < lines.length; i++) {
-        const line = lines[i];
-        
-        // Check for ordered list items (e.g., "1. Item")
-        const orderedMatch = line.match(/^\s*(\d+)\.\s+(.+)$/);
-        if (orderedMatch) {
-          if (!inOrderedList) {
-            // Start a new ordered list
-            formattedLines.push('<ol class="list-decimal ml-6 my-2">');
-            inOrderedList = true;
-          }
-          formattedLines.push(`<li class="my-1">${orderedMatch[2]}</li>`);
-          continue;
-        }
-        
-        // Check for unordered list items (e.g., "- Item" or "* Item")
-        const unorderedMatch = line.match(/^\s*[-*]\s+(.+)$/);
-        if (unorderedMatch) {
-          if (!inUnorderedList) {
-            // Start a new unordered list
-            formattedLines.push('<ul class="list-disc ml-6 my-2">');
-            inUnorderedList = true;
-          }
-          formattedLines.push(`<li class="my-1">${unorderedMatch[1]}</li>`);
-          continue;
-        }
-        
-        // If we're in a list but the current line is not a list item, close the list
-        if (inOrderedList && !orderedMatch) {
-          formattedLines.push('</ol>');
-          inOrderedList = false;
-        }
-        
-        if (inUnorderedList && !unorderedMatch) {
-          formattedLines.push('</ul>');
-          inUnorderedList = false;
-        }
-        
-        // Add the line as is if it's not part of a list
-        formattedLines.push(line);
-      }
-      
-      // Close any open lists at the end
-      if (inOrderedList) {
-        formattedLines.push('</ol>');
-      }
-      
-      if (inUnorderedList) {
-        formattedLines.push('</ul>');
-      }
-      
-      return formattedLines.join('\n');
-    };
-    
-    // Apply formatting to message content
-    let formattedContent = message.content;
-    formattedContent = formatCodeBlocks(formattedContent);
-    formattedContent = formatLists(formattedContent);
-    formattedContent = formatLinks(formattedContent);
-    
-    // Add line breaks for paragraphs
-    formattedContent = formattedContent.replace(/\n\n/g, '<br /><br />');
-    
-    return (
-      <div
-        key={message.id}
-        className={`flex ${
-          message.role === 'user' ? 'justify-end' : 'justify-start'
-        } mb-4 gap-3`}
-      >
+      <div className={`flex gap-3 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
         {message.role !== 'user' && (
-          <div className="chat-avatar chat-avatar-ai">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              {/* Lightning bolt - represents intelligence and quick thinking */}
-              <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"></path>
-            </svg>
-          </div>
+          <Avatar className="h-8 w-8">
+            <AvatarFallback><Bot size={16} /></AvatarFallback>
+          </Avatar>
         )}
-        <div
-          className={`max-w-[70%] rounded-lg p-3 ${
-            message.role === 'user'
-              ? 'bg-primary text-primary-foreground'
-              : 'bg-[#171923] text-gray-200'
-          }`}
-        >
-          <div 
-            className="prose prose-invert max-w-none text-sm"
-            dangerouslySetInnerHTML={{ __html: formattedContent }}
-          />
-          <div className="text-xs text-right mt-2 opacity-70">
+        <div className={`rounded-lg p-3 max-w-[80%] ${
+          message.role === 'user' 
+            ? 'bg-primary text-primary-foreground' 
+            : 'bg-muted'
+        }`}>
+          <div className="prose dark:prose-invert prose-sm">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              {message.content}
+            </ReactMarkdown>
+          </div>
+          <div className="text-xs mt-1 opacity-70">
             {formatTimestamp(message.created_at)}
           </div>
         </div>
-        {message.role === 'user' && getUserAvatar()}
+        {message.role === 'user' && (
+          <Avatar className="h-8 w-8">
+            {userProfile?.avatar ? (
+              <AvatarImage src={userProfile.avatar} alt="User" />
+            ) : (
+              <AvatarFallback>{userProfile?.name?.[0] || 'U'}</AvatarFallback>
+            )}
+          </Avatar>
+        )}
       </div>
     );
   };
@@ -965,47 +862,24 @@ const ChatPage = () => {
         
         <div className="flex-1 flex flex-col bg-[#0f1117] rounded-lg border border-white/[0.05] overflow-hidden">
           <div className="flex-1 overflow-y-auto p-4" ref={chatContainerRef}>
-            {isLoadingHistory ? (
-              <div className="flex justify-center items-center h-full">
-                <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
-              </div>
-            ) : error ? (
-              <div className="flex flex-col items-center justify-center h-full">
-                <div className="text-destructive mb-4">{error}</div>
-                <div className="flex justify-center space-x-4">
-                  <Button 
-                    onClick={() => window.location.reload()} 
-                    variant="destructive"
-                  >
-                    Refresh Page
-                  </Button>
-                  <Button 
-                    onClick={() => {
-                      setError(null);
-                      refreshProfiles();
-                      refreshChatHistory();
-                    }} 
-                    variant="outline"
-                    className="border-white/[0.05] bg-[#171923] hover:bg-white/[0.06] text-gray-300"
-                  >
-                    Try Again
-                  </Button>
+            {filteredChatHistory.length === 0 ? (
+              <div className="flex items-center justify-center h-full">
+                <div className="text-center">
+                  <Bot className="mx-auto h-12 w-12 text-muted-foreground" />
+                  <h3 className="mt-2 text-lg font-medium">Start a conversation</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Ask questions about your crawled sites or any topic you'd like to discuss
+                  </p>
                 </div>
               </div>
-            ) : filteredChatHistory.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full text-center text-gray-400">
-                <MessageSquare className="h-12 w-12 mb-4 opacity-20" />
-                <h3 className="text-lg font-medium mb-2">No messages yet</h3>
-                <p className="text-sm max-w-md">
-                  Start a conversation by typing a message below.
-                </p>
-              </div>
             ) : (
-              <div className="space-y-6">
-                {filteredChatHistory.map(renderMessage)}
-                <div ref={messagesEndRef} />
-              </div>
+              filteredChatHistory.map((msg) => (
+                <div key={msg.id} className="mb-4">
+                  {renderMessage(msg)}
+                </div>
+              ))
             )}
+            <div ref={messagesEndRef} />
           </div>
 
           <div className="border-t border-white/[0.05] p-4">
@@ -1018,7 +892,7 @@ const ChatPage = () => {
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
-                    handleSendMessage(e);
+                    handleSendMessage();
                   }
                 }}
               />
