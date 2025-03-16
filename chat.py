@@ -763,7 +763,7 @@ Extract up to 3 key preferences or details, prioritizing the most salient ones.
         return []
     
     def _regular_search(self, query: str) -> List[Dict[str, Any]]:
-        """Perform a regular search using hybrid vector and text search.
+        """Perform a regular search based on the query.
         
         Args:
             query: The user's query.
@@ -771,6 +771,9 @@ Extract up to 3 key preferences or details, prioritizing the most salient ones.
         Returns:
             A list of search results.
         """
+        # Log the search query for debugging
+        console.print(f"[blue]Performing regular search for: {query}[/blue]")
+        
         # If the profile specifies specific sites to search, filter by site name
         if self.search_sites:
             console.print(f"[blue]Filtering search to {len(self.search_sites)} sites...[/blue]")
@@ -792,120 +795,70 @@ Extract up to 3 key preferences or details, prioritizing the most salient ones.
             
             console.print(f"[blue]Found {len(site_ids)} matching sites: {', '.join(site_names)}[/blue]")
             
-            # If we have matching sites, search each one
+            # If we have site IDs, search each site separately
             if site_ids:
-                all_results = []
+                console.print(f"[blue]Searching {len(site_ids)} sites...[/blue]")
                 
-                for site_id in site_ids:
-                    console.print(f"[blue]Searching site ID: {site_id}[/blue]")
-                    
-                    # Try both vector and keyword search
+                all_results = []
+                for i, site_id in enumerate(site_ids):
                     try:
-                        # First try vector search with the profile threshold
-                        results = self.crawler.search(
-                            query=query,
-                            use_embedding=True,
-                            threshold=self.search_threshold,
-                            limit=self.search_limit,
+                        console.print(f"[blue]Searching site: {site_names[i]} (ID: {site_id})[/blue]")
+                        
+                        # Use the crawler's search method for each site
+                        site_results = self.crawler.search(
+                            query, 
+                            limit=self.result_limit,
+                            threshold=max(0.2, self.similarity_threshold - 0.1),  # Lower threshold slightly for better recall
                             site_id=site_id
                         )
                         
-                        if results:
-                            all_results.extend(results)
-                            console.print(f"[green]Found {len(results)} results from site ID: {site_id}[/green]")
-                        
+                        all_results.extend(site_results)
                     except Exception as e:
-                        console.print(f"[red]Error searching site ID {site_id}: {e}[/red]")
+                        console.print(f"[red]Error searching site {site_names[i]} (ID: {site_id}): {e}[/red]")
                 
-                # Sort the results by similarity
+                # Sort by similarity score and limit to result_limit
                 all_results.sort(key=lambda x: x.get("similarity", 0), reverse=True)
+                all_results = all_results[:self.result_limit]
                 
-                # Return the top results
-                console.print(f"[green]Found {len(all_results)} results across all matching sites[/green]")
-                return all_results[:self.search_limit]
-            
-            # If no matching sites, fall back to searching all sites
-            console.print("[yellow]No matching sites found, falling back to searching all sites[/yellow]")
+                if all_results:
+                    console.print(f"[green]Found {len(all_results)} results across {len(site_ids)} sites[/green]")
+                    return all_results
+                else:
+                    console.print("[yellow]No results found across specified sites, searching all sites[/yellow]")
         
-        # Search all sites using standard hybrid search
+        # If no site IDs or no results from site-specific search, do a general search
         console.print(f"[blue]Searching all sites with query: '{query}'[/blue]")
         
-        try:
-            # Try to run two parallel searches:
-            # 1. A vector search with the standard threshold
-            # 2. A text-only search for exact matches
-            
-            # First, try vector search
-            vector_results = self.crawler.search(
-                query=query,
-                use_embedding=True,
-                threshold=self.search_threshold,
-                limit=self.search_limit * 2
-            )
-            
-            if vector_results:
-                console.print(f"[green]Vector search found {len(vector_results)} results[/green]")
-            else:
-                console.print("[yellow]Vector search found no results[/yellow]")
-            
-            # Also run a text-only search
-            text_results = self.crawler.search(
-                query=query,
-                use_embedding=False,  # Text-only search
-                threshold=0,  # No threshold for text search
-                limit=self.search_limit * 2
-            )
-            
-            if text_results:
-                console.print(f"[green]Text search found {len(text_results)} results[/green]")
-            else:
-                console.print("[yellow]Text search found no results[/yellow]")
-            
-            # Combine results, prioritizing those that appear in both searches
-            combined_results = {}
-            
-            # Process vector results
-            for result in vector_results:
-                result_id = result.get("id")
-                if result_id:
-                    combined_results[result_id] = result
-                    # Mark this as coming from vector search
-                    result["found_in_vector"] = True
-                    result["found_in_text"] = False
-            
-            # Process text results
-            for result in text_results:
-                result_id = result.get("id")
-                if not result_id:
-                    continue
-                    
-                if result_id in combined_results:
-                    # This result was found in both searches - boost its similarity
-                    combined_results[result_id]["found_in_text"] = True
-                    # Boost similarity for results found in both searches
-                    current_similarity = combined_results[result_id].get("similarity", 0)
-                    combined_results[result_id]["similarity"] = min(current_similarity + 0.2, 1.0)
+        # Use the crawler's search method for all sites with a slightly lower threshold
+        results = self.crawler.search(
+            query, 
+            limit=self.result_limit,
+            threshold=max(0.2, self.similarity_threshold - 0.1),  # Lower threshold slightly for better recall
+        )
+        
+        if results:
+            console.print(f"[green]Found {len(results)} results[/green]")
+        else:
+            # If no results with vector search, try a keyword search
+            console.print("[yellow]No results found with semantic search, trying keyword search[/yellow]")
+            try:
+                keyword_results = self.crawler.search(
+                    query=query,
+                    use_embedding=False,  # Use text search for keywords
+                    threshold=0.5,
+                    limit=self.result_limit,
+                    site_id=None  # Search all sites
+                )
+                
+                if keyword_results:
+                    console.print(f"[green]Found {len(keyword_results)} keyword results[/green]")
+                    return keyword_results
                 else:
-                    # This is only from text search
-                    result["found_in_vector"] = False
-                    result["found_in_text"] = True
-                    # Give it a base similarity score
-                    if "similarity" not in result or result["similarity"] is None:
-                        result["similarity"] = 0.65
-                    combined_results[result_id] = result
+                    console.print("[red]No results found with keyword search either[/red]")
+            except Exception as e:
+                console.print(f"[red]Error in keyword search: {e}[/red]")
             
-            # Convert to list and sort by similarity
-            results = list(combined_results.values())
-            results.sort(key=lambda x: x.get("similarity", 0), reverse=True)
-            
-            console.print(f"[green]Combined search found {len(results)} unique results[/green]")
-            
-            # Return top results
-            return results[:self.search_limit]
-            
-        except Exception as e:
-            console.print(f"[red]Error in search: {e}[/red]")
-            return []
+        return results
     
     def _search_for_urls(self, query: str) -> List[Dict[str, Any]]:
         """Search for URLs based on the query.
@@ -918,41 +871,66 @@ Extract up to 3 key preferences or details, prioritizing the most salient ones.
         """
         console.print(f"[blue]URL query detected, searching for URLs...[/blue]")
         
-        all_urls = []
+        # Extract domain parts if present
+        domain_parts = re.findall(r'[\w\.-]+\.\w+', query)
+        domain = domain_parts[0] if domain_parts else None
         
-        # If we have specific sites in the profile, search those
-        if self.search_sites:
-            for site_pattern in self.search_sites:
-                try:
-                    urls = self.crawler.db_client.get_urls_by_site_name(site_pattern, limit=self.result_limit)
-                    all_urls.extend(urls)
-                except Exception as e:
-                    console.print(f"[red]Error getting URLs for site pattern '{site_pattern}': {e}[/red]")
-        else:
-            # Get URLs from all sites
-            try:
-                all_sites = self.crawler.db_client.get_all_sites()
-                for site in all_sites:
-                    urls = self.crawler.db_client.get_urls_by_site_name(site["name"], limit=5)
-                    all_urls.extend(urls)
-            except Exception as e:
-                console.print(f"[red]Error getting URLs from all sites: {e}[/red]")
-        
-        # Sort by ID (most recent first) and limit to result_limit
-        all_urls.sort(key=lambda x: x.get("id", 0), reverse=True)
-        all_urls = all_urls[:self.result_limit]
-        
-        # Add a flag to indicate these are URL results
-        for url in all_urls:
-            url["is_url_result"] = True
-        
-        if all_urls:
-            console.print(f"[green]Found {len(all_urls)} URLs[/green]")
-        else:
-            console.print("[yellow]No URLs found, falling back to regular search[/yellow]")
-            return self._regular_search(query)
+        if domain:
+            console.print(f"[blue]Detected domain: {domain}[/blue]")
             
-        return all_urls
+            # Use the crawler's search method directly with the domain as the query
+            # This will use vector search to find the most relevant results
+            try:
+                # First try with the domain as the query
+                results = self.crawler.search(
+                    query=domain,
+                    limit=self.result_limit,
+                    threshold=0.2,  # Lower threshold for better recall
+                )
+                
+                if results:
+                    console.print(f"[green]Found {len(results)} results for domain: {domain}[/green]")
+                    
+                    # Mark these as URL results
+                    for result in results:
+                        result["is_url_result"] = True
+                    
+                    # Print the top results for debugging
+                    console.print("[blue]Top URL results:[/blue]")
+                    for i, result in enumerate(results[:3]):
+                        console.print(f"[blue]Result {i+1}: {result.get('title', 'No title')} - URL: {result.get('url', 'No URL')} - Similarity: {result.get('similarity', 0):.4f}[/blue]")
+                    
+                    return results
+                else:
+                    console.print(f"[yellow]No results found for domain: {domain}, trying with full query[/yellow]")
+                    
+                    # Try with the full query
+                    results = self.crawler.search(
+                        query=query,
+                        limit=self.result_limit,
+                        threshold=0.2,  # Lower threshold for better recall
+                    )
+                    
+                    if results:
+                        console.print(f"[green]Found {len(results)} results for query: {query}[/green]")
+                        
+                        # Mark these as URL results
+                        for result in results:
+                            result["is_url_result"] = True
+                        
+                        # Print the top results for debugging
+                        console.print("[blue]Top URL results:[/blue]")
+                        for i, result in enumerate(results[:3]):
+                            console.print(f"[blue]Result {i+1}: {result.get('title', 'No title')} - URL: {result.get('url', 'No URL')} - Similarity: {result.get('similarity', 0):.4f}[/blue]")
+                        
+                        return results
+            except Exception as e:
+                console.print(f"[red]Error searching for domain: {e}[/red]")
+        
+        # If we get here, either there was no domain or the search failed
+        # Fall back to regular search
+        console.print("[yellow]No domain detected or search failed, falling back to regular search[/yellow]")
+        return self._regular_search(query)
     
     def _search_for_best_content(self, query: str, lower_threshold: bool = False) -> List[Dict[str, Any]]:
         """Search for the best content based on the query.
