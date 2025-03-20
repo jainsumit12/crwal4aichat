@@ -10,7 +10,26 @@ load_dotenv()
 # Parse database connection parameters from environment variables
 def get_db_params():
     """Get database connection parameters from environment variables."""
-    # Check if a full URL is provided
+    # Check if a PostgreSQL connection string is provided
+    db_url = os.getenv('SUPABASE_URL')
+    
+    if db_url and db_url.startswith('postgresql://'):
+        # Parse PostgreSQL connection string
+        # Format: postgresql://user:password@host:port/database
+        pattern = r'postgresql://([^:]+):([^@]+)@([^:]+):(\d+)/(.+)'
+        match = re.match(pattern, db_url)
+        
+        if match:
+            user, password, host, port, database = match.groups()
+            return {
+                'host': host,
+                'port': int(port),
+                'database': database,
+                'user': user,
+                'password': password
+            }
+    
+    # Check if a full URL is provided (backward compatibility)
     supabase_url = os.getenv('SUPABASE_URL')
     
     if supabase_url:
@@ -25,20 +44,23 @@ def get_db_params():
             host = parts[0]
             port = int(parts[1]) if len(parts) > 1 else 5432
         
+        # Use DB_USER if provided, otherwise fall back to SUPABASE_KEY
+        user = os.getenv('DB_USER') or os.getenv('SUPABASE_KEY', 'postgres')
+        
         return {
             'host': host,
             'port': port,
             'database': os.getenv('SUPABASE_DB', 'postgres'),
-            'user': os.getenv('SUPABASE_KEY', 'postgres'),
+            'user': user,
             'password': os.getenv('SUPABASE_PASSWORD', 'postgres')
         }
     else:
-        # Use individual components if no URL is provided
+        # Use individual components if no URL is provided (local development)
         return {
             'host': os.getenv('SUPABASE_HOST', '192.168.70.90'),
             'port': int(os.getenv('SUPABASE_PORT', '54322')),
             'database': os.getenv('SUPABASE_DB', 'postgres'),
-            'user': os.getenv('SUPABASE_KEY', 'postgres'),
+            'user': os.getenv('DB_USER') or os.getenv('SUPABASE_KEY', 'postgres'),
             'password': os.getenv('SUPABASE_PASSWORD', 'postgres')
         }
 
